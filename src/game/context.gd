@@ -225,8 +225,14 @@ func save(slot_v: int = -1) -> bool:
 	if f == null:
 		return false
 	# full_precision: TS JSON.stringify keeps full doubles — lossless round-trips
-	f.store_string(JSON.stringify(to_save_data(), "", false, true))
-	return true
+	var payload := JSON.stringify(to_save_data(), "", false, true)
+	f.store_string(payload)
+	f.flush()  # land the buffered bytes now, not at handle teardown
+	# TS writeFileSync throws on a failed write = fail-loud; a silent success
+	# here would report a save over a truncated file (disk full). Godot 4.2
+	# quirk: a short fwrite ERR_FAILs but leaves the handle's error state OK,
+	# so get_error() alone cannot see it — verify the payload landed complete.
+	return f.get_error() == OK and f.get_length() == payload.to_utf8_buffer().size()
 
 
 func load(slot_v: int) -> bool:

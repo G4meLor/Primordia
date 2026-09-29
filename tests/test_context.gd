@@ -28,6 +28,7 @@ const SLOT_ISO_B := 101
 const SLOT_ISO_C := 102
 const SLOT_BEST := 103   # bestiary list gate
 const SLOT_ABSENT := 104 # never written
+const SLOT_DIR := 105    # write failure: a DIRECTORY squatting on the slot path
 
 
 func _g(mods: Dictionary = {}) -> Dictionary:
@@ -452,6 +453,29 @@ func test_save_refuses_menu_and_default_slot() -> void:
 	c.slot = SLOT_MENU
 	ok(c.save(), "save() defaults to the active slot")
 	ok(FileAccess.file_exists(_path(SLOT_MENU)), "file written to the default slot")
+
+
+func test_save_reports_write_failure() -> void:
+	# a DIRECTORY squatting on the slot path makes the open/write fail — TS
+	# writeFileSync throws = fail-loud, so the native save must report false
+	# instead of returning true over a truncated/missing file
+	if DirAccess.dir_exists_absolute(_path(SLOT_DIR)):
+		DirAccess.remove_absolute(_path(SLOT_DIR))
+	DirAccess.make_dir_recursive_absolute(_path(SLOT_DIR))  # directory AS the slot path
+	ok(not FileAccess.file_exists(_path(SLOT_DIR)), "pre: no file at the slot path")
+	var ctx = Ctx.new(7)
+	ctx.stage = "cell"
+	ctx.dna = 55
+	eq(ctx.save(SLOT_DIR), false, "save over a directory path reports false")
+	# the context is untouched by the failed save
+	eq(ctx.stage, "cell", "failed save leaves the context untouched")
+	eq(ctx.dna, 55, "failed save leaves dna untouched")
+	# and nothing readable appeared at the slot (load falls back to fresh)
+	var loader = Ctx.new(1)
+	ok(not loader.load(SLOT_DIR), "nothing loads from the failed slot")
+	ok(DirAccess.dir_exists_absolute(_path(SLOT_DIR)), "directory still there (nothing replaced it)")
+	DirAccess.remove_absolute(_path(SLOT_DIR))
+	ok(not DirAccess.dir_exists_absolute(_path(SLOT_DIR)), "cleanup at test end")
 
 
 func test_junk_and_malformed_files() -> void:
