@@ -23,6 +23,7 @@ const SELF_SCRIPT := "res://src/evo/ecosystem.gd"
 const GenomeScript := preload("res://src/evo/genome.gd")
 const NamesScript := preload("res://src/evo/names.gd")
 const MutationScript := preload("res://src/evo/mutation.gd")
+const WorldGenomeScript := preload("res://src/evo/world_genome.gd")
 
 # ---- kin_memory valves (catalog I.b: the ledger must not be a life sentence)
 ## Grudge half-life: ~40 short generations (mid-band of the catalog's 30-50).
@@ -481,23 +482,12 @@ func to_json() -> Dictionary:
 
 
 # worldGenome.ts flagFrom: a world flag is live when any carried trait lists
-# an effect {kind: 'flag', key}. world_genome.gd lands with the world-genome
-# task; until then the eco needs only this narrow read (tolerant of absent or
-# malformed world blobs — a gate that cannot be read stays shut).
+# an effect {kind: 'flag', key}. Delegates to world_genome.gd's world_has —
+# one home, two consumers: the eco reads raw world blobs, the codex reads
+# full genomes, both ride the same tolerant walk (a gate that cannot be read
+# stays shut).
 static func _world_has(world: Dictionary, key: String) -> bool:
-	var traits: Variant = world.get("traits")
-	if not (traits is Array):
-		return false
-	for t in traits:
-		if not (t is Dictionary):
-			continue
-		var effects: Variant = t.get("effects")
-		if not (effects is Array):
-			continue
-		for e in effects:
-			if e is Dictionary and e.get("kind") == "flag" and e.get("key") == key:
-				return true
-	return false
+	return WorldGenomeScript.world_has(world, key)
 
 
 # JS truthiness for the boolean EcoMods flags (selection_sweep/rot_circle):
