@@ -51,8 +51,8 @@ func test_echo_events_ignored() -> void:
 
 func test_unmapped_key_ignored() -> void:
 	var inp: Variant = InputScript.new()
-	inp.handle_event(_key_ev(KEY_Q, true))
-	eq(inp.key_pressed("KeyQ"), false, "unmapped code not tracked")
+	inp.handle_event(_key_ev(KEY_Z, true))
+	eq(inp.key_pressed("KeyZ"), false, "unmapped code not tracked")
 	eq(inp.any_key_pressed(), false, "no any_key_pressed for unmapped key")
 
 
@@ -69,7 +69,7 @@ func test_held_key_polls_input_singleton() -> void:
 
 func test_key_unmapped_code_is_false() -> void:
 	var inp: Variant = InputScript.new()
-	eq(inp.key("KeyQ"), false, "unmapped code reads false")
+	eq(inp.key("KeyZ"), false, "unmapped code reads false")
 	eq(inp.key("Nope"), false, "unknown string reads false")
 
 
@@ -134,9 +134,14 @@ func test_code_map_round_trips_every_key() -> void:
 	# every TS code string in the map must reverse-map from its physical key
 	var inp: Variant = InputScript.new()
 	var codes: Dictionary = InputScript.CODES
-	ok(codes.size() >= 15, "map covers the keys the game uses")
+	# exact pin: 23 audited frozen-game code strings + Enter (placeholder menu)
+	eq(codes.size(), 24, "map is complete for the frozen game")
 	eq(codes.get("Space"), KEY_SPACE, "Space")
 	eq(codes.get("KeyShift"), KEY_SHIFT, "KeyShift")
+	eq(codes.get("KeyF"), KEY_F, "KeyF (creature)")
+	eq(codes.get("KeyG"), KEY_G, "KeyG (space)")
+	eq(codes.get("KeyQ"), KEY_Q, "KeyQ (creature)")
+	eq(codes.get("KeyV"), KEY_V, "KeyV (space/civ)")
 	eq(codes.get("Escape"), KEY_ESCAPE, "Escape")
 	eq(codes.get("Enter"), KEY_ENTER, "Enter (placeholder menu)")
 	eq(codes.get("Digit1"), KEY_1, "Digit1")

@@ -16,13 +16,16 @@
 class_name GameInput
 extends RefCounted
 
-## TS code string -> Godot physical keycode. Enter serves the placeholder menu.
+## TS code string -> Godot physical keycode. Complete for the whole frozen
+## game: every code string grepped from key()/keyPressed() call sites (23
+## distinct) plus Enter for the placeholder menu.
 const CODES := {
 	"KeyW": KEY_W, "KeyA": KEY_A, "KeyS": KEY_S, "KeyD": KEY_D,
 	"ArrowUp": KEY_UP, "ArrowDown": KEY_DOWN,
 	"ArrowLeft": KEY_LEFT, "ArrowRight": KEY_RIGHT,
 	"Space": KEY_SPACE, "KeyShift": KEY_SHIFT,
-	"KeyE": KEY_E, "Digit1": KEY_1, "Digit2": KEY_2, "Digit3": KEY_3,
+	"KeyE": KEY_E, "KeyF": KEY_F, "KeyG": KEY_G, "KeyQ": KEY_Q, "KeyV": KEY_V,
+	"Digit1": KEY_1, "Digit2": KEY_2, "Digit3": KEY_3,
 	"KeyR": KEY_R, "KeyT": KEY_T, "Tab": KEY_TAB,
 	"KeyM": KEY_M, "Escape": KEY_ESCAPE, "Enter": KEY_ENTER,
 }
