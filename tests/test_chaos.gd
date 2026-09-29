@@ -311,6 +311,48 @@ func test_weight_floor_0_01() -> void:
 	eq(stg.events, ["apply:N"], "weight clamps to the max(0.01, w) floor")
 
 
+# --- ctx pass-through (T12 deferred minor) ------------------------------------
+
+
+func test_weight_callable_reads_mood_and_ctx_extras() -> void:
+	# The scheduler forwards the WHOLE ctx Dictionary to every weight Callable
+	# untouched — a scripted def reads `mood` (storyteller-driven odds) and the
+	# stage extras (`night` / `mirrors` / `dominance`) must arrive verbatim.
+	var got: Array = []
+	var w_bless := func(ctx):
+		got.append(ctx)
+		return 1.0 if ctx.get("mood") == "bless" else 0.0
+	# seed hunt (≈50% per seed): 1.0-vs-1.0 must pick B, 0.01-vs-1.0 must pick P
+	var seed_b := 0
+	for s in range(1, 2001):
+		if Rng.new(s).weighted([[1.0, "B"], [1.0, "P"]]) == "B" \
+				and Rng.new(s).weighted([[0.01, "B"], [1.0, "P"]]) == "P":
+			seed_b = s
+			break
+	ok(seed_b > 0, "found a seed discriminating weight 1.0 from the 0.01 floor")
+	# mood "bless": the scripted weight rides at full strength and wins the draw
+	var stg := FakeStage.new()
+	var sch: Variant = Chaos.new(Rng.new(seed_b), [_mk("B", {"weight": w_bless}), _mk("P", {})])
+	sch.gap = 0.0
+	var ctx := {"chaos": 0.0, "karma": 0.0, "stageTime": 0.0,
+			"mood": "bless", "night": true, "mirrors": ["b"], "dominance": 3.5}
+	sch.update(1.0, stg, ctx)
+	eq(stg.events, ["apply:B"], "mood 'bless' gates the scripted weight in")
+	eq(got.size(), 1, "the weight Callable ran exactly once (one spawn attempt)")
+	eq(got[0], ctx, "the ctx the weight sees equals the ctx passed to update")
+	eq(got[0].get("mood"), "bless", "mood key arrives intact")
+	eq(got[0].get("night"), true, "night flag arrives intact")
+	eq(got[0].get("mirrors"), ["b"], "mirrors list arrives verbatim")
+	eq(got[0].get("dominance"), 3.5, "dominance number arrives verbatim")
+	# mood anything else: the scripted weight floors to 0.01 and 'P' wins
+	var stg2 := FakeStage.new()
+	var sch2: Variant = Chaos.new(Rng.new(seed_b), [_mk("B", {"weight": w_bless}), _mk("P", {})])
+	sch2.gap = 0.0
+	sch2.update(1.0, stg2, CTX0)  # no mood key at all — the def reads null
+	eq(stg2.events, ["apply:P"], "no mood key: scripted weight floors, plain wins")
+	eq(got[1].get("mood"), null, "absent mood reads as null inside the weight")
+
+
 # --- gap scaling --------------------------------------------------------------
 
 
