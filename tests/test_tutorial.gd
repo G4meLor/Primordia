@@ -58,6 +58,9 @@ class MockGame extends RefCounted:
 	func set_cursor(c: String) -> void:
 		cursors.append(c)
 
+	func hover_cursor() -> void:
+		cursors.append("pointer")
+
 
 var _hits := 0
 
@@ -190,3 +193,30 @@ func test_inactive_engine_never_advances() -> void:
 	eq(int(tut.step_index), 0, "inactive engine never advances")
 	tut.finish()
 	eq(int(g.saves), 0, "finish on an inactive engine is a no-op (TS guard)")
+
+
+# ---- the skip chip: 0.4s HOLD (tutorial.ts:49-68) ------------------------------
+
+func test_skip_chip_needs_a_0_4s_hold() -> void:
+	_en()
+	var g: Variant = MockGame.new()
+	var stage: Variant = CellStageScript.new(g)
+	stage.sim = CellSimScript.new(g.context, RngScript.new_from(5), {})
+	var tut: Variant = TutorialScript.new(g, "tutCell", stage._build_tutorial_steps())
+	# press INSIDE the chip rect (the pre-draw stub sits at (0,0) 92x30)
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = Vector2(10.0, 10.0)
+	g.input.handle_event(press)
+	ok(g.input.is_down(), "mouse held")
+	tut.update(0.2)
+	eq(bool(tut.active), true, "0.2s hold does not skip")
+	tut.update(0.2)
+	eq(bool(tut.active), true, "0.4s hold does not skip (strictly > 0.4)")
+	tut.update(0.2)
+	eq(bool(tut.active), false, "0.6s hold skips")
+	eq(String(g.context.flags.get("tutCell", "")), "done", "skip persists the flag")
+	eq(int(g.saves), 1, "skip flushes the stage-state save (TS comment)")
+	eq(bool(g.input.was_clicked()), false, "the skip consumes the click (TS takeClick)")
+	eq(g.toasts.size(), 0, "a SKIPPED tutorial fires no good-luck toast (natural end only)")

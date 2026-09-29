@@ -71,7 +71,7 @@ func update(dt: float) -> void:
 	var over := float(input.mx) >= float(r["x"]) and float(input.mx) <= float(r["x"]) + float(r["w"]) \
 			and float(input.my) >= float(r["y"]) and float(input.my) <= float(r["y"]) + float(r["h"])
 	if over:
-		_game.set_cursor("pointer")
+		_game.hover_cursor()
 	if bool(input.is_down()) and over:
 		skip_hold += dt
 		if skip_hold > 0.4:

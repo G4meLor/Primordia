@@ -43,6 +43,11 @@ var pending_go_to: Variant = null # {id, card, survivesQuit} | null
 
 ## TS `_cursor` (game.ts:153) — dedupes the per-frame cursor writes.
 var _cursor := "default"
+## A UI layer requested the pointer cursor this frame (hover_cursor). The
+## frame resolution keeps it without re-touching the DisplayServer — every
+## X11 cursor-shape CHANGE swallows the next queued motion event, so the
+## TS per-frame base-set + hover-override pattern must not flap natively.
+var _hover_seen := false
 ## The game-level Particles pool (TS `fx = new Particles(1100)`) behind the
 ## stub-dict Callables — cap per the M2 T7 ruling.
 var _fx_pool: Variant = null
@@ -205,13 +210,14 @@ func _resize() -> void:
 ## The loop's update side — TS Game.update(dt) with this task's scope (see
 ## class header for what lands in Task 9 / later tasks).
 func _do_update(dt: float) -> void:
-	# base cursor for this frame — UI layers upgrade it on hover (game.ts:262)
+	# TS game.ts:262 sets the frame's base cursor here and lets UI layers
+	# upgrade it on hover; natively the base resolves at the END of the frame
+	# (see the tail of this func) so a steady hover never flaps the OS shape.
 	var base_cursor := "crosshair"
 	if current == null or current.id == "menu" or paused:
 		base_cursor = "default"
 	elif transition != null and transition["phase"] == "card":
 		base_cursor = "pointer"
-	set_cursor(base_cursor)
 	var c: Variant = context
 	c.playtime += dt
 	# editor & pause freeze gameplay
@@ -237,6 +243,13 @@ func _do_update(dt: float) -> void:
 	# KeyM mute routes here in TS game.ts:313; Escape routing (game.ts:314-320)
 	# is Task 9's. hud.update runs every frame, blocked or not (TS game.ts:321).
 	hud["update"].call(dt)
+	# frame cursor resolution (TS game.ts:262 moved here): UI hover upgrades
+	# win — and a steady hover re-applies nothing (each X11 shape change
+	# swallows the next queued motion event, so idle frames stay silent)
+	if _hover_seen:
+		_hover_seen = false
+	else:
+		set_cursor(base_cursor)
 	input.end_frame()
 
 
@@ -330,6 +343,25 @@ func set_cursor(c: String) -> void:
 			Input.set_default_cursor_shape(Input.CURSOR_CROSS)
 		_:
 			Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+	# X11/Godot quirk (probed 2026-09-30): a cursor-shape CHANGE swallows the
+	# next queued InputEventMouseMotion — the TS canvas cursor style has no
+	# such side effect. Feed a sacrificial no-op motion (the wrapper's current
+	# position, so the dispatch is a state no-op) that absorbs the swallow and
+	# keeps the real input stream intact for bots and players alike.
+	var dummy := InputEventMouseMotion.new()
+	dummy.position = Vector2(input.mx, input.my)
+	dummy.global_position = dummy.position
+	Input.parse_input_event(dummy)
+	Input.flush_buffered_events()
+
+
+## The UI-layer hover upgrade (TS setCursor('pointer') over a hover rect).
+## Marks the frame so the end-of-frame base resolution keeps the pointer —
+## a steady hover issues NO further DisplayServer calls (see _hover_seen:
+## every X11 cursor-shape CHANGE swallows the next queued motion event).
+func hover_cursor() -> void:
+	_hover_seen = true
+	set_cursor("pointer")
 
 
 # ---- game fx pool forwards (the dict Callables bind these) ------------------------

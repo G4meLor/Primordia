@@ -59,6 +59,12 @@ class MockGame extends RefCounted:
 	func open_pause() -> void:
 		pause_opens += 1
 
+	func set_cursor(_c: String) -> void:
+		pass
+
+	func hover_cursor() -> void:
+		pass
+
 
 func _hud(g: Variant) -> Variant:
 	return HudScript.new(g)

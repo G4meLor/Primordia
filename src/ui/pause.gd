@@ -113,7 +113,7 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 		for it in items:
 			var hover := _hover(it)
 			if hover:
-				_game.set_cursor("pointer")
+				_game.hover_cursor()
 			RendererScript.panel(ci, float(it["x"]), float(it["y"]), float(it["w"]), float(it["h"]), {
 				"fill": RendererScript.css_color("rgba(40,70,140,0.9)") if hover
 						else RendererScript.css_color("rgba(10,18,40,0.9)"),
@@ -293,7 +293,7 @@ func _draw_back_band(ci: CanvasItem) -> void:
 	var back: Dictionary = items[items.size() - 1]
 	var hover := _hover(back)
 	if hover:
-		_game.set_cursor("pointer")
+		_game.hover_cursor()
 	RendererScript.panel(ci, float(back["x"]), float(back["y"]), float(back["w"]), float(back["h"]), {
 		"fill": RendererScript.css_color("rgba(40,70,140,0.9)") if hover
 				else RendererScript.css_color("rgba(10,18,40,0.9)"),

@@ -240,7 +240,7 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 	_button(ci, _mute_rect, "🔇" if bool(_game.muted) else "🔊")
 	if _hit(float(_game.input.mx), float(_game.input.my), _menu_rect) \
 			or _hit(float(_game.input.mx), float(_game.input.my), _mute_rect):
-		_game.set_cursor("pointer")
+		_game.hover_cursor()
 
 	# ---- objective --------------------------------------------------------------
 	if show_objective != null:
