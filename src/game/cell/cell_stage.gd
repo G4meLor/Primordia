@@ -30,11 +30,15 @@ const RendererScript := preload("res://src/gfx/renderer.gd")
 const BackdropScript := preload("res://src/gfx/backdrop.gd")
 const CellPainterScript := preload("res://src/gfx/cell_painter.gd")
 const GlitchShader := preload("res://src/gfx/glitch_overlay.gdshader")
+const TutorialScript := preload("res://src/ui/tutorial.gd")
 
 var sim: Variant = null            # CellSim (RefCounted sim core)
 var fx: Variant = null             # stage Particles pool (TS `new Fx(1200)`)
 var frozen := false                # test seam: render without stepping the sim
 var glitch_forced := false         # test seam: draw the glitch overlay w/o the event
+## TS CellStage private tutorial (Task 8) — built once in on_enter from
+## _build_tutorial_steps(); the engine itself is src/ui/tutorial.gd.
+var tutorial: Variant = null
 
 var world_canvas: Node2D = null
 var _back_buffer: BackBufferCopy = null
@@ -345,7 +349,29 @@ func on_enter(from: Variant = null) -> void:
 func on_exit() -> void:
 	if sim != null:
 		game.context.eco = sim.eco
-	# TS also finishes the tutorial here (Task 8).
+	# TS onExit: the tutorial finishes on every exit EXCEPT a quit-to-title
+	# (CellStage.ts:264-267) — the flag persists only on forward evolution.
+	if game.transition_target != "menu":
+		if tutorial != null:
+			tutorial.finish()
+
+
+## TS CellStage.ts:253-260 — the first-run tutorial table, verbatim. Step
+## texts stay raw EN keys (translated at render by the engine); done lambdas
+## poll the sim counters (and, for the legs step, the live genome).
+func _build_tutorial_steps() -> Array:
+	return [
+		{"id": "move", "text": "Hold LEFT MOUSE — swim toward the cursor.",
+			"done": func() -> bool: return float(sim.tut["moved"]) > 140.0},
+		{"id": "eat", "text": "Bump into the green bits to EAT them. Food is DNA.",
+			"done": func() -> bool: return int(sim.tut["eaten"]) >= 3},
+		{"id": "editor", "text": "Press E — the EDITOR. Buy parts with DNA (try a Flagellum).",
+			"done": func() -> bool: return int(sim.tut["editorOpened"]) >= 1},
+		{"id": "kill", "text": "Smaller cells are FOOD — bite one (E first to upgrade if it fights back!).",
+			"done": func() -> bool: return int(sim.tut["killed"]) >= 1},
+		{"id": "legs", "text": "Buy a LEG (65 DNA), then press the 🐢 CRAWL ASHORE button.",
+			"done": func() -> bool: return float(game.context.genome.get("legs", 0)) >= 1.0},
+	]
 
 
 # ---- hooks (CellSim → scene/game/storyteller) -------------------------------------
