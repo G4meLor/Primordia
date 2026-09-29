@@ -120,9 +120,12 @@ func assert_sane(game: Variant) -> PackedStringArray:
 		out.append("dna not finite")
 	elif float(c.dna) < 0.0:
 		out.append("dna < 0: %s" % str(c.dna))
-	if float(c.chaos) < 0.0 or float(c.chaos) > 1.0:
+	# NaN-hardened: TS's toBeGreaterThanOrEqual/toBeLessThanOrEqual FAIL on
+	# NaN, while GDScript's `x < 0 or x > 1` silently passes it (every NaN
+	# comparison is false) — the range gate must reject non-finite like TS.
+	if not is_finite(float(c.chaos)) or float(c.chaos) < 0.0 or float(c.chaos) > 1.0:
 		out.append("chaos out of [0,1]: %s" % str(c.chaos))
-	if float(c.karma) < -1.0 or float(c.karma) > 1.0:
+	if not is_finite(float(c.karma)) or float(c.karma) < -1.0 or float(c.karma) > 1.0:
 		out.append("karma out of [-1,1]: %s" % str(c.karma))
 	if c.stage == "cell" and game.current != null and game.current.sim != null:
 		var sim: Variant = game.current.sim
