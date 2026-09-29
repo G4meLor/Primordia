@@ -48,10 +48,11 @@ var _cursor := "default"
 var _fx_pool: Variant = null
 
 ## Stubs of the TS overlays, dictionaries of no-op Callables replaced by their
-## tasks (hud/editor: UI tasks; fx: particles task). editor keeps an "open"
-## flag because the update loop reads it.
+## tasks (hud/editor/pause: Task 8 UI; fx: particles task). editor keeps an
+## "open" flag because the update loop reads it.
 var hud: Dictionary = {}
 var editor: Dictionary = {"open": false}
+var pause: Dictionary = {}
 var fx: Dictionary = {}
 
 
@@ -77,6 +78,10 @@ func _init(context_v: Variant = null) -> void:
 	}
 	editor["update"] = func(_dt: float) -> void: pass
 	editor["close"] = func() -> void: pass
+	pause = {
+		"open": func() -> void: pass,
+		"update": func(_dt: float) -> void: pass,
+	}
 	# TS `fx = new Particles(1100)` — the real pool under the stub-dict shape;
 	# bursts stay no-ops until their callers land, render/update are live.
 	_fx_pool = ParticlesScript.new(1100)
@@ -213,7 +218,8 @@ func _do_update(dt: float) -> void:
 	var blocked: bool = paused or editor["open"]
 	if not blocked:
 		_update_transition(dt)
-		# TS routes hud clicks first here (hud is a stub until the UI task)
+		# TS routes hud clicks first here (game.ts:277-281 — the game.gd call
+		# site lands with Task 9; hud.pointer_down is live on the real hud)
 		# freeze the stage sim during the story card — the WELCOME BACK card
 		# used to burn the arrival invuln and spawn-ambush the player (TS:285)
 		if transition == null or transition["phase"] != "card":
@@ -223,8 +229,13 @@ func _do_update(dt: float) -> void:
 		cam.update_view_bounds(vw, vh)
 		fx["update"].call(dt)
 		# autosave / chaos settle / karma drift / pumpWorldStory: Task 9
-	# KeyM mute (Task 2 audio) and Escape→pause (pause menu task) route here
-	# in TS game.ts:313-320.
+	else:
+		# TS game.ts:308-311 — while an overlay blocks gameplay the overlay
+		# menus tick instead of the stage (pause first, then the editor).
+		pause["update"].call(dt)
+		editor["update"].call(dt)
+	# KeyM mute routes here in TS game.ts:313; Escape routing (game.ts:314-320)
+	# is Task 9's. hud.update runs every frame, blocked or not (TS game.ts:321).
 	hud["update"].call(dt)
 	input.end_frame()
 
@@ -279,6 +290,25 @@ func save_all() -> bool:
 	if current != null and current.has_method("persist_state"):
 		current.persist_state()
 	return context.save()
+
+
+# ---- overlay controls (TS game.ts:228-251 — the API the hud buttons, the
+# pause actions and Task 9's Escape routing call) ----------------------------
+
+func open_pause() -> void:
+	paused = true
+	pause["open"].call()
+	# TS also plays the 'click' audio cue (audio core: its own task).
+
+
+func close_pause() -> void:
+	paused = false
+
+
+func toggle_mute() -> void:
+	muted = not muted
+	# TS audio.setMuted(this.muted) — audio core: its own task
+	i18n.set_muted(muted)  # persist across sessions (TS setMuted)
 
 
 ## Convenience for stages: shake the main camera (TS camShakeFor).
