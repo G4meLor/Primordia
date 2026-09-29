@@ -15,7 +15,7 @@
 # stderr and exit 1.
 extends Node
 
-const MainScript := preload("res://src/main.gd")  # MenuPlaceholder inner class
+const MenuStageScript := preload("res://src/game/menu.gd")  # the REAL menu since Task 9
 const GameScript := preload("res://src/game/game.gd")
 const ContextScript := preload("res://src/game/context.gd")
 const CellStageScript := preload("res://src/game/cell/cell_stage.gd")
@@ -148,7 +148,9 @@ func _prologue() -> bool:
 		_fail("prologue: expected menu after 5 steps, got %s" % str(_game.context.stage))
 		return false
 	var menu: Variant = _game.current
-	menu.start_new_game()
+	# the seed rides along (see test_bot_arc.gd's prologue note — the real
+	# menu replaces the context world)
+	menu.start_new_game(0, "normal", SEED)
 	var steps := 0
 	while _game.context.stage != "cell" and steps < TRANSITION_POLL:
 		_game.step_for_testing(1, DT)
@@ -169,7 +171,7 @@ func _build_game() -> Variant:
 	# refactor re-enables processing.
 	game.set_process(false)
 	game.loop.is_active_cb = func() -> bool: return false
-	game.register(MainScript.MenuPlaceholder.new(game))
+	game.register(MenuStageScript.new(game))
 	game.register(CellStageScript.new(game))
 	game.start()
 	return game

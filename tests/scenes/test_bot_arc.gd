@@ -25,7 +25,8 @@
 # (the smoke phase fails there, by design).
 extends Node
 
-const MainScript := preload("res://src/main.gd")  # MenuPlaceholder inner class
+const MainScript := preload("res://src/main.gd")  # kept for the boot-path doc; the menu is the REAL MenuStage since Task 9
+const MenuStageScript := preload("res://src/game/menu.gd")
 const GameScript := preload("res://src/game/game.gd")
 const ContextScript := preload("res://src/game/context.gd")
 const CellStageScript := preload("res://src/game/cell/cell_stage.gd")
@@ -145,9 +146,13 @@ func _prologue(game: Variant) -> bool:
 		_fail("prologue: expected menu after 5 steps, got %s" % str(game.context.stage))
 		return false
 	# start_new_game DIRECTLY — TS-true (bot.test.ts:61-62 comment: menu logic
-	# smoke-tested separately; the UI click flow is Task 9's scene test)
+	# smoke-tested separately; the UI click flow is Task 9's scene test). The
+	# seed rides along (menu.ts startNewGame's own comment: a bare new
+	# GameContext() rolls the meta randi() and the probe's seed would be
+	# clobbered) — the real menu replaces the context world, so the pinned
+	# world must be re-pinned through it for the native determinism gate.
 	var menu: Variant = game.current
-	menu.start_new_game()
+	menu.start_new_game(0, "normal", game.context.seed)
 	var steps := 0
 	while game.context.stage != "cell" and steps < TRANSITION_POLL:
 		game.step_for_testing(1, DT)
@@ -155,9 +160,9 @@ func _prologue(game: Variant) -> bool:
 	if game.context.stage != "cell":
 		_fail("prologue: cell stage not reached within %d steps" % TRANSITION_POLL)
 		return false
-	# the card-slot: the placeholder menu fires the no-title transition
-	# (out 0.55 → in 0.6 — the WELCOME card shape lands with Task 9), so this
-	# walks the in-fade plus the first live seconds of the run
+	# the card-slot: the REAL menu fires the 'CELL STAGE' title card
+	# (out 0.55 → card 2.2 → in 0.6 = 2.8s < CARD_STEPS 180), so this walks
+	# the in-fade plus the first live seconds of the run
 	game.step_for_testing(CARD_STEPS, DT)
 	return true
 
@@ -184,9 +189,11 @@ func _arc_post() -> void:
 	# second pass: quantized exacts must match field-for-field
 	for k in fp:
 		if _fps[hex]["fp"].get(k) != fp[k]:
+			var p0: String = str(_pro_fps[0]) if _pro_fps.size() > 0 else "?"
+			var p1: String = str(_pro_fps[1]) if _pro_fps.size() > 1 else "?"
 			_fail("determinism seed=%s: fingerprint %s differs (run1=%s run2=%s) prologue=%s vs %s first-divergence=%s" % [
 					hex, k, str(_fps[hex]["fp"].get(k)), str(fp[k]),
-					str(_pro_fps[0]), str(_pro_fps[1]),
+					p0, p1,
 					_first_trace_divergence(hex)])
 			return
 	print("BOT_ARC_OK seed=%s ents=%d dna=%d fp=%s" % [
@@ -231,7 +238,10 @@ func _build_game(seed_v: int) -> Variant:
 	# step_for_testing path is untouched.
 	game.set_process(false)
 	game.loop.is_active_cb = func() -> bool: return false
-	game.register(MainScript.MenuPlaceholder.new(game))
+	# the REAL MenuStage since Task 9 — start_new_game keeps the TS method
+	# name the bot calls (TS-bot parity, bot.test.ts:62); its card-slot below
+	# now walks the full out → card('CELL STAGE') → in shape
+	game.register(MenuStageScript.new(game))
 	game.register(CellStageScript.new(game))
 	game.start()
 	return game

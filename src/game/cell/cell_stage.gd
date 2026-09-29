@@ -58,6 +58,7 @@ var world_canvas: Node2D = null
 var _back_buffer: BackBufferCopy = null
 var glitch_overlay: Node2D = null
 var ui_canvas: Node2D = null
+var veil_canvas: Node2D = null
 var hud_canvas: Node2D = null
 var editor_canvas: Node2D = null
 var pause_canvas: Node2D = null
@@ -116,6 +117,13 @@ func _ready() -> void:
 	ui_canvas.layer = "ui"
 	ui_canvas.name = "UICanvas"
 	add_child(ui_canvas)
+	# Task 9 transition veil (see the header's draw-order note): the TS
+	# game-level overlay slots HERE — between the stage's UI and the hud.
+	veil_canvas = StageCanvas.new()
+	veil_canvas.stage = self
+	veil_canvas.layer = "veil"
+	veil_canvas.name = "VeilCanvas"
+	add_child(veil_canvas)
 	hud_canvas = StageCanvas.new()
 	hud_canvas.stage = self
 	hud_canvas.layer = "hud"
@@ -187,6 +195,8 @@ func _draw_layer(kind: String, ci: CanvasItem) -> void:
 			_draw_world(ci)
 		"ui":
 			_draw_ui(ci)
+		"veil":
+			game.draw_transition_veil(ci)
 		"hud":
 			if hud_inst != null:
 				hud_inst.draw(ci, game.vw, game.vh)
@@ -460,6 +470,7 @@ func render() -> void:
 				"strength", 0.06 + sin(sim.time * 12.0) * 0.03)
 	world_canvas.queue_redraw()
 	ui_canvas.queue_redraw()
+	veil_canvas.queue_redraw()
 	hud_canvas.queue_redraw()
 	var editor_open: bool = bool(game.editor["open"])
 	editor_canvas.visible = editor_open
@@ -602,6 +613,20 @@ func _h_shore_travel() -> void:
 	game.input.take_click()
 	game.go_to("creature", {"title": "THE LONG WALK",
 			"sub": "400 million years of ambition, one nervous step onto land"})
+
+
+# ---- game-level beat gates (TS CellStage.ts:1312-1324 — the pump checks the
+# STAGE surface, game.ts:393-398/517; the sim owns the bodies) ------------------
+
+## gaia_redemption tier 2: the Lone Wanderer spawn (the sim's rare-gene quiet
+## individual).
+func gaia_wanderer() -> void:
+	if sim != null:
+		sim.gaia_wanderer()
+
+
+func has_active_chaos() -> bool:
+	return sim != null and sim.chaos.active_events().size() > 0
 
 
 # ---- input snapshot ----------------------------------------------------------------
