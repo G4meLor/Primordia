@@ -6,7 +6,7 @@ Ngày: 2026-09-29 · Trạng thái: sim core hoàn tất, mọi test xanh. Spec 
 
 Nguyên tắc cốt lõi của port: **sim layer là GDScript thuần trên `RefCounted`** — không Node, không scene, không `_process`; test được hoàn toàn headless.
 
-- `src/core/`, `src/evo/`, `src/game/` — các class thuần, chỉ phụ thuộc lẫn nhau + `Rng`. GameContext phát event bằng **Godot signal** (`dna_gained`, `toast`) thay cho Bus/EV của TS — signal là API Godot duy nhất sim dùng, không đụng scene tree.
+- `src/core/`, `src/evo/`, `src/game/` — các class thuần, chỉ phụ thuộc lẫn nhau + `Rng`. GameContext phát event bằng **Godot signal** (`dna_gained`, `toast`) thay cho Bus/EV của TS. Điểm chung của sim: **không phụ thuộc scene tree** (không Node/scene/`_process`) — ngoài signal, sim chỉ dùng các API Godot phi-scene: `tr()` (TranslationServer fallback), `push_error`, `FileAccess` (save/load).
 - Scene layer (Node2D/Control, input, camera, renderer procedural) vào ở **Milestone 2+** (cell stage full parity — xem spec §5). Scene chỉ gọi sim qua API công khai; không sim logic trong `_process` của node.
 - Every def/data shape giữ wire của TS: Dictionary với key TS-verbatim (camelCase nơi cần parity save-wire: `totalDnaEarned`, `killsByPlayer`, `comboFired`…), gene/stats nội bộ snake_case.
 
@@ -23,7 +23,7 @@ Cùng seed → cùng thế giới, bit-exact với bản TS:
 Fixtures JSON trong `tests/fixtures/` được sinh **một lần** từ repo TS frozen (`~/Desktop/RD/Spore`) bằng vitest (`tools/fixture-gen.test.ts` ở repo TS — tool không đụng game source). 6 file: `rng_stream`, `genome_stats`, `eco_tick`, `mutate_crossover`, `world_genome`, `storyteller_walk`; schema + recipe chi tiết trong `tests/fixtures/fixtures.README.md`.
 
 - Test native so kết quả với JSON — **exactness hơn elegance**: float ghi full IEEE-754 double như `JSON.stringify`.
-- Trong test GDScript, so float **không bao giờ dùng eps 0.0** — luôn `approx()` với eps ≥ 1e-9 (default của `tests/test_base.gd`) để né khác biệt parse/inRepresentation; fixture continuity được đảm bảo bởi chuỗi draw giống TS (cùng thứ tự consume).
+- Trong test GDScript, so float **cho mọi so sánh fixture/parity không bao giờ dùng eps 0.0** — luôn `approx()` với eps ≥ 1e-9 (default của `tests/test_base.gd`) để né khác biệt parse/inRepresentation; fixture continuity được đảm bảo bởi chuỗi draw giống TS (cùng thứ tự consume). Ngoại lệ cố ý: so native-vs-native cùng công thức (vd. `tests/test_rng.gd:92,163` — hai stream cùng seed phải bằng bit) dùng eps 0.0 đúng, vì không có JSON parse nào xen vào.
 
 ## 4. Test runner — zero plugin
 
@@ -56,4 +56,4 @@ Ràng buộc `-s` mode (không có editor script class cache — fresh clone/CI)
 | `src/game/chaos.gd` | `src/game/chaos.ts` | Chaos scheduler: warn→apply→tick→end, cooldown, stacking cap, MirrorLedger |
 | `src/game/context.gd` | `src/game/context.ts` | GameContext: DNA/karma/chaos, bestiary, signals, save/load JSON v1 native |
 
-i18n: sim không có user-facing string qua i18n (names là procedural) — `tr()` (TranslationServer, key = câu EN) chỉ xuất hiện ở context toast; CSV VI/EN là stage-milestone sau. Save: JSON `FileAccess` + `JSON.stringify` full precision tại `user://saves/`, shape-validate chặt (corrupt → start fresh), không migrate save TS.
+i18n: sim không có user-facing string qua i18n (names là procedural) — `tr()` (TranslationServer, key = câu EN) chỉ xuất hiện ở context toast; CSV VI/EN là stage-milestone sau. Save: JSON `FileAccess` + `JSON.stringify` full precision tại `user://saves/`, shape-validate chặt (corrupt → start fresh), không migrate save TS. Lưu ý wire-key: **mọi bề mặt save-wire giữ key TS-verbatim camelCase** (`totalDnaEarned`, `killsByPlayer`, `comboFired`…) **trừ eco-species blob** — nó ride key native snake_case (`kills_by_player`, `grudge_t`, `harass_t` — seam naming từ Task 8, xem `ecosystem.gd` `from_json`), vì save native không bao giờ gặp save TS; công cụ save sau này đừng assum uniform camelCase.

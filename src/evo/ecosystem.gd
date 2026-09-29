@@ -177,9 +177,11 @@ func tick(dt: float, player_species_id: String = "") -> Dictionary:
 		if s["id"] == player_species_id or s["kin"]:
 			continue  # player line is hand-driven
 		var g: Dictionary = s["genome"]
-		# kin_memory decay valve (catalog I.b): the ledger fades — halve the
-		# grudge every ~40 short generations (~30 s each for micro-organisms →
-		# a 20 game-min half-life). Int-clamped; at 0 the network is neutral.
+		# kin_memory decay valve (catalog I.b): the ledger fades — grudge_t
+		# accrues dt until it reaches the half-life threshold
+		# GRUDGE_HALFLIFE_GEN × GRUDGE_GEN_SECONDS (40 gen × 30 s = 1200 s,
+		# ≈ 20 game-min), then grudge halves (int floor) and the timer resets.
+		# Grudge 0 skips the branch: the network is already neutral.
 		if s.get("kin_tag") == true and float(s.get("grudge", 0.0)) > 0.0:
 			s["grudge_t"] = float(s.get("grudge_t", 0.0)) + dt
 			if float(s["grudge_t"]) >= float(GRUDGE_HALFLIFE_GEN * GRUDGE_GEN_SECONDS):
