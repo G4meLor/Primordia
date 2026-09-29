@@ -1,0 +1,40 @@
+{
+ "viewport": [
+  1152,
+  648
+ ],
+ "asserts": {
+  "menu.title-text": "10760 bright px in the title band",
+  "menu.panel-1": "263 label px in menu button 1",
+  "menu.panel-2": "312 label px in menu button 2",
+  "menu.panel-3": "256 label px in menu button 3",
+  "menu.gradient-direction": "top (10, 25, 58) vs bottom (5, 14, 36) (soup: surface band lighter)",
+  "menu.deep-corner": "(7, 18, 48)",
+  "menu.drifters-animate": "700 sampled side-zone px moved in 1 s",
+  "cell_early.center-hue120": "(47, 109, 47)",
+  "cell_early.membrane-inside-green": "(67, 183, 67)",
+  "cell_early.depth-gradient": "surface band (8, 19, 40) vs deep band (5, 11, 26) (equal vignette radius)",
+  "cell_early.dna-counter": "236 helix/text px in the DNA panel",
+  "chaos_banner.banner-tint": "37561 chaos-bg px in the banner panel",
+  "chaos_banner.banner-title": "3440 stroke/title px",
+  "chaos_banner.meteor-ring": "707 red-ring px in the world band",
+  "editor.row-1": "184 name-text px in row band 1",
+  "editor.row-2": "77 name-text px in row band 2",
+  "editor.row-3": "98 name-text px in row band 3",
+  "editor.row-4": "88 name-text px in row band 4",
+  "editor.row-5": "144 name-text px in row band 5",
+  "editor.row-6": "163 name-text px in row band 6",
+  "editor.row-7": "223 name-text px in row band 7",
+  "editor.row-8": "192 name-text px in row band 8",
+  "editor.row-9": "91 name-text px in row band 9",
+  "editor.row-10": "67 name-text px in row band 10",
+  "editor.parts-header": "124 CELL PARTS header px",
+  "editor.overlay-wash": "(4, 8, 20)",
+  "editor.dna-display-updates": "259 footer px changed after the real purchase click",
+  "death.red-wash": "8/8 samples lifted red: [(28, 18, 35), (25, 16, 35), (30, 22, 41), (24, 14, 30), (23, 9, 22), (41, 25, 30), (41, 25, 30), (23, 9, 22)]",
+  "death.rebirth-text": "2025 REBIRTH IS PAINFUL px",
+  "death.player-hidden": "(255, 154, 138)",
+  "card.veil": "corners at (2,3,10) \u00b12",
+  "card.card-title": "3980 title px"
+ }
+}
