@@ -21,8 +21,11 @@ func _ready() -> void:
 	add_child(game)
 	game.stage_factory = func() -> Array:
 		# fresh instances every NEW LIFE (game.ts:116-118) — run-1 latches
-		# must not leak into run 2 (C1 deck rebuild, totem/civ/space latches)
-		return [MenuStageScript.new(game), CellStageScript.new(game)]
+		# must not leak into run 2 (C1 deck rebuild, totem/civ/space latches).
+		# GAMEPLAY stages only (TS main.ts:35-41): the menu persists — the map
+		# keeps the registered instance, quit-to-title reuses it (the drifter
+		# phase survives), TS shape.
+		return [CellStageScript.new(game)]
 	game.register(MenuStageScript.new(game))
 	game.start()
 	var env := OS.get_environment("PRIMORDIA_BOOT_QUIT_FRAMES")

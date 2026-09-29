@@ -157,15 +157,19 @@ func _flow_game(seed_v: int, with_factory := false) -> Variant:
 	g.set_process_unhandled_input(false)
 	g.loop.is_active_cb = func() -> bool: return false
 	# pin the locale/mute defaults deterministically (the shared user cfg may
-	# carry anything) and keep mute/lang writes out of it — game.muted was
-	# read at construction, before the redirect, so re-sync it
+	# carry anything, and detect_lang() reads the OS locale — a VI machine
+	# would translate the continue-sub assert) and keep mute/lang writes out
+	# of it — game.muted was read at construction, before the redirect, so
+	# re-sync it
 	g.i18n.settings_path = SCRATCH_CFG
 	_wipe_cfg()
 	g.i18n.load_settings()
+	g.i18n.set_lang("en")
 	g.muted = g.i18n.get_muted()
 	if with_factory:
+		# TS main.ts shape: gameplay stages only — the menu persists in the map
 		g.stage_factory = func() -> Array:
-			return [MenuStageScript.new(g), FakeCellStage.new(g)]
+			return [FakeCellStage.new(g)]
 	g.register(MenuStageScript.new(g))
 	g.register(FakeCellStage.new(g))
 	g.register(BareStage.new(g, "creature"))

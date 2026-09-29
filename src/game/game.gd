@@ -516,7 +516,11 @@ func pump_world_story(dt: float) -> void:
 				break
 	if herd_crashed and c.playtime >= dying_until \
 			and current != null and current.has_method("gaia_wanderer") \
-			and not current.has_active_chaos():
+			and (not current.has_method("has_active_chaos")
+					or not current.has_active_chaos()):
+		# TS `!(current as {hasActiveChaos?}).hasActiveChaos?.()` — the optional
+		# call reads "no active chaos" when the stage implements the wanderer
+		# without the chaos probe.
 		storyteller.offer_beat("gaia_wanderer")
 
 	# world_temperament: the ONE pacing personality, assigned every frame

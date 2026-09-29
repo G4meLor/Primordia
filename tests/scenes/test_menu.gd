@@ -23,6 +23,8 @@ const TIMEOUT_FRAMES := 900  # the full card transition is 3.35s of wall time
 
 var _main: Variant = null
 var _driver: Variant = null
+const SCRATCH_CFG := "user://test_menu_settings.cfg"
+
 var _phase := "boot"
 var _frames := 0
 var _done := false
@@ -39,6 +41,17 @@ func _ready() -> void:
 				dir.remove("slot%d.json" % i)
 	_main = MainScene.instantiate()
 	add_child(_main)
+	# locale isolation (test_game_flow's pattern): the shared user cfg may
+	# carry lang=vi, which would translate the EN label fragments below
+	# ("▶ BEGIN" → "▶ BẮT ĐẦU") — pin EN through a scratch cfg
+	var g: Variant = _main.game
+	g.i18n.settings_path = SCRATCH_CFG
+	var cfg_dir := DirAccess.open("user://")
+	if cfg_dir != null:
+		cfg_dir.remove("test_menu_settings.cfg")
+		cfg_dir.remove("test_menu_settings.cfg.tmp")
+	g.i18n.load_settings()
+	g.i18n.set_lang("en")
 
 
 func _process(_dt: float) -> void:

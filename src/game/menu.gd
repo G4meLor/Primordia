@@ -44,6 +44,7 @@ var slot_metas: Array = []
 
 var rng: Variant = null
 var canvas: Node2D = null
+var veil_canvas: Node2D = null
 
 
 ## One full-screen canvas the menu repaints every frame (cell-stage pattern).
@@ -52,6 +53,17 @@ class MenuCanvas extends Node2D:
 	func _draw() -> void:
 		if stage != null:
 			stage._draw_menu(self)
+
+
+## The transition veil layer — drawn above the menu UI (the cell stage's
+## reserved-slot pattern: the TS game-level overlay slots between the stage's
+## UI and the hud; the menu has no hud, so the veil is simply its top layer).
+## game.draw_transition_veil draws nothing while no transition is live.
+class MenuVeil extends Node2D:
+	var stage: Variant = null
+	func _draw() -> void:
+		if stage != null:
+			stage.game.draw_transition_veil(self)
 
 
 func _init(game_v: Variant = null) -> void:
@@ -73,6 +85,10 @@ func _ready() -> void:
 	canvas.stage = self
 	canvas.name = "MenuCanvas"
 	add_child(canvas)
+	veil_canvas = MenuVeil.new()
+	veil_canvas.stage = self
+	veil_canvas.name = "MenuVeil"
+	add_child(veil_canvas)
 	# T7 hand-off (cam.gd rig ownership): the Camera2D rig boots enabled +
 	# current with the DRAG_CENTER anchor, which shifts the whole default
 	# canvas by (+vw/2, +vh/2) — the menu draws in absolute screen space, so
@@ -165,6 +181,8 @@ func update(dt: float) -> void:
 func render() -> void:
 	if canvas != null:
 		canvas.queue_redraw()
+	if veil_canvas != null:
+		veil_canvas.queue_redraw()
 
 
 # ---- actions -----------------------------------------------------------------
@@ -177,6 +195,11 @@ func continue_slot(slot: int) -> void:
 		# the row showed 'CELL · 12 min · 500 DNA' one click earlier. Mark it
 		# and let the player delete (trash) or start over deliberately.
 		corrupt_slots[slot] = true
+		# NOTE: on FIRST boot this toast lands in the pre-hud stub dict (no
+		# real hud exists before any cell entry) and is invisible; after any
+		# cell visit the quit-to-title path keeps the real hud dict installed,
+		# so it displays. TS shows it always (its hud is a Game singleton) —
+		# documented divergence, do not silently drop in a refactor.
 		game.hud["toast"].call(
 				game.i18n.tr_key("This slot is corrupted — delete it in CONTINUE, or use NEW LIFE"),
 				"bad", "⚠️")
