@@ -1,0 +1,800 @@
+{
+  "seeds": [
+    {
+      "seed": 0,
+      "traitIds": [
+        "old_blood",
+        "mutation_moon",
+        "hungry_bloom",
+        "iron_gut"
+      ],
+      "temperament": "none",
+      "turnIds": []
+    },
+    {
+      "seed": 1,
+      "traitIds": [
+        "temperament_bands",
+        "hungry_bloom",
+        "toxin_sea",
+        "swift_world",
+        "iron_gut"
+      ],
+      "temperament": "none",
+      "turnIds": []
+    },
+    {
+      "seed": 2,
+      "traitIds": [
+        "pirate_wind",
+        "mutation_moon",
+        "hungry_bloom",
+        "toxin_sea",
+        "kin_memory",
+        "world_temperament"
+      ],
+      "temperament": "cradle",
+      "turnIds": []
+    },
+    {
+      "seed": 3,
+      "traitIds": [
+        "toxin_sea",
+        "swift_world",
+        "kin_memory",
+        "mutation_moon",
+        "iron_gut"
+      ],
+      "temperament": "none",
+      "turnIds": [
+        "epoch_apex",
+        "great_frost"
+      ]
+    },
+    {
+      "seed": 4,
+      "traitIds": [
+        "old_blood",
+        "mutation_moon",
+        "toxin_sea",
+        "kin_memory",
+        "world_temperament",
+        "pirate_wind"
+      ],
+      "temperament": "cradle",
+      "turnIds": [
+        "epoch_apex"
+      ]
+    },
+    {
+      "seed": 5,
+      "traitIds": [
+        "mutation_moon",
+        "pirate_wind",
+        "temperament_bands",
+        "world_temperament",
+        "swift_world"
+      ],
+      "temperament": "wildcard",
+      "turnIds": [
+        "great_frost",
+        "epoch_gate"
+      ]
+    },
+    {
+      "seed": 6,
+      "traitIds": [
+        "temperament_bands",
+        "kin_memory",
+        "calm_veil",
+        "old_blood",
+        "iron_gut",
+        "toxin_sea"
+      ],
+      "temperament": "none",
+      "turnIds": [
+        "great_frost"
+      ]
+    },
+    {
+      "seed": 7,
+      "traitIds": [
+        "swift_world",
+        "pirate_wind",
+        "old_blood",
+        "kin_memory"
+      ],
+      "temperament": "none",
+      "turnIds": [
+        "epoch_gate"
+      ]
+    },
+    {
+      "seed": 8,
+      "traitIds": [
+        "iron_gut",
+        "pirate_wind",
+        "swift_world",
+        "mutation_moon",
+        "world_temperament"
+      ],
+      "temperament": "lean",
+      "turnIds": [
+        "great_frost",
+        "epoch_gate"
+      ]
+    },
+    {
+      "seed": 9,
+      "traitIds": [
+        "iron_gut",
+        "calm_veil",
+        "toxin_sea",
+        "temperament_bands",
+        "old_blood",
+        "kin_memory"
+      ],
+      "temperament": "none",
+      "turnIds": [
+        "epoch_gate"
+      ]
+    },
+    {
+      "seed": 10,
+      "traitIds": [
+        "swift_world",
+        "temperament_bands",
+        "hungry_bloom",
+        "mutation_moon"
+      ],
+      "temperament": "none",
+      "turnIds": [
+        "epoch_gate",
+        "great_frost"
+      ]
+    },
+    {
+      "seed": 11,
+      "traitIds": [
+        "iron_gut",
+        "temperament_bands",
+        "world_temperament",
+        "toxin_sea"
+      ],
+      "temperament": "wildcard",
+      "turnIds": []
+    },
+    {
+      "seed": 12,
+      "traitIds": [
+        "iron_gut",
+        "kin_memory",
+        "world_temperament",
+        "calm_veil"
+      ],
+      "temperament": "wildcard",
+      "turnIds": []
+    },
+    {
+      "seed": 13,
+      "traitIds": [
+        "hungry_bloom",
+        "temperament_bands",
+        "toxin_sea",
+        "swift_world",
+        "world_temperament"
+      ],
+      "temperament": "wildcard",
+      "turnIds": [
+        "epoch_gate"
+      ]
+    },
+    {
+      "seed": 14,
+      "traitIds": [
+        "hungry_bloom",
+        "world_temperament",
+        "kin_memory",
+        "swift_world",
+        "temperament_bands"
+      ],
+      "temperament": "cradle",
+      "turnIds": [
+        "epoch_apex",
+        "great_frost"
+      ]
+    },
+    {
+      "seed": 15,
+      "traitIds": [
+        "old_blood",
+        "mutation_moon",
+        "swift_world",
+        "iron_gut",
+        "world_temperament",
+        "pirate_wind"
+      ],
+      "temperament": "cradle",
+      "turnIds": [
+        "great_frost"
+      ]
+    },
+    {
+      "seed": 16,
+      "traitIds": [
+        "old_blood",
+        "mutation_moon",
+        "iron_gut",
+        "pirate_wind"
+      ],
+      "temperament": "none",
+      "turnIds": [
+        "epoch_apex"
+      ]
+    },
+    {
+      "seed": 17,
+      "traitIds": [
+        "mutation_moon",
+        "temperament_bands",
+        "pirate_wind",
+        "world_temperament"
+      ],
+      "temperament": "wildcard",
+      "turnIds": [
+        "epoch_apex",
+        "epoch_gate"
+      ]
+    },
+    {
+      "seed": 18,
+      "traitIds": [
+        "pirate_wind",
+        "kin_memory",
+        "toxin_sea",
+        "world_temperament",
+        "mutation_moon",
+        "hungry_bloom"
+      ],
+      "temperament": "cradle",
+      "turnIds": []
+    },
+    {
+      "seed": 19,
+      "traitIds": [
+        "world_temperament",
+        "old_blood",
+        "pirate_wind",
+        "toxin_sea",
+        "swift_world"
+      ],
+      "temperament": "wildcard",
+      "turnIds": [
+        "great_frost"
+      ]
+    }
+  ],
+  "walks": {
+    "seed0": {
+      "steps": [
+        {
+          "step": 0,
+          "why": "t0 baseline — nothing met",
+          "signals": {
+            "stage": "cell",
+            "timer": 0,
+            "chaos": 0,
+            "kills": 0,
+            "extinctions": 0
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 1,
+          "why": "just under hungry_bloom (cell 90)",
+          "signals": {
+            "stage": "cell",
+            "timer": 89,
+            "chaos": 0,
+            "kills": 0,
+            "extinctions": 0
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 2,
+          "why": "boundary — reveals hungry_bloom",
+          "signals": {
+            "stage": "cell",
+            "timer": 90,
+            "chaos": 0,
+            "kills": 0,
+            "extinctions": 0
+          },
+          "revealed": [
+            "hungry_bloom"
+          ],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 3,
+          "why": "just under old_blood (cell 180)",
+          "signals": {
+            "stage": "cell",
+            "timer": 179,
+            "chaos": 0,
+            "kills": 0,
+            "extinctions": 0
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 4,
+          "why": "boundary — reveals old_blood",
+          "signals": {
+            "stage": "cell",
+            "timer": 180,
+            "chaos": 0,
+            "kills": 0,
+            "extinctions": 0
+          },
+          "revealed": [
+            "old_blood"
+          ],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 5,
+          "why": "just under iron_gut (kill 15)",
+          "signals": {
+            "stage": "cell",
+            "timer": 200,
+            "chaos": 0,
+            "kills": 14,
+            "extinctions": 0
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 6,
+          "why": "boundary — reveals iron_gut",
+          "signals": {
+            "stage": "cell",
+            "timer": 200,
+            "chaos": 0,
+            "kills": 15,
+            "extinctions": 0
+          },
+          "revealed": [
+            "iron_gut"
+          ],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 7,
+          "why": "under toxin_sea band; selection_sweep trigger (0.45) not met and toxin_sea absent anyway",
+          "signals": {
+            "stage": "cell",
+            "timer": 200,
+            "chaos": 0.44,
+            "kills": 15,
+            "extinctions": 0
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 8,
+          "why": "just under mutation_moon (chaos > 0.6)",
+          "signals": {
+            "stage": "cell",
+            "timer": 200,
+            "chaos": 0.59,
+            "kills": 15,
+            "extinctions": 0
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 9,
+          "why": "boundary — reveals mutation_moon",
+          "signals": {
+            "stage": "cell",
+            "timer": 200,
+            "chaos": 0.61,
+            "kills": 15,
+            "extinctions": 0
+          },
+          "revealed": [
+            "mutation_moon"
+          ],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 10,
+          "why": "stageEnter creature — no matching trait, no-op",
+          "signals": {
+            "stage": "creature",
+            "timer": 0,
+            "chaos": 0.61,
+            "kills": 15,
+            "extinctions": 0
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 11,
+          "why": "stageTime in creature — no matching trait",
+          "signals": {
+            "stage": "creature",
+            "timer": 100,
+            "chaos": 0.61,
+            "kills": 15,
+            "extinctions": 0
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 12,
+          "why": "stageEnter tribe — pirate_wind absent",
+          "signals": {
+            "stage": "tribe",
+            "timer": 0,
+            "chaos": 0.61,
+            "kills": 15,
+            "extinctions": 0
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 13,
+          "why": "war_graves trigger met but old_blood+pirate_wind pair incomplete",
+          "signals": {
+            "stage": "tribe",
+            "timer": 60,
+            "chaos": 0.61,
+            "kills": 15,
+            "extinctions": 0
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 14,
+          "why": "stageEnter civ — calm_veil absent",
+          "signals": {
+            "stage": "civ",
+            "timer": 0,
+            "chaos": 0.61,
+            "kills": 15,
+            "extinctions": 0
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 15,
+          "why": "extinct signal exercised; rot_circle needs toxin_sea, no turns derived",
+          "signals": {
+            "stage": "cell",
+            "timer": 220,
+            "chaos": 0.61,
+            "kills": 15,
+            "extinctions": 1
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 16,
+          "why": "final — all five stage ids visited",
+          "signals": {
+            "stage": "space",
+            "timer": 0,
+            "chaos": 0.61,
+            "kills": 15,
+            "extinctions": 1
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        }
+      ],
+      "final": {
+        "traitIds": [
+          "old_blood",
+          "mutation_moon",
+          "hungry_bloom",
+          "iron_gut"
+        ],
+        "temperament": "none",
+        "revealed": {
+          "hungry_bloom": true,
+          "old_blood": true,
+          "iron_gut": true,
+          "mutation_moon": true
+        },
+        "comboFired": {},
+        "firedTurns": {}
+      }
+    },
+    "seed2": {
+      "steps": [
+        {
+          "step": 0,
+          "why": "t0 baseline",
+          "signals": {
+            "stage": "cell",
+            "timer": 0,
+            "chaos": 0,
+            "kills": 0,
+            "extinctions": 0
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 1,
+          "why": "reveals hungry_bloom",
+          "signals": {
+            "stage": "cell",
+            "timer": 90,
+            "chaos": 0,
+            "kills": 0,
+            "extinctions": 0
+          },
+          "revealed": [
+            "hungry_bloom"
+          ],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 2,
+          "why": "no-op tick after a reveal",
+          "signals": {
+            "stage": "cell",
+            "timer": 91,
+            "chaos": 0,
+            "kills": 0,
+            "extinctions": 0
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 3,
+          "why": "under world_temperament (cell 300)",
+          "signals": {
+            "stage": "cell",
+            "timer": 250,
+            "chaos": 0,
+            "kills": 0,
+            "extinctions": 0
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 4,
+          "why": "reveals world_temperament",
+          "signals": {
+            "stage": "cell",
+            "timer": 300,
+            "chaos": 0,
+            "kills": 0,
+            "extinctions": 0
+          },
+          "revealed": [
+            "world_temperament"
+          ],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 5,
+          "why": "just under toxin_sea (chaos > 0.45)",
+          "signals": {
+            "stage": "cell",
+            "timer": 300,
+            "chaos": 0.44,
+            "kills": 0,
+            "extinctions": 0
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 6,
+          "why": "exact 0.45 — `above` is strict, still hidden",
+          "signals": {
+            "stage": "cell",
+            "timer": 300,
+            "chaos": 0.45,
+            "kills": 0,
+            "extinctions": 0
+          },
+          "revealed": [
+            "toxin_sea"
+          ],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 7,
+          "why": "reveals toxin_sea",
+          "signals": {
+            "stage": "cell",
+            "timer": 300,
+            "chaos": 0.46,
+            "kills": 0,
+            "extinctions": 0
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 8,
+          "why": "boundary — reveals kin_memory (kill 1)",
+          "signals": {
+            "stage": "cell",
+            "timer": 300,
+            "chaos": 0.46,
+            "kills": 1,
+            "extinctions": 0
+          },
+          "revealed": [
+            "kin_memory"
+          ],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 9,
+          "why": "just under mutation_moon",
+          "signals": {
+            "stage": "cell",
+            "timer": 300,
+            "chaos": 0.59,
+            "kills": 1,
+            "extinctions": 0
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 10,
+          "why": "reveals mutation_moon; selection_sweep fires (requires both revealed, chaos > 0.45)",
+          "signals": {
+            "stage": "cell",
+            "timer": 300,
+            "chaos": 0.61,
+            "kills": 1,
+            "extinctions": 0
+          },
+          "revealed": [
+            "mutation_moon"
+          ],
+          "combos": [
+            "selection_sweep"
+          ],
+          "turn": null
+        },
+        {
+          "step": 11,
+          "why": "extinct ≥ 1 — rot_circle fires (hungry_bloom + toxin_sea revealed)",
+          "signals": {
+            "stage": "cell",
+            "timer": 300,
+            "chaos": 0.61,
+            "kills": 5,
+            "extinctions": 1
+          },
+          "revealed": [],
+          "combos": [
+            "rot_circle"
+          ],
+          "turn": null
+        },
+        {
+          "step": 12,
+          "why": "combos already fired — no-op",
+          "signals": {
+            "stage": "cell",
+            "timer": 300,
+            "chaos": 0.7,
+            "kills": 10,
+            "extinctions": 2
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 13,
+          "why": "stageEnter tribe — reveals pirate_wind",
+          "signals": {
+            "stage": "tribe",
+            "timer": 0,
+            "chaos": 0.7,
+            "kills": 10,
+            "extinctions": 2
+          },
+          "revealed": [
+            "pirate_wind"
+          ],
+          "combos": [],
+          "turn": null
+        },
+        {
+          "step": 14,
+          "why": "final",
+          "signals": {
+            "stage": "space",
+            "timer": 0,
+            "chaos": 0.7,
+            "kills": 10,
+            "extinctions": 2
+          },
+          "revealed": [],
+          "combos": [],
+          "turn": null
+        }
+      ],
+      "final": {
+        "traitIds": [
+          "pirate_wind",
+          "mutation_moon",
+          "hungry_bloom",
+          "toxin_sea",
+          "kin_memory",
+          "world_temperament"
+        ],
+        "temperament": "cradle",
+        "revealed": {
+          "hungry_bloom": true,
+          "world_temperament": true,
+          "toxin_sea": true,
+          "kin_memory": true,
+          "mutation_moon": true,
+          "pirate_wind": true
+        },
+        "comboFired": {
+          "selection_sweep": true,
+          "rot_circle": true
+        },
+        "firedTurns": {}
+      }
+    }
+  }
+}

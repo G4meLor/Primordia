@@ -1,0 +1,1732 @@
+{
+  "dt": 1,
+  "ticks": 120,
+  "phases": [
+    {
+      "name": "struggling",
+      "ticks": 30,
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3
+      }
+    },
+    {
+      "name": "neutral",
+      "ticks": 30,
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0
+      }
+    },
+    {
+      "name": "aggressive-dominant",
+      "ticks": 30,
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0
+      }
+    },
+    {
+      "name": "pacifist-high-karma",
+      "ticks": 30,
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0
+      }
+    }
+  ],
+  "timeline": [
+    {
+      "t": 1,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 1
+      },
+      "mood": "bless",
+      "hold": 20
+    },
+    {
+      "t": 2,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 2
+      },
+      "mood": "bless",
+      "hold": 19
+    },
+    {
+      "t": 3,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 3
+      },
+      "mood": "bless",
+      "hold": 18
+    },
+    {
+      "t": 4,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 4
+      },
+      "mood": "bless",
+      "hold": 17
+    },
+    {
+      "t": 5,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 5
+      },
+      "mood": "bless",
+      "hold": 16
+    },
+    {
+      "t": 6,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 6
+      },
+      "mood": "bless",
+      "hold": 15
+    },
+    {
+      "t": 7,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 7
+      },
+      "mood": "bless",
+      "hold": 14
+    },
+    {
+      "t": 8,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 8
+      },
+      "mood": "bless",
+      "hold": 13
+    },
+    {
+      "t": 9,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 9
+      },
+      "mood": "bless",
+      "hold": 12
+    },
+    {
+      "t": 10,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 10
+      },
+      "mood": "bless",
+      "hold": 11
+    },
+    {
+      "t": 11,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 11
+      },
+      "mood": "bless",
+      "hold": 10
+    },
+    {
+      "t": 12,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 12
+      },
+      "mood": "bless",
+      "hold": 9
+    },
+    {
+      "t": 13,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 13
+      },
+      "mood": "bless",
+      "hold": 8
+    },
+    {
+      "t": 14,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 14
+      },
+      "mood": "bless",
+      "hold": 7
+    },
+    {
+      "t": 15,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 15
+      },
+      "mood": "bless",
+      "hold": 6
+    },
+    {
+      "t": 16,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 16
+      },
+      "mood": "bless",
+      "hold": 5
+    },
+    {
+      "t": 17,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 17
+      },
+      "mood": "bless",
+      "hold": 4
+    },
+    {
+      "t": 18,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 18
+      },
+      "mood": "bless",
+      "hold": 3
+    },
+    {
+      "t": 19,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 19
+      },
+      "mood": "bless",
+      "hold": 2
+    },
+    {
+      "t": 20,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 20
+      },
+      "mood": "bless",
+      "hold": 1
+    },
+    {
+      "t": 21,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 21
+      },
+      "mood": "bless",
+      "hold": 0
+    },
+    {
+      "t": 22,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 22
+      },
+      "mood": "bless",
+      "hold": 0
+    },
+    {
+      "t": 23,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 23
+      },
+      "mood": "bless",
+      "hold": 0
+    },
+    {
+      "t": 24,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 24
+      },
+      "mood": "bless",
+      "hold": 0
+    },
+    {
+      "t": 25,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 25
+      },
+      "mood": "bless",
+      "hold": 0
+    },
+    {
+      "t": 26,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 26
+      },
+      "mood": "bless",
+      "hold": 0
+    },
+    {
+      "t": 27,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 27
+      },
+      "mood": "bless",
+      "hold": 0
+    },
+    {
+      "t": 28,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 28
+      },
+      "mood": "bless",
+      "hold": 0
+    },
+    {
+      "t": 29,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 29
+      },
+      "mood": "bless",
+      "hold": 0
+    },
+    {
+      "t": 30,
+      "phase": "struggling",
+      "signals": {
+        "chaos": 0.2,
+        "ecoHealth": 0.2,
+        "karma": 0,
+        "dnaRate": 5,
+        "deathsInStage": 3,
+        "stageTime": 30
+      },
+      "mood": "bless",
+      "hold": 0
+    },
+    {
+      "t": 31,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 31
+      },
+      "mood": "test",
+      "hold": 20
+    },
+    {
+      "t": 32,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 32
+      },
+      "mood": "test",
+      "hold": 19
+    },
+    {
+      "t": 33,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 33
+      },
+      "mood": "test",
+      "hold": 18
+    },
+    {
+      "t": 34,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 34
+      },
+      "mood": "test",
+      "hold": 17
+    },
+    {
+      "t": 35,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 35
+      },
+      "mood": "test",
+      "hold": 16
+    },
+    {
+      "t": 36,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 36
+      },
+      "mood": "test",
+      "hold": 15
+    },
+    {
+      "t": 37,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 37
+      },
+      "mood": "test",
+      "hold": 14
+    },
+    {
+      "t": 38,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 38
+      },
+      "mood": "test",
+      "hold": 13
+    },
+    {
+      "t": 39,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 39
+      },
+      "mood": "test",
+      "hold": 12
+    },
+    {
+      "t": 40,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 40
+      },
+      "mood": "test",
+      "hold": 11
+    },
+    {
+      "t": 41,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 41
+      },
+      "mood": "test",
+      "hold": 10
+    },
+    {
+      "t": 42,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 42
+      },
+      "mood": "test",
+      "hold": 9
+    },
+    {
+      "t": 43,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 43
+      },
+      "mood": "test",
+      "hold": 8
+    },
+    {
+      "t": 44,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 44
+      },
+      "mood": "test",
+      "hold": 7
+    },
+    {
+      "t": 45,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 45
+      },
+      "mood": "test",
+      "hold": 6
+    },
+    {
+      "t": 46,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 46
+      },
+      "mood": "test",
+      "hold": 5
+    },
+    {
+      "t": 47,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 47
+      },
+      "mood": "test",
+      "hold": 4
+    },
+    {
+      "t": 48,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 48
+      },
+      "mood": "test",
+      "hold": 3
+    },
+    {
+      "t": 49,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 49
+      },
+      "mood": "test",
+      "hold": 2
+    },
+    {
+      "t": 50,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 50
+      },
+      "mood": "test",
+      "hold": 1
+    },
+    {
+      "t": 51,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 51
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 52,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 52
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 53,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 53
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 54,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 54
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 55,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 55
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 56,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 56
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 57,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 57
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 58,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 58
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 59,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 59
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 60,
+      "phase": "neutral",
+      "signals": {
+        "chaos": 0.3,
+        "ecoHealth": 0.8,
+        "karma": 0.1,
+        "dnaRate": 10,
+        "deathsInStage": 0,
+        "stageTime": 60
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 61,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 61
+      },
+      "mood": "twist",
+      "hold": 20
+    },
+    {
+      "t": 62,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 62
+      },
+      "mood": "twist",
+      "hold": 19
+    },
+    {
+      "t": 63,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 63
+      },
+      "mood": "twist",
+      "hold": 18
+    },
+    {
+      "t": 64,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 64
+      },
+      "mood": "twist",
+      "hold": 17
+    },
+    {
+      "t": 65,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 65
+      },
+      "mood": "twist",
+      "hold": 16
+    },
+    {
+      "t": 66,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 66
+      },
+      "mood": "twist",
+      "hold": 15
+    },
+    {
+      "t": 67,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 67
+      },
+      "mood": "twist",
+      "hold": 14
+    },
+    {
+      "t": 68,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 68
+      },
+      "mood": "twist",
+      "hold": 13
+    },
+    {
+      "t": 69,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 69
+      },
+      "mood": "twist",
+      "hold": 12
+    },
+    {
+      "t": 70,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 70
+      },
+      "mood": "twist",
+      "hold": 11
+    },
+    {
+      "t": 71,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 71
+      },
+      "mood": "twist",
+      "hold": 10
+    },
+    {
+      "t": 72,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 72
+      },
+      "mood": "twist",
+      "hold": 9
+    },
+    {
+      "t": 73,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 73
+      },
+      "mood": "twist",
+      "hold": 8
+    },
+    {
+      "t": 74,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 74
+      },
+      "mood": "twist",
+      "hold": 7
+    },
+    {
+      "t": 75,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 75
+      },
+      "mood": "twist",
+      "hold": 6
+    },
+    {
+      "t": 76,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 76
+      },
+      "mood": "twist",
+      "hold": 5
+    },
+    {
+      "t": 77,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 77
+      },
+      "mood": "twist",
+      "hold": 4
+    },
+    {
+      "t": 78,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 78
+      },
+      "mood": "twist",
+      "hold": 3
+    },
+    {
+      "t": 79,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 79
+      },
+      "mood": "twist",
+      "hold": 2
+    },
+    {
+      "t": 80,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 80
+      },
+      "mood": "twist",
+      "hold": 1
+    },
+    {
+      "t": 81,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 81
+      },
+      "mood": "twist",
+      "hold": 0
+    },
+    {
+      "t": 82,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 82
+      },
+      "mood": "twist",
+      "hold": 0
+    },
+    {
+      "t": 83,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 83
+      },
+      "mood": "twist",
+      "hold": 0
+    },
+    {
+      "t": 84,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 84
+      },
+      "mood": "twist",
+      "hold": 0
+    },
+    {
+      "t": 85,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 85
+      },
+      "mood": "twist",
+      "hold": 0
+    },
+    {
+      "t": 86,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 86
+      },
+      "mood": "twist",
+      "hold": 0
+    },
+    {
+      "t": 87,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 87
+      },
+      "mood": "twist",
+      "hold": 0
+    },
+    {
+      "t": 88,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 88
+      },
+      "mood": "twist",
+      "hold": 0
+    },
+    {
+      "t": 89,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 89
+      },
+      "mood": "twist",
+      "hold": 0
+    },
+    {
+      "t": 90,
+      "phase": "aggressive-dominant",
+      "signals": {
+        "chaos": 0.8,
+        "ecoHealth": 0.9,
+        "karma": -0.8,
+        "dnaRate": 40,
+        "deathsInStage": 0,
+        "stageTime": 90
+      },
+      "mood": "twist",
+      "hold": 0
+    },
+    {
+      "t": 91,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 91
+      },
+      "mood": "test",
+      "hold": 20
+    },
+    {
+      "t": 92,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 92
+      },
+      "mood": "test",
+      "hold": 19
+    },
+    {
+      "t": 93,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 93
+      },
+      "mood": "test",
+      "hold": 18
+    },
+    {
+      "t": 94,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 94
+      },
+      "mood": "test",
+      "hold": 17
+    },
+    {
+      "t": 95,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 95
+      },
+      "mood": "test",
+      "hold": 16
+    },
+    {
+      "t": 96,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 96
+      },
+      "mood": "test",
+      "hold": 15
+    },
+    {
+      "t": 97,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 97
+      },
+      "mood": "test",
+      "hold": 14
+    },
+    {
+      "t": 98,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 98
+      },
+      "mood": "test",
+      "hold": 13
+    },
+    {
+      "t": 99,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 99
+      },
+      "mood": "test",
+      "hold": 12
+    },
+    {
+      "t": 100,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 100
+      },
+      "mood": "test",
+      "hold": 11
+    },
+    {
+      "t": 101,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 101
+      },
+      "mood": "test",
+      "hold": 10
+    },
+    {
+      "t": 102,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 102
+      },
+      "mood": "test",
+      "hold": 9
+    },
+    {
+      "t": 103,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 103
+      },
+      "mood": "test",
+      "hold": 8
+    },
+    {
+      "t": 104,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 104
+      },
+      "mood": "test",
+      "hold": 7
+    },
+    {
+      "t": 105,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 105
+      },
+      "mood": "test",
+      "hold": 6
+    },
+    {
+      "t": 106,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 106
+      },
+      "mood": "test",
+      "hold": 5
+    },
+    {
+      "t": 107,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 107
+      },
+      "mood": "test",
+      "hold": 4
+    },
+    {
+      "t": 108,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 108
+      },
+      "mood": "test",
+      "hold": 3
+    },
+    {
+      "t": 109,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 109
+      },
+      "mood": "test",
+      "hold": 2
+    },
+    {
+      "t": 110,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 110
+      },
+      "mood": "test",
+      "hold": 1
+    },
+    {
+      "t": 111,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 111
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 112,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 112
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 113,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 113
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 114,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 114
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 115,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 115
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 116,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 116
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 117,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 117
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 118,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 118
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 119,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 119
+      },
+      "mood": "test",
+      "hold": 0
+    },
+    {
+      "t": 120,
+      "phase": "pacifist-high-karma",
+      "signals": {
+        "chaos": 0.7,
+        "ecoHealth": 0.9,
+        "karma": 0.8,
+        "dnaRate": 30,
+        "deathsInStage": 0,
+        "stageTime": 120
+      },
+      "mood": "test",
+      "hold": 0
+    }
+  ]
+}

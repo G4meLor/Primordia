@@ -1,0 +1,645 @@
+{
+  "ecoSeed": 7,
+  "dt": 1,
+  "ticks": 600,
+  "snapshotEvery": 60,
+  "roster": [
+    {
+      "genome": {
+        "size": 0.7,
+        "diet": "herbivore",
+        "hue": 120,
+        "sat": 0.55,
+        "pattern": "plain",
+        "flagella": 3,
+        "cilia": 0,
+        "spikes": 0,
+        "jaw": 1,
+        "toxin": 0,
+        "proboscis": 0,
+        "electro": 0,
+        "jet": 0,
+        "legs": 0,
+        "arms": 0,
+        "eyes": 2,
+        "horns": 0,
+        "tail": false,
+        "wings": 0,
+        "brain": 0,
+        "coat": "skin",
+        "generation": 1
+      },
+      "pop": 9
+    },
+    {
+      "genome": {
+        "size": 1.8,
+        "diet": "herbivore",
+        "hue": 120,
+        "sat": 0.55,
+        "pattern": "plain",
+        "flagella": 1,
+        "cilia": 0,
+        "spikes": 1,
+        "jaw": 1,
+        "toxin": 0,
+        "proboscis": 0,
+        "electro": 0,
+        "jet": 0,
+        "legs": 0,
+        "arms": 0,
+        "eyes": 1,
+        "horns": 0,
+        "tail": false,
+        "wings": 0,
+        "brain": 0,
+        "coat": "skin",
+        "generation": 1
+      },
+      "pop": 7
+    },
+    {
+      "genome": {
+        "size": 1.2,
+        "diet": "omnivore",
+        "hue": 120,
+        "sat": 0.55,
+        "pattern": "plain",
+        "flagella": 2,
+        "cilia": 0,
+        "spikes": 0,
+        "jaw": 2,
+        "toxin": 0,
+        "proboscis": 0,
+        "electro": 0,
+        "jet": 0,
+        "legs": 0,
+        "arms": 0,
+        "eyes": 1,
+        "horns": 0,
+        "tail": false,
+        "wings": 0,
+        "brain": 0,
+        "coat": "skin",
+        "generation": 1
+      },
+      "pop": 8
+    },
+    {
+      "genome": {
+        "size": 0.9,
+        "diet": "carnivore",
+        "hue": 120,
+        "sat": 0.55,
+        "pattern": "plain",
+        "flagella": 4,
+        "cilia": 0,
+        "spikes": 2,
+        "jaw": 3,
+        "toxin": 0,
+        "proboscis": 0,
+        "electro": 0,
+        "jet": 0,
+        "legs": 0,
+        "arms": 0,
+        "eyes": 1,
+        "horns": 0,
+        "tail": false,
+        "wings": 0,
+        "brain": 0,
+        "coat": "skin",
+        "generation": 1
+      },
+      "pop": 5
+    },
+    {
+      "genome": {
+        "size": 2,
+        "diet": "carnivore",
+        "hue": 120,
+        "sat": 0.55,
+        "pattern": "plain",
+        "flagella": 2,
+        "cilia": 0,
+        "spikes": 3,
+        "jaw": 4,
+        "toxin": 0,
+        "proboscis": 0,
+        "electro": 0,
+        "jet": 0,
+        "legs": 0,
+        "arms": 0,
+        "eyes": 1,
+        "horns": 0,
+        "tail": false,
+        "wings": 0,
+        "brain": 0,
+        "coat": "skin",
+        "generation": 1
+      },
+      "pop": 4
+    },
+    {
+      "genome": {
+        "size": 0.6,
+        "diet": "omnivore",
+        "hue": 120,
+        "sat": 0.55,
+        "pattern": "plain",
+        "flagella": 5,
+        "cilia": 0,
+        "spikes": 0,
+        "jaw": 1,
+        "toxin": 0,
+        "proboscis": 1,
+        "electro": 0,
+        "jet": 0,
+        "legs": 0,
+        "arms": 0,
+        "eyes": 1,
+        "horns": 0,
+        "tail": false,
+        "wings": 0,
+        "brain": 0,
+        "coat": "skin",
+        "generation": 1
+      },
+      "pop": 6
+    }
+  ],
+  "snapshots": [
+    {
+      "t": 0,
+      "flora": 60,
+      "totalEaten": 0,
+      "species": [
+        {
+          "id": "sp0_6pfqjc",
+          "name": "Glorurp Leaflover",
+          "pop": 9,
+          "extinct": false
+        },
+        {
+          "id": "sp1_2kuiiz",
+          "name": "Grubapus the Gentle",
+          "pop": 7,
+          "extinct": false
+        },
+        {
+          "id": "sp2_4ulb3d",
+          "name": "Thalriimus",
+          "pop": 8,
+          "extinct": false
+        },
+        {
+          "id": "sp3_35lbtp",
+          "name": "Snorurp the Hungry",
+          "pop": 5,
+          "extinct": false
+        },
+        {
+          "id": "sp4_18d6iy",
+          "name": "Kriath the Hungry",
+          "pop": 4,
+          "extinct": false
+        },
+        {
+          "id": "sp5_f8gm7w",
+          "name": "Zibkuung Pocket-sized",
+          "pop": 6,
+          "extinct": false
+        }
+      ]
+    },
+    {
+      "t": 60,
+      "flora": 72.86132640828006,
+      "totalEaten": 0,
+      "species": [
+        {
+          "id": "sp0_6pfqjc",
+          "name": "Glorurp Leaflover",
+          "pop": 13.651258380714587,
+          "extinct": false
+        },
+        {
+          "id": "sp1_2kuiiz",
+          "name": "Grubapus the Gentle",
+          "pop": 10.712874518827942,
+          "extinct": false
+        },
+        {
+          "id": "sp2_4ulb3d",
+          "name": "Thalriimus",
+          "pop": 12.012085146835597,
+          "extinct": false
+        },
+        {
+          "id": "sp3_35lbtp",
+          "name": "Snorurp the Hungry",
+          "pop": 6.206351529087387,
+          "extinct": false
+        },
+        {
+          "id": "sp4_18d6iy",
+          "name": "Kriath the Hungry",
+          "pop": 4.206380453023377,
+          "extinct": false
+        },
+        {
+          "id": "sp5_f8gm7w",
+          "name": "Zibkuung Pocket-sized",
+          "pop": 9.285533248576296,
+          "extinct": false
+        }
+      ]
+    },
+    {
+      "t": 120,
+      "flora": 79.89191398655016,
+      "totalEaten": 0,
+      "species": [
+        {
+          "id": "sp0_6pfqjc",
+          "name": "Glorurp Leaflover",
+          "pop": 20.08636809864986,
+          "extinct": false
+        },
+        {
+          "id": "sp1_2kuiiz",
+          "name": "Grubapus the Gentle",
+          "pop": 16.066502985153324,
+          "extinct": false
+        },
+        {
+          "id": "sp2_4ulb3d",
+          "name": "Thalriimus",
+          "pop": 17.694026536665028,
+          "extinct": false
+        },
+        {
+          "id": "sp3_35lbtp",
+          "name": "Snorurp the Hungry",
+          "pop": 7.935679217358164,
+          "extinct": false
+        },
+        {
+          "id": "sp4_18d6iy",
+          "name": "Kriath the Hungry",
+          "pop": 4.865464065332051,
+          "extinct": false
+        },
+        {
+          "id": "sp5_f8gm7w",
+          "name": "Zibkuung Pocket-sized",
+          "pop": 14.057734258660359,
+          "extinct": false
+        }
+      ]
+    },
+    {
+      "t": 180,
+      "flora": 81.62001565615351,
+      "totalEaten": 0,
+      "species": [
+        {
+          "id": "sp0_6pfqjc",
+          "name": "Glorurp Leaflover",
+          "pop": 28.378103457102586,
+          "extinct": false
+        },
+        {
+          "id": "sp1_2kuiiz",
+          "name": "Grubapus the Gentle",
+          "pop": 23.27797518353946,
+          "extinct": false
+        },
+        {
+          "id": "sp2_4ulb3d",
+          "name": "Thalriimus",
+          "pop": 25.306303006473055,
+          "extinct": false
+        },
+        {
+          "id": "sp3_35lbtp",
+          "name": "Snorurp the Hungry",
+          "pop": 10.35687910730808,
+          "extinct": false
+        },
+        {
+          "id": "sp4_18d6iy",
+          "name": "Kriath the Hungry",
+          "pop": 5.9374075913074424,
+          "extinct": false
+        },
+        {
+          "id": "sp5_f8gm7w",
+          "name": "Zibkuung Pocket-sized",
+          "pop": 20.630446080819233,
+          "extinct": false
+        }
+      ]
+    },
+    {
+      "t": 240,
+      "flora": 79.25686882110926,
+      "totalEaten": 0,
+      "species": [
+        {
+          "id": "sp0_6pfqjc",
+          "name": "Glorurp Leaflover",
+          "pop": 38.133400571413304,
+          "extinct": false
+        },
+        {
+          "id": "sp1_2kuiiz",
+          "name": "Grubapus the Gentle",
+          "pop": 32.24972255297712,
+          "extinct": false
+        },
+        {
+          "id": "sp2_4ulb3d",
+          "name": "Thalriimus",
+          "pop": 34.6329461659086,
+          "extinct": false
+        },
+        {
+          "id": "sp3_35lbtp",
+          "name": "Snorurp the Hungry",
+          "pop": 13.664944017806972,
+          "extinct": false
+        },
+        {
+          "id": "sp4_18d6iy",
+          "name": "Kriath the Hungry",
+          "pop": 7.460450807590062,
+          "extinct": false
+        },
+        {
+          "id": "sp5_f8gm7w",
+          "name": "Zibkuung Pocket-sized",
+          "pop": 29.048915051787894,
+          "extinct": false
+        }
+      ]
+    },
+    {
+      "t": 300,
+      "flora": 73.70536370291812,
+      "totalEaten": 0,
+      "species": [
+        {
+          "id": "sp0_6pfqjc",
+          "name": "Glorurp Leaflover",
+          "pop": 48.45193267131005,
+          "extinct": false
+        },
+        {
+          "id": "sp1_2kuiiz",
+          "name": "Grubapus the Gentle",
+          "pop": 42.36809257020969,
+          "extinct": false
+        },
+        {
+          "id": "sp2_4ulb3d",
+          "name": "Thalriimus",
+          "pop": 44.881700176770046,
+          "extinct": false
+        },
+        {
+          "id": "sp3_35lbtp",
+          "name": "Snorurp the Hungry",
+          "pop": 18.058630356938227,
+          "extinct": false
+        },
+        {
+          "id": "sp4_18d6iy",
+          "name": "Kriath the Hungry",
+          "pop": 9.49215813284359,
+          "extinct": false
+        },
+        {
+          "id": "sp5_f8gm7w",
+          "name": "Zibkuung Pocket-sized",
+          "pop": 38.880965236970304,
+          "extinct": false
+        }
+      ]
+    },
+    {
+      "t": 360,
+      "flora": 65.47439610850195,
+      "totalEaten": 0,
+      "species": [
+        {
+          "id": "sp0_6pfqjc",
+          "name": "Glorurp Leaflover",
+          "pop": 58.20463280952457,
+          "extinct": false
+        },
+        {
+          "id": "sp1_2kuiiz",
+          "name": "Grubapus the Gentle",
+          "pop": 51.840073660912,
+          "extinct": false
+        },
+        {
+          "id": "sp2_4ulb3d",
+          "name": "Thalriimus",
+          "pop": 54.953431061513164,
+          "extinct": false
+        },
+        {
+          "id": "sp3_35lbtp",
+          "name": "Snorurp the Hungry",
+          "pop": 23.686452827885105,
+          "extinct": false
+        },
+        {
+          "id": "sp4_18d6iy",
+          "name": "Kriath the Hungry",
+          "pop": 12.069965242976904,
+          "extinct": false
+        },
+        {
+          "id": "sp5_f8gm7w",
+          "name": "Zibkuung Pocket-sized",
+          "pop": 49.196313090908546,
+          "extinct": false
+        }
+      ]
+    },
+    {
+      "t": 420,
+      "flora": 54.930029601399305,
+      "totalEaten": 0,
+      "species": [
+        {
+          "id": "sp0_6pfqjc",
+          "name": "Glorurp Leaflover",
+          "pop": 66.48749272135673,
+          "extinct": false
+        },
+        {
+          "id": "sp1_2kuiiz",
+          "name": "Grubapus the Gentle",
+          "pop": 57.558441703103966,
+          "extinct": false
+        },
+        {
+          "id": "sp2_4ulb3d",
+          "name": "Thalriimus",
+          "pop": 63.818663647285334,
+          "extinct": false
+        },
+        {
+          "id": "sp3_35lbtp",
+          "name": "Snorurp the Hungry",
+          "pop": 30.52339096983164,
+          "extinct": false
+        },
+        {
+          "id": "sp4_18d6iy",
+          "name": "Kriath the Hungry",
+          "pop": 15.149098032281556,
+          "extinct": false
+        },
+        {
+          "id": "sp5_f8gm7w",
+          "name": "Zibkuung Pocket-sized",
+          "pop": 58.86701241764853,
+          "extinct": false
+        }
+      ]
+    },
+    {
+      "t": 480,
+      "flora": 42.23402113309329,
+      "totalEaten": 0,
+      "species": [
+        {
+          "id": "sp0_6pfqjc",
+          "name": "Glorurp Leaflover",
+          "pop": 72.90517769720462,
+          "extinct": false
+        },
+        {
+          "id": "sp1_2kuiiz",
+          "name": "Grubapus the Gentle",
+          "pop": 57.01752525569539,
+          "extinct": false
+        },
+        {
+          "id": "sp2_4ulb3d",
+          "name": "Thalriimus",
+          "pop": 69.93244760657319,
+          "extinct": false
+        },
+        {
+          "id": "sp3_35lbtp",
+          "name": "Snorurp the Hungry",
+          "pop": 38.219494936574996,
+          "extinct": false
+        },
+        {
+          "id": "sp4_18d6iy",
+          "name": "Kriath the Hungry",
+          "pop": 18.540165764833944,
+          "extinct": false
+        },
+        {
+          "id": "sp5_f8gm7w",
+          "name": "Zibkuung Pocket-sized",
+          "pop": 67.02047966109565,
+          "extinct": false
+        }
+      ]
+    },
+    {
+      "t": 540,
+      "flora": 27.109416660159294,
+      "totalEaten": 0,
+      "species": [
+        {
+          "id": "sp0_6pfqjc",
+          "name": "Glorurp Leaflover",
+          "pop": 77.43235071521774,
+          "extinct": false
+        },
+        {
+          "id": "sp1_2kuiiz",
+          "name": "Grubapus the Gentle",
+          "pop": 48.70249699327087,
+          "extinct": false
+        },
+        {
+          "id": "sp2_4ulb3d",
+          "name": "Thalriimus",
+          "pop": 70.89143310671261,
+          "extinct": false
+        },
+        {
+          "id": "sp3_35lbtp",
+          "name": "Snorurp the Hungry",
+          "pop": 45.913900068029136,
+          "extinct": false
+        },
+        {
+          "id": "sp4_18d6iy",
+          "name": "Kriath the Hungry",
+          "pop": 21.836067884317323,
+          "extinct": false
+        },
+        {
+          "id": "sp5_f8gm7w",
+          "name": "Zibkuung Pocket-sized",
+          "pop": 73.30046153416038,
+          "extinct": false
+        }
+      ]
+    },
+    {
+      "t": 600,
+      "flora": 12,
+      "totalEaten": 0,
+      "species": [
+        {
+          "id": "sp0_6pfqjc",
+          "name": "Glorurp Leaflover",
+          "pop": 63.59903512574272,
+          "extinct": false
+        },
+        {
+          "id": "sp1_2kuiiz",
+          "name": "Grubapus the Gentle",
+          "pop": 30.61856539615868,
+          "extinct": false
+        },
+        {
+          "id": "sp2_4ulb3d",
+          "name": "Thalriimus",
+          "pop": 64.2879384740217,
+          "extinct": false
+        },
+        {
+          "id": "sp3_35lbtp",
+          "name": "Snorurp the Hungry",
+          "pop": 51.80299378874545,
+          "extinct": false
+        },
+        {
+          "id": "sp4_18d6iy",
+          "name": "Kriath the Hungry",
+          "pop": 24.220805329864284,
+          "extinct": false
+        },
+        {
+          "id": "sp5_f8gm7w",
+          "name": "Zibkuung Pocket-sized",
+          "pop": 77.8082046408878,
+          "extinct": false
+        }
+      ]
+    }
+  ]
+}
