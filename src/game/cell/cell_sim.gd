@@ -729,6 +729,7 @@ func kill_ent(e: Dictionary) -> void:
 			if float(sp.get("grudge", 0.0)) == 0.0:
 				_fire("hud_toast", [tr("the kin are watching"), "chaos", "⚱"])
 			sp["grudge"] = float(sp.get("grudge", 0.0)) + 1.0
+			_gcache.erase(String(e["speciesId"]))  # the bump must reach later same-species ents this tick
 		# corpse_tide: every kill leaves a corpse that bursts into 2-3 small,
 		# fierce scavengers (high-risk combo — budgets probed in econ-probe)
 		if WorldGenomeScript.combo_active(ctx.world, "corpse_tide"):
@@ -796,6 +797,7 @@ func update_ents(dt: float) -> void:
 				_ehps.remove_at(i)
 				_esizes.remove_at(i)
 				_eeids.remove_at(i)
+				_eg_dirty = true  # index space shifted; next gather rebuilds
 				i -= 1
 				continue
 		e["hurtT"] = maxf(0.0, float(e["hurtT"]) - dt * 3.0)
@@ -844,9 +846,10 @@ func update_ents(dt: float) -> void:
 			fear = float((band_v as Dictionary).get("fear", 1.0))
 		# kin_memory: a grudging kin-tag network shifts from fleeing to pressing
 		# (effectiveGrudge hits the harassment valve — capped networks rest).
-		# Cached per species; a press invalidates its entry (register_press is
-		# the only mid-tick mutation — the original re-read eco.grudge_of per
-		# ent, which the cache reproduces exactly).
+		# Cached per species; the two mid-tick mutations of the read fields
+		# (register_press's harass bump, kill_ent's grudge bump) invalidate
+		# their entry — the original re-read eco.grudge_of per ent, which the
+		# cache reproduces exactly.
 		var sid: String = String(e["speciesId"])
 		var grudge: float
 		if _gcache.has(sid):
@@ -888,6 +891,11 @@ func update_ents(dt: float) -> void:
 			e["y"] = float(e["y"]) + ((float(e["y"]) - py) / pd) * 48.0 * dt
 			_exs[i] = float(e["x"])
 			_eys[i] = float(e["y"])
+			# the drift moved THIS ent — the downstream sections (separation,
+			# eat, toxin zones) must see the post-drift position the way the
+			# pre-optimization code did (it read e["x"]/e["y"] live)
+			eEx = float(e["x"])
+			eEy = float(e["y"])
 			ax = 0.0
 			ay = 0.0
 			speed = minf(speed, 45.0)
@@ -1200,6 +1208,7 @@ func spawn_pellet(kind: String, x: Variant = null, y: Variant = null) -> void:
 			_pxs.remove_at(0)
 			_pys.remove_at(0)
 			_pk.remove_at(0)
+			_pdead.remove_at(0)
 
 
 func spawn_ent_for_species(sp: Dictionary) -> void:
