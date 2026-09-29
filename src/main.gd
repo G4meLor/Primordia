@@ -1,14 +1,13 @@
-## PRIMORDIA native entry point (boot scene). Registers the placeholder menu
-## stage and starts the Game loop — Task 9 replaces the placeholder Menu
-## stage with the real MenuStage; the placeholder's only job here is proving
-## the boot path and the go_to transition shape (no-title card → out 0.55 →
-## in 0.6). The REAL cell stage (M2 Task 7) replaces the old placeholder.
-## PRIMORDIA_BOOT_QUIT_FRAMES=N quits cleanly after N frames (test-only hook,
-## brief Boot AC: "quits via an env var after N frames").
+## PRIMORDIA native entry point (boot scene). Registers the REAL MenuStage
+## (Task 9 — the T1 placeholder is gone) and injects the composition root's
+## stageFactory so a NEW LIFE rebuilds every gameplay stage with fresh
+## instances (game.ts resetStagesForNewRun). The PRIMORDIA_BOOT_QUIT_FRAMES=N
+## env hook quits cleanly after N frames (test-only hook, brief Boot AC:
+## "quits via an env var after N frames").
 extends Node
 
 const GameScript := preload("res://src/game/game.gd")
-const StageScript := preload("res://src/game/stage.gd")
+const MenuStageScript := preload("res://src/game/menu.gd")
 const CellStageScript := preload("res://src/game/cell/cell_stage.gd")
 
 var game: Variant = null
@@ -17,28 +16,14 @@ var _boot_quit_frames := 0
 var _frames := 0
 
 
-## Placeholder menu: Enter/click starts a new game into the cell stage via
-## the no-title transition path.
-class MenuPlaceholder extends "res://src/game/stage.gd":
-	func _init(g: Variant) -> void:
-		super(g, "menu")
-
-	func update(_dt: float) -> void:
-		if game.input.key_pressed("Enter") or game.input.was_clicked():
-			start_new_game()
-
-	## TS MenuStage.startNewGame rebuilds every stage via stageFactory (Task 9);
-	## the placeholder just registers its cell once.
-	func start_new_game() -> void:
-		if not game.stages.has("cell"):
-			game.register(CellStageScript.new(game))
-		game.go_to("cell", {"title": "", "sub": ""})
-
-
 func _ready() -> void:
 	game = GameScript.new()
 	add_child(game)
-	game.register(MenuPlaceholder.new(game))
+	game.stage_factory = func() -> Array:
+		# fresh instances every NEW LIFE (game.ts:116-118) — run-1 latches
+		# must not leak into run 2 (C1 deck rebuild, totem/civ/space latches)
+		return [MenuStageScript.new(game), CellStageScript.new(game)]
+	game.register(MenuStageScript.new(game))
 	game.start()
 	var env := OS.get_environment("PRIMORDIA_BOOT_QUIT_FRAMES")
 	if env != "":
