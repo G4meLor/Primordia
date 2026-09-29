@@ -806,31 +806,32 @@ func test_eco_tick_batch_and_extinction_banner() -> void:
 	eq(sim.pellets.back()["kind"], "plant", "fed pellet is plant")
 
 
-# ---- chaos helpers: stubbed, no-op, zero rng draws (Task 5 fills bodies) ---------------
+# ---- chaos helpers (Task 5 filled the stub bodies; behavior pins live in
+# test_cell_events.gd) ----------------------------------------------------------------
 
 
-func test_chaos_helpers_are_deterministically_absent() -> void:
+func test_chaos_helpers_draw_and_push_state() -> void:
+	# replaces the stub-era zero-draw pin: the helpers now run the TS bodies —
+	# they draw the stage rng and push real state
 	var m := _mk_sim()
 	var sim: Variant = m["sim"]
 	var s0: int = sim.rng.state()
 	var ent0: int = sim.ents.size()
 	var pel0: int = sim.pellets.size()
 	sim.spawn_meteor_target(10.0, 10.0)
-	sim.meteor_impact(10.0, 10.0)
+	eq(sim.zones.size(), 1, "meteor target pushed")
 	sim.add_toxin_zone(0.0, 0.0, 50.0, 4.0, 6.0)
 	sim.add_toxin_zone(0.0, 0.0, 50.0, 4.0, 6.0, "clouds")
-	sim.drift_toxin_clouds(DT)
-	sim.algae_surge()
 	sim.add_vent(0.0, 0.0)
+	eq(sim.zones.size(), 4, "toxin/vent zones pushed")
 	sim.bloom()
-	sim.blight()
+	eq(sim.pellets.size(), pel0 + 30, "bloom sprinkle pushed")
 	sim.spawn_swarm()
-	ok(sim.spawn_big_brother() == null, "big brother stub returns null")
-	eq(sim.spawn_mutant_wave(), 0, "mutant wave stub returns 0")
-	eq(sim.rng.state(), s0, "stubbed chaos helpers draw no rng")
-	eq(sim.ents.size(), ent0, "no ents spawned by stubs")
-	eq(sim.pellets.size(), pel0, "no pellets pushed by stubs")
-	eq(sim.zones.size(), 0, "no zones pushed by stubs")
+	eq(sim.ents.size(), ent0 + 4, "swarm spawned")
+	ok(sim.rng.state() != s0, "the helpers draw the stage rng")
+	ok(sim.spawn_big_brother() != null, "big brother returns its ent")
+	var n: int = sim.spawn_mutant_wave()
+	ok(n >= 2 and n <= 3, "mutant wave count 2-3")
 
 
 # ---- gaia wanderer / onStatsChanged -----------------------------------------------------

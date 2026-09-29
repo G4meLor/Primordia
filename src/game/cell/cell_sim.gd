@@ -1,9 +1,11 @@
 ## CELL STAGE sim core — the primordial ocean as a headless RefCounted: state
 ## structs, spawn tables, player physics/interactions, NPC AI (update_ents),
-## pellet economy, zones, death/respawn. Port of Spore
-## src/game/cell/CellStage.ts (frozen), minus the render pass (scene layer,
-## Tasks 7-9) and the chaos event bodies (Task 5 — stubbed no-ops below,
-## zero rng draws).
+## pellet economy, zones, death/respawn, chaos event helpers + the chaos
+## update loop. Port of Spore src/game/cell/CellStage.ts (frozen), minus the
+## render pass (scene layer, Tasks 7-9). Event defs live in cell_events.gd
+## (the cellEvents.ts port); the REVEAL PUMP itself is Task 9's scope (game
+## orchestrator) — this file exposes what it needs (per-tick stage time, the
+## warn window, the chaos ctx fields) and owns the eco-batch outcomes.
 ##
 ## Architecture (M2 ruling): CellSim.new(ctx, rng_branch, hooks) —
 ##   ctx        the M1 GameContext; sim calls ctx methods directly
@@ -40,6 +42,8 @@ const MutationScript := preload("res://src/evo/mutation.gd")
 const NamesScript := preload("res://src/evo/names.gd")
 const PartsScript := preload("res://src/evo/parts.gd")
 const WorldGenomeScript := preload("res://src/evo/world_genome.gd")
+const ChaosScript := preload("res://src/game/chaos.gd")
+const CellEventsScript := preload("res://src/game/cell/cell_events.gd")
 
 ## Seconds between counted grudge presses for one ent (an engagement, not a
 ## frame) — mirrors the eco-side harassment valve. Kept stage-local: the valve
@@ -95,8 +99,8 @@ var time := 0.0
 var eco: Variant = null
 var ecoTimer := 0.0
 var spawnTimer := 0.0
-# TS deckSeed (C1: decks rebuilt from a stale WorldGenome) — Task 5 chaos
-# wiring reads it; carried so the field keeps its TS place in the state.
+# TS deckSeed (C1: decks rebuilt from a stale WorldGenome) — ensure_deck()
+# compares and rebuilds.
 var deckSeed := -1
 var shoreAvailable := false
 # The shore button rect lives in SCREEN space; the scene layer re-positions it
@@ -112,9 +116,11 @@ var timers: Array = []     # {left: float, fn: Callable} — TS stage clock
 var tut := {"moved": 0.0, "eaten": 0, "killed": 0, "editorOpened": 0}
 ## bio_tell: seconds left in the ambient panic-drift window.
 var warnDriftT := 0.0
-## mirror_rule state (minor 14) — Task 5 replaces this placeholder with the
-## MirrorLedger port; carried so consumers keep a stable field name.
-var mirrorLedger := {}
+## TS ChaosScheduler<CellStage> (private `chaos` + getter in TS; GDScript
+## keeps one public field). Constructed in _init at the TS stream position.
+var chaos: Variant = null
+## mirror_rule state (minor 14) — the shared MirrorLedger.
+var mirrorLedger := ChaosScript.MirrorLedger.new()
 
 
 func _init(ctx_v: Variant, rng_branch: Variant, hooks: Dictionary = {}) -> void:
@@ -141,8 +147,11 @@ func _init(ctx_v: Variant, rng_branch: Variant, hooks: Dictionary = {}) -> void:
 	else:
 		eco = ctx.eco
 
-	# TS CellStage.ts:146 constructs the ChaosScheduler here with
-	# makeCellChaosEvents(ctx.world) — Task 5 wires it (deck rebuild included).
+	# TS CellStage.ts:146 — the chaos deck. The scheduler's stage-rng branch is
+	# drawn AFTER the eco bootstrap (seedEcology) and BEFORE kelp: stream-order
+	# sensitive (branch() consumes one parent draw). make_cell_chaos_events
+	# itself draws nothing (a traitless mirror_bucket roll uses a fresh rng).
+	chaos = ChaosScript.new(rng.branch(), CellEventsScript.make_cell_chaos_events(ctx.world))
 	deckSeed = ctx.world.seed
 
 	# decorative kelp forest
@@ -257,8 +266,8 @@ func update(dt: float, inp: Dictionary) -> void:
 	update_player(dt, inp)
 	# bio_tell: the panic window tracks the live warn phase — ambient herds
 	# drift out of the strike zone while it runs (TS reads
-	# this.chaos.warnRemaining; Task 5 wires the scheduler).
-	warnDriftT = 0.0
+	# this.chaos.warnRemaining, CellStage.ts:397).
+	warnDriftT = chaos.warn_remaining()
 	update_ents(dt)
 	update_pellets(dt)
 	update_zones(dt)
@@ -297,8 +306,8 @@ func update(dt: float, inp: Dictionary) -> void:
 		spawnTimer = 0.0
 		maintain_population()
 
-	# chaos (TS CellStage.ts:418 — chaos.update with onWarn/onApply/onEnd;
-	# onApply fires storyteller_note_chaos_event(ctx.playtime). Task 5.)
+	# chaos (TS CellStage.ts:418)
+	update_chaos(dt)
 
 	# camera (TS cam.follow(px, py, dt, 5), zoom = 1, toWorld → setWorld) and
 	# the fx pool steps: scene-side, Tasks 7-9. The sim never touches cam.
@@ -371,6 +380,75 @@ func handle_death(dt: float) -> void:
 			if Vector2(e["x"], e["y"]).distance_to(Vector2(px, py)) > 700.0:
 				kept.append(e)
 		ents = kept
+
+
+# ---- chaos -----------------------------------------------------------------------
+
+## TS CellStage.ts:418-447 — chaos.update with the full ctx and hooks. The
+## storyteller reference arrives through hooks (get_gap_bias / get_mood /
+## get_warn_scale Callables — the sim stays decoupled from the object); when
+## absent they read the storyteller's neutral defaults (gap 1.0, mood "test",
+## warnScale 1.0).
+func update_chaos(dt: float) -> void:
+	var gap_bias := 1.0
+	var mood := "test"  # Storyteller.MOOD_TEST
+	var warn_scale := 1.0
+	var gb: Variant = _hooks.get("get_gap_bias")
+	if gb is Callable:
+		gap_bias = float(gb.call())
+	var gm: Variant = _hooks.get("get_mood")
+	if gm is Callable:
+		mood = String(gm.call())
+	var ws: Variant = _hooks.get("get_warn_scale")
+	if ws is Callable:
+		warn_scale = float(ws.call())
+	var on_warn := func(def) -> void:
+		if String(def.get("warn", "")) != "":
+			_fire("hud_banner", [{"title": def["warn"], "kind": "danger", "ttl": 2.4}])
+			_fire("audio_play", ["alarm", 0.5, 0.0])
+	var on_apply := func(def) -> void:
+		_fire("hud_banner", [{"title": def["name"], "kind": "chaos"}])
+		ctx.add_chaos(0.03)
+		# mirror_rule: a fired mirror face leaves the return queue
+		if def.get("mirrorOf") != null:
+			mirrorLedger.on_fired(String(def["mirrorOf"]))
+		# world_temperament pacing: warned events going live are the
+		# high-severity marker (cradle grace / lean cycles / wildcard streak)
+		_fire("storyteller_note_chaos_event", [float(ctx.playtime)])
+	var on_end := func(def) -> void:
+		if String(def["id"]) == "glitch":
+			ctx.add_dna(40.0, "glitch tribute")
+			_fire("hud_toast", [tr("The Glitch pays tribute: +40 DNA"), "reward", "🌀"])
+		# mirror_rule: an event that survived once may queue its mirror return
+		mirrorLedger.maybe_queue(rng, String(def["id"]), "bloom")
+	chaos.update(dt, self, {
+		"chaos": float(ctx.chaos), "karma": float(ctx.karma), "stageTime": time,
+		"gapMult": ctx.chaos_gap_mult() * gap_bias,
+		"mood": mood,
+		"warnScale": warn_scale,  # bio_tell bucket
+		"mirrors": mirrorLedger.queued(),  # mirror_rule returns
+	}, {
+		"onWarn": on_warn,
+		"onApply": on_apply,
+		"onEnd": on_end,
+	})
+
+
+## C1 deck rebuild (TS onEnter, CellStage.ts:221-224): a CONTINUE/NEW LIFE
+## landing on a different world rebuilds the deck. The scene layer calls this
+## on enter; headless tests call it directly. Returns true on a rebuild.
+func ensure_deck(world_seed: int) -> bool:
+	if world_seed == deckSeed:
+		return false
+	chaos = ChaosScript.new(rng.branch(), CellEventsScript.make_cell_chaos_events(ctx.world))
+	deckSeed = world_seed
+	return true
+
+
+## TS hasActiveChaos(): the ACTIVE-phase set only — a warn-phase event does
+## not count (the gaia_wanderer offer gate reads this, game.ts:396).
+func has_active_chaos() -> bool:
+	return chaos.active_events().size() > 0
 
 
 func update_player(dt: float, inp: Dictionary) -> void:
@@ -1030,58 +1108,178 @@ func after(seconds: float, fn: Callable) -> void:
 	timers.append({"left": seconds, "fn": fn})
 
 
-# ---- chaos event helpers (called by cellEvents — Task 5 fills the bodies).
-# Stubbed no-ops with exact TS signatures; deterministically absent: zero rng
-# draws, no state pushes (the test suite pins rng-state invariance).
+# ---- chaos event helpers (called by cell_events.gd — the cellEvents.ts
+# apply/tick/end bodies). TS CellStage.ts:1203-1381, ported 1:1; audio and
+# camera effects route through the hooks.
 
-@warning_ignore("unused_parameter")
+## TS CellStage.ts:1203 — meteorTarget ring, r 150, ttl 2.5.
 func spawn_meteor_target(x: float, y: float) -> void:
-	pass  # TS CellStage.ts:1203 — meteorTarget ring, r 150, ttl 2.5
+	zones.append({"x": x, "y": y, "r": 150.0, "kind": "meteorTarget", "ttl": 2.5,
+			"dps": 0.0, "pulse": 0.0})
 
 
-@warning_ignore("unused_parameter")
+## TS CellStage.ts:1207 — boom/shake/damage ring + DNA debris.
 func meteor_impact(x: float, y: float) -> void:
-	pass  # TS CellStage.ts:1207 — boom/shake/damage ring + DNA debris
+	_fire("audio_play", ["boom", 1.0, 0.0])
+	_fire("cam_shake", [14.0, 0.8])
+	_fx_burst(x, y, 50, ["#ffd08a", "#ff8a5a", "#fff"],
+			{"speed": 320.0, "ttl": 1.0, "size": 3.4})
+	_fire("fx_spawn", [{"x": x, "y": y, "kind": "ring", "ttl": 0.8, "size": 30.0,
+			"grow": 3.0, "color": "rgba(255,220,150,0.9)"}])
+	# damage everything near
+	for e in ents:
+		var d: float = Vector2(e["x"], e["y"]).distance_to(Vector2(x, y))
+		if d < 200.0:
+			e["hp"] = float(e["hp"]) - 60.0 * (1.0 - d / 200.0)
+			e["hurtT"] = 1.0
+			if float(e["hp"]) <= 0.0:
+				kill_ent(e)
+	var dp: float = Vector2(px, py).distance_to(Vector2(x, y))
+	if dp < 200.0 and invuln <= 0.0:
+		php -= 45.0 * (1.0 - dp / 200.0)
+		hurtT = 1.0
+	# DNA debris
+	for i in 6:
+		var a: float = rng.next() * TAU
+		pellets.append({
+			"x": x + cos(a) * rng.range(10.0, 90.0),
+			"y": y + sin(a) * rng.range(10.0, 90.0),
+			"vx": 0.0, "vy": 0.0, "kind": "dna", "ttl": 45.0, "val": 12,
+		})
+	ctx.add_chaos(0.04)
 
 
-@warning_ignore("unused_parameter")
+## TS CellStage.ts:1239 — toxin zone push (redtide / toxin_clouds).
 func add_toxin_zone(x: float, y: float, r: float, dps: float, ttl: float,
 		source: String = "redtide") -> void:
-	pass  # TS CellStage.ts:1239 — toxin zone push (redtide / toxin_clouds)
+	zones.append({"x": x, "y": y, "r": r, "kind": "toxin", "ttl": ttl, "dps": dps,
+			"pulse": 0.0, "source": source})
 
 
-@warning_ignore("unused_parameter")
+## Chaos variant (toxin_clouds): the drifting clouds lean toward warm bodies.
+## TS CellStage.ts:1244.
 func drift_toxin_clouds(dt: float) -> void:
-	pass  # TS CellStage.ts:1244 — the variant's own clouds home the player
+	for z in zones:
+		# minor 1: only the variant's own clouds home the player — the baseline
+		# red tide keeps its static zones (cross-event coupling broke dodges)
+		if String(z["kind"]) != "toxin" or bool(z.get("mine", false)) \
+				or String(z.get("source", "")) != "clouds":
+			continue
+		var d: float = maxf(1.0, Vector2(z["x"], z["y"]).distance_to(Vector2(px, py)))
+		if d > 60.0:
+			z["x"] = float(z["x"]) + ((px - float(z["x"])) / d) * 14.0 * dt
+			z["y"] = float(z["y"]) + ((py - float(z["y"])) / d) * 14.0 * dt
 
 
+## Chaos variant (algae_surge): the bloom runs away with the ocean — flora
+## slams the cap and the wild grazers boom on the windfall. TS
+## CellStage.ts:1259.
 func algae_surge() -> void:
-	pass  # TS CellStage.ts:1259 — bloom + grazer boom + 20 plant pellets
+	bloom()
+	for sp in eco.living():
+		if String(sp["genome"]["diet"]) == "herbivore" \
+				and not bool(sp.get("kin", false)):
+			sp["pop"] = minf(90.0, float(sp["pop"]) * 1.8 + 3.0)
+	for i in 20:
+		var a: float = rng.next() * TAU
+		var d: float = rng.range(100.0, 700.0)
+		pellets.append({
+			"x": px + cos(a) * d, "y": py + sin(a) * d,
+			"vx": 0.0, "vy": 0.0, "kind": "plant", "ttl": 60.0, "val": 2,
+		})
 
 
-@warning_ignore("unused_parameter")
+## Bounded: vents cool into cold seeps after a few minutes. TS
+## CellStage.ts:1274 — cap 6, FIFO.
 func add_vent(x: float, y: float) -> void:
-	pass  # TS CellStage.ts:1274 — bounded heal vent (max 6, ttl 240, heal 6)
+	var vents: Array = []
+	for z in zones:
+		if z["kind"] == "vent":
+			vents.append(z)
+	if vents.size() >= 6:
+		var idx: int = zones.find(vents[0])
+		if idx >= 0:
+			zones.remove_at(idx)
+	zones.append({"x": x, "y": y, "r": 80.0, "kind": "vent", "ttl": 240.0,
+			"dps": 0.0, "heal": 6.0, "pulse": rng.range(0.0, 9.0)})
 
 
+## TS CellStage.ts:1281 — flora surge + 30 plant pellets.
 func bloom() -> void:
-	pass  # TS CellStage.ts:1281 — flora surge + 30 plant pellets
+	eco.flora = minf(eco.flora_cap, eco.flora * 1.9 + 20.0)
+	for i in 30:
+		var a: float = rng.next() * TAU
+		var d: float = rng.range(100.0, 700.0)
+		pellets.append({
+			"x": px + cos(a) * d, "y": py + sin(a) * d,
+			"vx": rng.range(-10.0, 10.0), "vy": rng.range(-10.0, 10.0),
+			"kind": "plant", "ttl": 60.0, "val": 2,
+		})
 
 
+## mirror_rule (bloom's mirror face): exactly ONE rule inverted — the flora
+## direction turns on itself; the pellet sprinkle is identical.
+## TS CellStage.ts:1296.
 func blight() -> void:
-	pass  # TS CellStage.ts:1296 — bloom's mirror face: flora collapses
+	eco.flora = maxf(12.0, eco.flora * 0.35)
+	for i in 30:
+		var a: float = rng.next() * TAU
+		var d: float = rng.range(100.0, 700.0)
+		pellets.append({
+			"x": px + cos(a) * d, "y": py + sin(a) * d,
+			"vx": rng.range(-10.0, 10.0), "vy": rng.range(-10.0, 10.0),
+			"kind": "plant", "ttl": 60.0, "val": 2,
+		})
 
 
+## Chaos event: four mutant hunters ring the player. TS CellStage.ts:1326.
 func spawn_swarm() -> void:
-	pass  # TS CellStage.ts:1326 — 4 mutant hunters, lifespan 30
+	var base: Dictionary = GenomeScript.clone_genome(ctx.genome)
+	base.merge({"size": 0.62, "diet": "carnivore", "jaw": 1, "flagella": 3,
+			"spikes": 1, "hue": 350, "pattern": "stripes"}, true)
+	var g: Dictionary = MutationScript.mutate(base, rng, 0.1)
+	for i in 4:
+		var a: float = (float(i) / 7.0) * TAU
+		spawn_ent(null, px + cos(a) * 620.0, py + sin(a) * 620.0, g,
+				{"swarm": true, "lifespan": 30})
 
 
+## TS CellStage.ts:1335 — the Old One: max(2.0, player*1.6), jaw 5, lifespan 26.
 func spawn_big_brother() -> Variant:
-	return null  # TS CellStage.ts:1335 — returns the spawned CellEnt
+	var base: Dictionary = GenomeScript.clone_genome(ctx.genome)
+	base.merge({"size": maxf(2.0, float(ctx.genome.get("size", 1.0)) * 1.6),
+			"diet": "carnivore", "jaw": 5, "flagella": 4, "spikes": 4, "hue": 285,
+			"pattern": "glow", "eyes": 4}, true)
+	var g: Dictionary = MutationScript.mutate(base, rng, 0.05)
+	var a: float = rng.next() * TAU
+	var e: Dictionary = spawn_ent(null, px + cos(a) * 900.0, py + sin(a) * 900.0, g,
+			{"lifespan": 26})
+	_fire("hud_toast", [tr("SOMETHING HUGE has noticed you"), "bad", "👁"])
+	return e
 
 
+## Chaos event: several species visibly mutate; mutants spawn near player.
+## TS CellStage.ts:1367.
 func spawn_mutant_wave() -> int:
-	return 0  # TS CellStage.ts:1367 — 2-3 wild mutants near the player
+	var pool: Array = []
+	for sp in eco.living():
+		if not bool(sp.get("kin", false)):
+			pool.append(sp)
+	if pool.is_empty():
+		return 0
+	var count: int = 2 + floori(rng.next() * 2.0)
+	for i in count:
+		var sp: Variant = rng.pick(pool)
+		if sp == null:
+			break
+		var mutant: Dictionary = MutationScript.mutate(sp["genome"], rng, 0.85)
+		var a: float = rng.next() * TAU
+		spawn_ent(null, px + cos(a) * rng.range(400.0, 700.0),
+				py + sin(a) * rng.range(400.0, 700.0), mutant, {"lifespan": 40})
+		_fire("hud_toast", ["A mutant %s crawls out of the noise" % sp["name"],
+				"chaos", "🧪"])
+	ctx.add_chaos(0.02)
+	return count
 
 
 ## gaia_redemption tier 2: the Lone Wanderer — one quiet individual with a
