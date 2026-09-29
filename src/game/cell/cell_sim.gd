@@ -1037,18 +1037,21 @@ func update_ents(dt: float) -> void:
 		# (order-preserving — identical survivor array to splice-as-you-go).
 		# NO candidate sort: every in-range qualifying pellet is eaten and the
 		# capped heal is order-independent, so the gather order can't matter.
+		# The A-B harness caught this loop reading the pre-integration hoist —
+		# the original reads e["x"]/e["y"] LIVE here (post-integration), so
+		# gather + distance use nx/ny, the values just written above.
 		var eatR: float = 14.0 * eSize + 5.0
 		var eatR2: float = eatR * eatR
 		if _pg_dirty:
 			_rebuild_pg()
 		_cand.clear()
-		_grid_near(_pg_eat, eEx, eEy, _pg_cell, _cand)
+		_grid_near(_pg_eat, nx, ny, _pg_cell, _cand)
 		var ci := _cand.size() - 1
 		while ci >= 0:
 			var pj: int = _cand[ci]
 			if _pdead[pj] == 0:
-				var pdx: float = _pxs[pj] - eEx
-				var pdy: float = _pys[pj] - eEy
+				var pdx: float = _pxs[pj] - nx
+				var pdy: float = _pys[pj] - ny
 				if pdx * pdx + pdy * pdy < eatR2:
 					var kindOk: bool = (_pk[pj] == 1) if diet == "carnivore" else (_pk[pj] == 0)
 					if kindOk or diet == "omnivore":
