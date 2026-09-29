@@ -174,7 +174,9 @@ func test_tick_returns_extinction_and_speciation_lists() -> void:
 	eq(out["extinctions"].size(), 1, "pop < 0.4 -> extinct, reported in extinctions")
 	eq(s["extinct"], true, "extinct flag set")
 	approx(float(s["pop"]), 0.0, "pop clamped to 0 on extinction")
-	eq(eco.living().size(), 0, "living() drops the dead line")
+	# Task 9: the bio_shift reequilibrate tops the web back up to >= 2 living
+	# lines after a loss (TS solvability top-up — cloneGenome(defaultGenome()))
+	eq(eco.living().size(), 2, "solvability top-up refills the web to 2 living lines")
 
 
 func test_player_species_is_exempt_from_dynamics() -> void:
