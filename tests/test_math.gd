@@ -133,9 +133,11 @@ func test_format_num() -> void:
 	# which %.1f (round-half-even) would get wrong on the 12.25k case below.
 	eq(MathScript.format_num(12345.0), "12.3k", "format_num 12345")
 	eq(MathScript.format_num(12250.0), "12.3k", "format_num exact tie picks larger")
-	# 12350/1e3 = 12.35 sits a hair ABOVE .35 in float64 (12.350000000000001),
-	# so BOTH JS toFixed and the port round UP — not the 12.25 exact-tie case
-	eq(MathScript.format_num(12350.0), "12.4k", "format_num above-half 12.35 → up")
+	# double-rounding trap: fl(12.35) sits BELOW the .35 tie (−3.55e-16) so TS
+	# prints "12.3k"; a multiply-then-round _to_fixed1 lands fl(12.35)*10
+	# exactly on 123.5 and rounds up to "12.4k" — pinning that was pinning a
+	# port bug (fix round 2); the spec-exact divide-compare form fixes it
+	eq(MathScript.format_num(12350.0), "12.3k", "format_num below-tie 12.35 (double-round trap)")
 	eq(MathScript.format_num(10000.0), "10.0k", "format_num 1e4 boundary")
 	eq(MathScript.format_num(9999.0), "9999", "format_num below k")
 	eq(MathScript.format_num(123.6), "124", "format_num rounds")

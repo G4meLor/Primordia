@@ -109,11 +109,21 @@ static func shortest_vec_on_circle(center: Vector2, r: float, angle: float) -> V
 	return center + Vector2(cos(angle), sin(angle)) * r
 
 
-## TS toFixed(1): nearest n/10, ties pick the larger n (ECMA-262 rule), then
-## one decimal digit. format_num only reaches this for n >= 1e4, so n > 0 and
-## the GDScript % (rounds toward -inf, unlike JS) never sees a negative.
+## TS toFixed(1): pick n minimizing |n/10 − x|, ties pick the larger n
+## (ECMA-262 rule), then one decimal digit. The comparison MUST divide the
+## candidates back (n/10), not round the product: _round_js(x*10) double-
+## rounds — fl(12.35) sits BELOW the .35 tie (−3.55e-16) but fl(12.35)*10
+## lands exactly on 123.5 and rounds up to 124, printing "12.4k" over TS's
+## "12.3k" (re-review finding, fix round 3). Ties compare with <= so an exact
+## float tie (e.g. 12.25) takes the larger n; false ties cannot occur in this
+## domain — inputs are integer quotients, whose exact distance to a
+## one-decimal tie is ≥ 5e-11 while float compare noise is ~1e-15. format_num
+## only reaches this for n ≥ 1e4, so n > 0 and the GDScript % (rounds toward
+## -inf, unlike JS) never sees a negative.
 static func _to_fixed1(x: float) -> String:
-	var n := _round_js(x * 10.0)
+	var n := floori(x * 10.0)
+	if float(n + 1) / 10.0 - x <= x - float(n) / 10.0:
+		n += 1
 	return "%d.%d" % [n / 10, n % 10]
 
 
