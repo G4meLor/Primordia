@@ -1,0 +1,455 @@
+key,vi
+CLICK TO IGNITE LIFE,BẤM ĐỂ ĐỐT SỰ SỐNG
+✦  NEW LIFE,✦  SỐNG MỚI
+▶  CONTINUE,▶  TIẾP TỤC
+⚙  SETTINGS,⚙  CÀI ĐẶT
+eat · evolve · survive the universe's worst ideas,ăn · tiến hóa · sống sót qua những ý tưởng tệ nhất vũ trụ
+"everything procedural, nothing scripted","mọi thứ đều procedural, không kịch bản"
+seed,seed
+mute,tắt tiếng
+BEGIN A NEW LIFE,BẮT ĐẦU MỘT CUỘC SỐNG MỚI
+DIFFICULTY,ĐỘ KHÓ
+Peaceful,Êm đềm
+"fewer, gentler chaos events","ít sự kiện chaos hơn, nhẹ nhàng hơn"
+Normal,Thường
+the ocean as intended,đại dương đúng như thiết kế
+Chaos,Hỗn loạn
+events come fast and angry,sự kiện dồn dập và dữ dội
+SAVE SLOT,Ô LƯU
+empty,trống
+overwrite?,ghi đè?
+overwrite,ghi đè
+▶ BEGIN,▶ BẮT ĐẦU
+◀ Back,◀ Trở lại
+Pick a save slot — your run autosaves here.,Chọn ô lưu — game tự lưu vào ô này.
+CONTINUE A RUN,TIẾP TỤC CUỘC CHƠI
+PICK A SLOT,CHỌN Ô
+no save in this slot,ô này chưa có dữ liệu
+min,phút
+SETTINGS,CÀI ĐẶT
+LANGUAGE,NGÔN NGỮ
+English,Tiếng Anh
+Tiếng Việt,Tiếng Việt
+SOUND,ÂM THANH
+On,Bật
+Off,Tắt
+LANGUAGE TIP,GỢI Ý
+Applies instantly. Names of species stay faux-Latin.,Áp dụng ngay. Tên loài vẫn giữ kiểu Latin giả.
+PAUSED,TẠM DỪNG
+▶  Resume,▶  Tiếp tục chơi
+💾  Save now,💾  Lưu ngay
+Game saved,Đã lưu game
+Save failed — browser storage full,Lưu thất bại — bộ nhớ trình duyệt đầy
+❓  How to play,❓  Hướng dẫn chơi
+⌂  Quit to title,⌂  Về menu chính
+◀  Back,◀  Trở lại
+MOVE,DI CHUYỂN
+Mouse: swim/walk toward cursor · WASD also works,Chuột: bơi/đi theo con trỏ · WASD cũng được
+BITE,CẮN
+Hold Left Mouse near prey — or just bump into it,Giữ chuột trái gần con mồi — hoặc chỉ cần đụng vào nó
+DASH,PHONG THẦN
+Space — quick burst (needs Jet Bladder in cell stage),Space — tăng tốc (cần Jet Bladder ở stage tế bào)
+TOXIN,ĐỘC
+1 — poison burst (needs Toxin Sac),1 — xả độc (cần Túi Độc)
+ZAP,ĐIỆN
+2 — electro-stun nearby cells (needs Electro-organ),2 — điện giật làm choáng (cần Cơ quan Điện)
+EVOLVE,TIẾN HÓA
+E — open the editor and spend DNA on new parts,E — mở trình chỉnh sửa và tiêu DNA vào part mới
+PAUSE,TẠM DỪNG
+Esc — this menu · M — mute,Esc — menu này · M — tắt tiếng
+CHAOS,HỖN LOẠN
+The meter top-right grows when you play wild.,Thanh góc phải trên tăng khi bạn chơi dữ dội.
+Wild worlds give more DNA — and worse problems.,Thế giới điên rồ cho nhiều DNA hơn — và nhiều rắc rối hơn.
+DNA,DNA
+EAT. GROW. EVOLVE. — press E to edit your genome,ĂN. LỚN. TIẾN HÓA. — nhấn E để chỉnh genome
+HUNT or CHARM (hold F near a creature) — press TAB for editor,SĂN hoặc QUYẾN RŨ (giữ F gần sinh vật) — nhấn TAB để mở editor
+FOUND A TRIBE — button bottom-right,LẬP BỘ TỘC — nút góc phải dưới
+GATHER · BUILD · SURVIVE — raise the Great Totem,THU HOẠCH · XÂY DỰNG · SỐNG SÓT — dựng Great Totem
+"SEED 3 WORLDS, GROW EACH TO POP 20 — awaken the Chaos Core · R abduct · F evolve","GIEO 3 HÀNH TINH, NUÔI ĐẾN POP 20 — đánh thức Chaos Core · R bắt sinh vật · F tua nhanh tiến hóa"
+(ESC to pause · M mute · F fast-forward · R abduct),(ESC tạm dừng · M tắt tiếng · F tua nhanh · R bắt sinh vật)
+REBIRTH IS PAINFUL,SỰ TÁI SINH THÌ ĐAU ĐỚN
+THE CHIEF HAS FALLEN,TỔ TRƯỞNG ĐÃ NGÃ
+THE ISLAND RECLAIMS YOU,HÒN ĐẢO ĐÓN BẠN VỀ
+the pack scattered — your DNA funds the rebirth,đàn tan tác — DNA của bạn nuôi sự tái sinh
+hold to skip,giữ để bỏ qua
+the soup remembers you,cồn cát vẫn nhớ bạn
+The chief fell — lost,Tổ trưởng đã ngã — mất
+the great beast gored you,con thú khổng lồ húc bạn ngã
+raiders cut you down,giặc cướp hạ bạn
+EVOLVE: brain,TIẾN HÓA: não
+pack,đàn
+"hunt, charm (F), bones, meteor marrow","săn, quyến rũ (F), xương, tủy sao băng"
+BACK TO THE WILDS,TRỞ LẠI BỎ TƯ NHIÊN
+gather your strength and found a new people,hồi sức rồi dựng một dân tộc mới
+the core sleeps — the sandbox is yours,lõi đã ngủ — khu chơi tự do là của bạn
+THE CHAOS CORE ACCEPTS YOU,CHAOS CORE CHẤP NHẬN BẠN
+New species discovered:,Phát hiện loài mới:
+You died — lost,Bạn đã chết — mất
+Ship destroyed! Lost,Tàu bị phá hủy! Mất
+Nothing left to abduct here,Không còn gì để bắt ở đây
+🛸 ABDUCT LIFE (R),🛸 BẮT SINH VẬT (R)
+🌱 SEED COLONY,🌱 GIEO THÀNH PHỐ
+📋 RE-SURVEY (+3),📋 KHẢO SÁT LẠI (+3)
+📡 SCAN,📡 QUÉT
+🧬 GENE LAB: merge 2 cargo (G),🧬 XƯỞNG GEN: ghép 2 hàng (G)
+🗑 JETTISON 1 CARGO,🗑 VỨT 1 HÀNG
+species,loài
+flora,thực vật
+lifeless rock,hòn đá không sự sống
+"This slot is corrupted — delete it in CONTINUE, or use NEW LIFE","Slot này hỏng — xóa nó trong TIẾP TỤC, hoặc dùng New Life"
+Survey instruments recharging,Máy khảo sát đang nạp lại
+UNIFY THE PLANET — slider keys Q/W/E · launch armadas with 1/2/3,THỐNG NHẤT HÀNH TINH — phím slider Q/W/E · phóng hạm đội bằng 1/2/3
+🐢 CRAWL ASHORE,🐢 BÒ LÊN BỜ
+begin the creature era,bắt đầu kỷ nguyên sinh vật
+🔥 FOUND A TRIBE,🔥 LẬP BỘ TỘC
+your pack becomes your people,đàn của bạn trở thành dân của bạn
+R · HUT (40🪵),R · NHÀ (40🪵)
+T · TOTEM (100🍒 80🪵),T · TOTEM (100🍒 80🪵)
+NATIONAL OUTPUT,SỨC MẠNH QUỐC GIA
+Military,Quân sự
+Culture,Văn hóa
+Economy,Kinh tế
+Q/A Military,Q/A Quân sự
+W/S Culture,W/S Văn hóa
+E/D Economy,E/D Kinh tế
+1 attack · 2 charm caravan · 3 trade caravan,1 tấn công · 2 đoàn quyến rũ · 3 đoàn thương mại
+CARGO,HÀNG
+THE PLANET IS UNITED,HÀNH TINH ĐÃ THỐNG NHẤT
+SPECIES EDITOR,TRÌNH CHỈNH SỦA LOÀI
+CELL PARTS,PART TẾ BÀO
+BODY PARTS,PART CƠ THỂ
+DIET,CHẾ ĐỘ ĂN
+SKIN PATTERN,HOA VĂN DA
+COAT,LỚP DA
+BODY SIZE,KÍCH CƠ THỂ
+COLOR,MÀU
+SATURATION,ĐỘ BÃO HÒA
+generation,thế hệ
+DONE (E),XONG (E)
+DNA available,DNA còn lại
+Not enough DNA,Không đủ DNA
+(click halves to shrink / grow — 30 DNA per step),(bấm nửa trái/phải để nhỏ/lớn — 30 DNA mỗi bậc)
+switch ▸,đổi ▸
+next:,kế:
+Flagellum,Roi bơi
+Cilia,Lông vi
+Spike,Gai
+Jaw,Hàm
+Toxin Sac,Túi Độc
+Proboscis,Vòi hút
+Electro-organ,Cơ quan Điện
+Jet Bladder,Bong Bóng Tốc Độ
+Leg,Chân
+Arm,Tay
+Eye,Mắt
+Horn,Sừng
+Tail,Đuôi
+Wings,Cánh
+Brain,Não
++speed,+tốc độ
++accel,+gia tốc
++contact dmg,+sát thương chạm
++bite dmg,+sát thương cắn
++poison aura,+hào quang độc
+drain DNA,hút DNA
+stun burst,xả điện choáng
++dash,+lướt
++land speed,+tốc độ trên cạn
++gather/charm,+thu hoạch/quyến rũ
+"+vision, +charm","+tầm nhìn, +quyến rũ"
++charge dmg,+sát thương húc
++balance,+thăng bằng
+"hops, +charm","nhảy, +quyến rũ"
+ascension,thăng hoa
+Plants only. Peaceful-ish.,Chỉ thực vật. Hòa bình hơi quá.
+Eats everything. Regrets nothing.,Ăn hết mọi thứ. Không hối hận.
+Meat. It is what is for dinner.,Thịt. Đó là bữa tối.
+Plain,Trơn
+Spots,Đốm
+Stripes,Sọc
+Bioluminescent,Phát quang
+Bare Skin,Da trần
+Fur,Lông
+Scales,Vảy
+Bone Plates,Vảy Xương
+—,—
+"+warmth, +charm","+ấm, +quyến rũ"
++defense,+phòng thủ
+"++defense, -speed","++phòng thủ, -tốc độ"
+Herbivore,Ăn cỏ
+Omnivore,Ăn tạp
+Carnivore,Ăn thịt
+It did not like your rhythm.,Nó không thích nhịp của bạn.
+Your pack is full,Đàn của bạn đã đầy
+It ignores your squeaking. Grow bigger or smarter.,Nó phớt lờ tiếng kêu của bạn. Hãy to lớn hơn hoặc thông minh hơn.
+ evolve for more, để tăng giới hạn
+Ancient bones: +45 DNA,Xương cổ đại: +45 DNA
+Meteor marrow! Rare genes course through you.,Tuỷ thiên thạch! Gen hiếm chạy dâng cơ thể.
+A child was born in the hut! (+1 tribesman),Một đứa trẻ chào đời trong nhà! (+1 dân)
+Everyone:,Tất cả:
+Need 40 wood for a hut,Cần 40 gỗ để xây nhà
+Hut construction started,Bắt đầu xây nhà
+The tribe feasts! (+harmony),Bộ tộc mở tiệc! (+hài hòa)
+A tribesman has fallen…,Một dân đã ngã xuống…
+Lightning! Fire spreads with the wind!,Sét đánh! Lửa lan theo gió!
+Hull fully repaired,Phi thuyền sửa xong
+No life to abduct here,Ở đây không có sinh vật để bắt
+Fly closer to seed,Lại gần hơn để gieo giống
+Abducted:,Đã bắt:
+Gene splice:,Lai gene:
+Scan complete:,Quét xong:
+is lifeless — bring life!,không có sự sống — hãy mang sự sống đến!
+species on,loài ở
+No city left to persuade — build output!,Không còn thành phố để thuyết phục — tăng sức mạnh!
+armada →,hạm đội →
+No,Không
+output allocated (Q/W/E sliders),được phân bổ (slider Q/W/E)
+Not enough national output free,Không đủ sức mạnh quốc gia rảnh
+Evolution storm:,Bão tiến hóa:
+☄ METEOR STRIKE,☄ THIÊN THẠCH
+The water flickers. Something falls from the sky…,Mặt nước chớp giật. Có gì đó rơi từ bầu trời…
+🌿 ALGAL BLOOM,🌿 TẢO NỞ BỘNG
+🩸 RED TIDE,🩸 THỦY TRIỀU ĐỎ
+The water turns warm and smells of iron…,Nước ấm lên và tỏa mùi sắt…
+🦈 FEEDING FRENZY,🦈 CƠN ĐIÊN ĂN THỊT
+Tiny teeth glint in the dark…,Những chiếc răng nhỏ loé sáng trong bóng tối…
+👁 THE OLD ONE WAKES,👁 GIẢ GIÀ TỈNH GIẤC
+The seafloor trembles beneath something vast…,Đáy biển rung chuyển dưới một thứ khổng lồ…
+🌋 VENT ERUPTION,🌋 MIỆNG PHUN DỨT
+🌀 THE GLITCH,🌀 THE GLITCH
+DNA hums at a frequency you feel in your membrane…,DNA rì rầm ở một tần số bạn cảm nhận bằng màng tế bào…
+🧪 MUTATION WAVE,🧪 SÓNG ĐỘT BIẾN
+A mutant,Một dị thể
+crawls out of the noise,bò ra từ tạp âm
+🌋 VOLCANIC ERUPTION,🌋 NÚI LỬA PHUN TRÀO
+The mountain groans. Ash whispers down…,Ngọn núi rên rỉ. Tro bụi thì thầm rơi…
+🫨 EARTHQUAKE,🫨 ĐỘNG ĐẤT
+Tiny pebbles begin to hop…,Những viên sỏi tí hon bắt đầu nhảy…
+🐂 STAMPEDE,🐂 ĐÀO TRẠN
+The ground drums. Many hooves…,Mặt đất như trống chiên. Vô số móng guốc…
+🌙 NIGHT RAID,🌙 ĐỒNG ĐÊM TẤN CÔNG
+Eyes open in the dark…,Những đôi mắt mở trong bóng tối…
+🧪 MUTATION STORM,🧪 BÃO ĐỘT BIẾN
+Purple lightning knits new genes in the air…,Sét tím đan gene mới trong không khí…
+🫧 A GLORP APPEARS,🫧 MỘT GLORP XUẤT HIỆN
+🌧 SOFT RAIN,🌧 MƯA NHẸ
+☄ METEOR CRASH,☄ THIÊN THẠCH RƠI
+A whistling star scratches the sky…,Một ngôi sao rít gió cào qua bầu trời…
+⚡ STORM FRONT,⚡ MẶT TRẬN BÃO
+The wind dies. Clouds boil green-black…,Gió lặng mất. Mây sôi màu xanh đen…
+🦁 A GREAT BEAST HUNTS,🦁 QUÁI THÚ ĐANG SĂN
+Birds go silent in every direction…,Chim im lặng từ mọi phía…
+🗡 SURPRISE ATTACK,🗡 TẤN CÔNG BẤT NGỜ
+Drums answer from beyond the ridge…,Trống đáp lời từ sau dãy núi…
+🔥 FESTIVAL NIGHT,🔥 ĐÊM LỄ HỘI
+🌠 STAR SHOWER,🌠 MƯA SAO
+🫨 MEGA-QUAKE,🫨 SIÊU ĐỘNG ĐẤT
+Seismographs scream across the continent…,Máy đo địa chấn gào lên khắp lục địa…
+🔥 UNREST SPREADS,🔥 BẤT ỔN LAN RỘNG
+✨ GOLDEN AGE,✨ THỜI HOÀNG KIM
+💥 WORLD WAR,💥 CHIẾN TRANH THẾ GIỚI
+Mobilization everywhere. Ultimatums fly…,Tổng động viên khắp nơi. Tối hậu thư bay tứ tung…
+☠ PIRATE AMBUSH,☠ CƯỚP BIỂN PHỤNG KÍCH
+Unfriendly signatures on the scope…,Tín hiệu không thân thiện trên radar…
+🕳 ROGUE BLACK HOLE,🕳 HỐ ĐEN PHIÊU LƯU
+Starlight bends where it should not…,Ánh sao cong nơi không nên cong…
+☀️ SOLAR FLARE,☀️ BÙA NẮNG
+The sun swells and spits…,Mặt trời phồng lên và nhổ lửa…
+📦 VOID EMPIRE TAX,📦 THUẾ ĐẾ CHẾ VÔ CỰC
+A shadow shaped like paperwork falls across your ship…,Một cái bóng hình giấy tờ phủ lên phi thuyền của bạn…
+THE VOID EMPIRE DEMANDS TRIBUTE,ĐẾ CHẾ VÔ CỰC ĐÒI CỐNG
+pay,trả
+or face the raid,hoặc đón cơn cướp
+Tribute paid. The Void Empire is satisfied… for now.,Đã nộp cống. Đế chế Vô Cực hài lòng… tạm thời.
+Not enough DNA — the raid is coming!,Không đủ DNA — bọn cướp đang tới!
+Pirate destroyed! +30 DNA,Đã diệt cướp! +30 DNA
+Solar flare scorches your hull!,Bùa nắng thiêu cháy vỏ phi thuyền!
+TUTORIAL,HƯỚNG DẪN
+skip,bỏ qua
+Hold LEFT MOUSE — swim toward the cursor.,GIỮ CHUỘT TRÁI — bơi theo con trỏ.
+Bump into the green bits to EAT them. Food is DNA.,Đụng vào các hạt xanh để ĂN. Thức ăn chính là DNA.
+Smaller cells are FOOD. Swim into one — CHOMP.,Tế bào nhỏ hơn là THỨC ĂN. Bơi vào một con — RỐP.
+Press E — the EDITOR. Buy parts with DNA (try a Flagellum).,Nhấn E — TRÌNH CHỈNH SỬA. Mua part bằng DNA (thử Roi bơi).
+"Buy a LEG (65 DNA), then press the 🐢 CRAWL ASHORE button.","Mua CHÂN (65 DNA), rồi bấm nút 🐢 BÒ LÊN BỜ."
+Walk with the mouse. 🦴 bones = free DNA. Danger has teeth here.,Đi bằng chuột. 🦴 xương = DNA miễn phí. Ở đây nguy hiểm có răng.
+Hold F next to a creature → press SPACE on the beat ×3 → friend!,Giữ F cạnh một sinh vật → nhấn SPACE theo nhịp ×3 → bạn!
+Press TAB — the editor works on land too. Brain ×3 unlocks the tribe.,Nhấn TAB — editor vẫn hoạt động trên cạn. Não ×3 mở khóa bộ tộc.
+Editor tutorial done — the rest is evolution. Good luck.,Hướng dẫn editor xong — phần còn lại là tiến hóa. Chúc may mắn.
+karma · chaos,karma · hỗn loạn
+The universe hums in harmony — you gardened the stars.,Vũ trụ ngân nga hài hòa — bạn là người làm vườn của các vì sao.
+The universe fears your name — chaos was your harvest.,Vũ trụ sợ tận tên bạn — hỗn loạn chính là mùa vụ của bạn.
+The universe cannot decide what you are. It keeps watching.,Vũ trụ không quyết định được bạn là gì. Nó tiếp tục quan sát.
+"the sandbox remains yours — keep flying, keep evolving","cát vẫn thuộc về bạn — cứ bay, cứ tiến hóa"
+HULL,VỎ
+EVOLUTION ACCELERATING,TIẾN HÓA ĐANG TUA NHANH
+⏩ EVOLUTION ACCELERATING,⏩ TIẾN HÓA ĐANG TUA NHANH
+CELL STAGE,KỶ NGUYÊN TẾ BÀO
+you are one hungry dot in an ancient ocean,bạn là một chấm đói giữa đại dương cổ
+THE LONG WALK,CUỘC BỘ DÀI
+"400 million years of ambition, one nervous step onto land","400 triệu năm khát vọng, một bước run run lên bờ"
+THE FIRST FIRE,NGỌN LỬA ĐẦU TIÊN
+looks at the stars and decides to stay,nhìn các vì sao và quyết định ở lại
+THE FIRST CITY,THÀNH PHỐ ĐẦU TIÊN
+drums become laws; laws become empires,trống trở thành luật; luật trở thành đế chế
+THE BLACK OCEAN,ĐẠI DƯƠNG ĐEN
+a planet was never going to be enough,một hành tinh chưa bao giờ là đủ
+WELCOME BACK,CHÀO MỪNG TRỞ LẠI
+click to continue,bấm để tiếp tục
+🔊  Sound: on,🔊  Âm thanh: bật
+🔇  Sound: off,🔇  Âm thanh: tắt
+A tribesman takes the chief's place,Một người trong bộ tộc thay thủ lĩnh ngã xuống
+The storm crackles but finds nothing to burn,Cơn bão rền nhưng không tìm thấy gì để cháy
+Totem needs 100 food + 80 wood (have,Totem cần 100 thức ăn + 80 gỗ (hiện có
+A tribesman takes the chief's place (,Một người trong bộ tộc thay thế (
+the soup remembers,nồi súp vẫn nhớ bạn
+NEW SPECIES,LOÀI MỚI
+Hungry Bloom,Nở Rộ Đói
+Herbivores here strip plant mass 60% faster.,Động vật ăn cỏ ở đây gặm nhấm thực vật nhanh hơn 60%.
+Iron Gut,Dạ Dày Thép
+Every meal in this ocean pays 20% more DNA.,Mỗi bữa ăn trong đại dương này trả thêm 20% DNA.
+Toxin Sea,Biển Độc
+Chaos here condenses into drifting toxin clouds.,Chaos ở đây ngưng tụ thành những đám mây độc trôi bồng bềnh.
+Swift World,Thế Giới Thoăn Đoắt
+Life reproduces and branches half again as fast.,Sự sống sinh sôi và phân nhánh nhanh hơn rưỡi lần.
+Old Blood,Huyết Thống Cổ
+Titans swim here — meals are poorer but legends are real.,Những gã khổng lồ bơi lội đây — bữa ăn nghèo đi nhưng huyền thoại là thật.
+Pirate Wind,Gió Cướp Biển
+Rivals sail earlier and hit harder.,Đối thủ ra khơi sớm hơn và đánh đau hơn.
+Calm Veil,Màn Bình Yên
+"A slow, quiet world — events come gently, if at all.","Một thế giới chậm rãi, trầm lặng — sự kiện đến dịu dàng, nếu có đến."
+Mutation Moon,Mặt Trăng Đột Biến
+"Under this moon, mutation storms touch two species at once.","Dưới mặt trăng này, bão đột biến chạm vào hai loài cùng lúc."
+Rot Circle,Vòng Phân Hủy
+"When a species dies here, the ruins bloom — flora surges and a new grazer rises.","Khi một loài chết ở đây, phế tích nở rộ — thực vật bùng nổ và một loài ăn cỏ mới trỗi dậy."
+War Graves,Mộ Chiến Tranh
+Raids on this world leave DNA caches in the wreckage.,Những cuộc đột kích trên thế giới này để lại kho DNA trong đống đổ nát.
+The Great Frost,Đại Băng Giá
+"The bloom froze mid-bite. This world grows slower, quieter now.","Sự nở rộ đông cứng giữa chừng. Thế giới này lớn chậm hơn, trầm lặng hơn."
+The herd remembers,Đàn Bầy Vẫn Nhớ
+Those you spared walk closer today.,Những con bạn từng tha hôm nay đi sát lại gần.
+the herd remembers,đàn bầy vẫn nhớ
+World Temperament,Tính Cách Thế Giới
+"This world has a temper — Cradle softens every blow, Lean Seasons starve in long cycles, the Wildcard streaks without mercy.","Thế giới này có tính khí — Cradle dịu mọi đòn đánh, Lean Seasons đói theo chu kỳ dài, Wildcard cuồng nộ không thương."
+Temperament Bands,Dải Tính Cách
+"Every species here carries its own disposition — some shy, some relentless.","Mỗi loài ở đây mang một tính cách riêng — có bầy rình rồi bỏ chạy, có bầy dồn đến cùng."
+Kin Memory,Ký Ức Dòng Họ
+One lineage here keeps a ledger of your kills — one that fades over generations.,Một dòng họ ở đây ghi sổ mọi mối thù với bạn — sổ ấy nhạt dần qua các thế hệ.
+the kin are watching,dòng họ của con này đang nhìn
+Corpse Tide,Thủy Triều Xác
+"Your kills do not end here — the dead burst into small, fierce scavengers.",Những gì bạn giết không kết thúc ở đây — xác chết nổ thành những con ăn xác nhỏ hung hãn.
+Selection Sweep,Cơn Sàng Lọc
+"The toxin tide tithes the ornamented — the plain survive, and the hue of the whole system shifts.","Thủy triều độc lấy thuế của những cá thể sặc sỡ — loài trơn sống sót, và màu của cả hệ dịch chuyển."
+Borrowed Flesh,Thân Hình Mượn
+One graft slot opens in the Gene Splicer — borrow a part of an extinct species.,Một khe ghép mở trong Xưởng Gen — mượn một part của loài đã tuyệt chủng.
+BORROWED FLESH,THÂN HÌNH MƯỚN
+graft,ghép
+Borrowed flesh:,Thân hình mượn:
+UNEXPECTED EXPRESSION,BIỂU HIỆN BẤT NGỜ
+Recessive Echo,Hồi Âm Ẩn
+Sleeper Gene,Gene Ngủ Dong
+Transposon,Gene Nhảy
+Defective splice:,Lai lỗi:
+Glass Bones,Xương Thủy Tinh
+Frenzy,Cuồng Nộ
+Famine,Đói Khát
+False Wing,Cánh Giả
+"The ancestor's fin catches air again — a short glide, never flight.","Vây của tổ tiên lại đỡ được không khí — một đoạn lướt ngắn, chưa phải bay."
+Trophic Release,Sóng Thức Giải
+The apex lane stands open — the middle of the web blooms into it.,Làn đỉnh chuỗi thức ăn trống mở — phần giữa của hệ sống nở rộ vào đó.
+The Gate Crossed,Qua Cổng
+Fins that once cut the water learn to catch air — the age of the gliders begins.,Vây từng xẻ nước giờ học đỡ gió — kỷ nguyên của những kẻ lướt bắt đầu.
+An Epoch Begins,Một Kỷ Nguyên Bắt Đầu
+The dominant line has fallen; the web re-shapes around who is left.,Dòng thống trị đã ngã; hệ Web xoay quanh những ai còn lại.
+the age of,kỷ nguyên của
+Gaia's Redemption,Sự Đền Tạ của Gaia
+The ocean folds the fallen back into itself — the tithe becomes part of the world again.,Đại dương gập cái đã ngã vào lòng mình — của thuế lại trở thành một phần của thế giới.
+The web re-equilibrates:,Hệ sống tái cân bằng:
+🩸 PREDATORS CONVERGE,🩸 SĂN MỒI HỘI TỤ
+Every hunter on the island turns toward you…,Mọi thợ săn trên đảo đều quay về phía bạn…
+Predators converge on the dominant line.,Các loài săn mồi hội tụ về dòng thống trị.
+🏹 THE HOARD DRAWS SIEGE,🏹 KHO HÀNG KÉO VÂY HÃM
+Torches mass beyond the ridge — they smell your stores…,Đuốc tập trung sau dãy núi — chúng ngửi thấy kho của bạn…
+Warm rain — but the berries rot on the bush.,Mưa ấm — nhưng quả mọng mục trên cành.
+The feast sours — the tribe bickers all night.,Tiệc đổ bể — bộ tộc cãi vã suốt đêm.
+☣ TOXIN CLOUDS,☣ MÂY ĐỘC
+🌿 RUNAWAY BLOOM,🌿 TẢO NỞ ĐIÊN
+🏆 RIVAL GOLDEN AGE,🏆 THỜI HOÀNG KIM ĐỐI THỦ
+⛵ TRADE WINDS,⛵ GIÓ THƯƠNG MẠI
+🐺 NIGHT PACK,🐺 ĐÀN BẠN ĐÊM
+🗿 A TITAN WALKS,🗿 MỘT TITAN ĐI QUA
+🌌 MUTATION NEBULA,🌌 TINH VÂN ĐỘT BIẾN
+🕊 PIRATE LULL,🕊 CƯỚP BIỂN NGHỈ TAY
+🏴 BOLD SAILS,🏴 BUỒM LỚN TRƯỚC GIÓ
+🎊 RIVAL FESTIVAL,🎊 LỄ HỘI ĐỐI THỦ
+Foreign banners gleam — their forges never cool…,Cờ đối thủ loé sáng — lò rèn của họ chưa bao giờ nguội…
+Sails crowd every horizon — markets hum…,Buồm san sát mọi chân trời — chợ búa rì rầm…
+Something moves between the trees…,Có gì đó di chuyển giữa những hàng cây…
+A rainbow wall of charged gas rolls in…,Một bức tường khí tích điện sắc cầu vồng ập đến…
+Sails where no sails should be…,Buồm nơi không nên có buồm…
+A pack moves as one — eyes close in from the dark!,Cả bầy di chuyển như một — ánh mắt áp sát từ bóng tối!
+The ground trembles — a titan walks past.,Mặt đất rung nhẹ — một titan đi ngang qua.
+A rival golden age! Their forges and fleets swell.,Thời hoàng kim của đối thủ! Lò rèn và hạm đội của chúng phình to.
+Trade winds! Every market on the planet hums.,Gió thương mại! Mọi khu chợ trên hành tinh rộn ràng.
+The pirates pull back — an uneasy quiet falls.,Bọn cướp rút lui — một khoảng im lặng bất an bao trùm.
+The nebula passes over,Tinh vân quét qua
+The nebula seeds,Tinh vân gieo
+nothing takes hold.,không gì đậu được.
+new species on,loài mới trên
+🌍  World Genome,🌍  Gen Thế Giới
+World Genome,Gen Thế Giới
+Codex,Bảo Điển
+ancient,ngàn năm
+restless,không nguôi
+patient,kiên nhẫn
+voracious,đói khát
+gentle,hiền hòa
+burning,cháy bỏng
+sunken,đắm chìm
+hidden,ẩn mình
+howling,gào thét
+cracked,nứt nẻ
+ocean,đại dương
+cradle,cái nôi
+garden,khu vườn
+furnace,lò lửa
+veil,màn che
+deep,vực sâu
+march,vùng biên
+seedbed,vườn ươm
+mirror,tấm gương
+engine,cỗ máy
+R̶e̶a̶l̶i̶t̶y̶ ̶b̶u̶f̶f̶e̶r̶i̶n̶g̶…,Đ̶a̶n̶g̶ ̶đ̶ệ̶m̶ ̶t̶h̶ự̶c̶ ̶t̶ạ̶i̶…̶
+The ground trembles in a slow rhythm…,Mặt đất rung theo một nhịp chậm rãi…
+The nebula washes only dead rock.,Tinh vân chỉ quét qua đá khô.
+War graves yield DNA.,Mộ chiến binh trả lại DNA.
+that species is now gone from this world,loài đó đã biến mất khỏi thế giới này
+survey,khảo sát
+MAX,TỐI ĐA
+Your only way ashore! Keep at least one LEG.,Đường lên bờ duy nhất! Giữ lại ít nhất một CHÂN.
+⟳ wheel scrolls more parts,⟳ con lăn để xem thêm bộ phận
+Survive first — evolve while alive,Sống đã — tiến hóa khi còn sống
+The Glitch pays tribute: +40 DNA,The Glitch tri ân: +40 DNA
+A mutant cousin appears!,Một anh họ đột biến xuất hiện!
+SOMETHING HUGE has noticed you,MỘT THỨ CỰ LỚN đã để ý bạn
+Board full — lower another slider first,Bảng đầy — hạ thanh trượt khác trước
+Golden age! Your cities flourish.,Thời hoàng kim! Các thành phố của bạn phồn thịnh.
+Life finds a way — new creatures migrate in from beyond the ridge.,Sự sống tìm được đường — loài mới di cư từ xa đến.
+Hold F near a creature to CHARM it instead of being bitten,Giữ F gần sinh vật để THU PHỤC thay vì bị cắn
+"Wait for the beat marker to swing into the glow, THEN press SPACE","Chờ kim nhịp quét vào vùng sáng, RỒI nhấn SPACE"
+"It got away — chase it into a corner, or grow faster.","Nó bỏ chạy — dồn vào góc, hoặc lớn nhanh hơn."
+A new friend joins your pack!,Một người bạn mới gia nhập đàn!
+STAMPEDE! Get out of the way!,ĐÀN THÚ PHÓNG! Tránh ra!
+Night raid! Predators circle your nest!,Đột kích đêm! Kẻ săn vây tổ bạn!
+A Glorp wanders by and shares its plasma.,Một Glorp đi ngang và chia sẻ plasma.
+Warm rain — the bushes swell with berries.,Mưa ấm — những bụi cây tràn quả mọng.
+The siege lifts — pirates give up,Vây hãm tan biến — cướp biển từ bỏ
+Fly closer to a planet to abduct,Bay sát hành tinh để bắt mẫu vật
+"Cargo full — SEED a world, SPLICE genes (G), or JETTISON from the planet panel","Khoang đầy — GIEO MẦM thế giới, LAI GHÉP gen (G), hoặc NHẢ MỎI khỏi bảng hành tinh"
+Seeding costs 20 DNA,Gieo mầm tốn 20 DNA
+Gene splice costs 15 DNA,Ghép gen tốn 15 DNA
+Raiders rally beyond the ridge — press 3 to arm warriors!,Giang hồ tập kết sau đồi — nhấn 3 để trang bị chiến binh!
+No one left to raise the totem — keep your people alive,Không còn ai để dựng cột tượng — giữ dân bạn sống
+The great beast wanders away…,Con thú khổng lồ bỏ đi…
+Drums all night! The tribe is one.,Trống khuya! Bộ tộc là một.
+Falling stars seed the sky with DNA.,Sao băng gieo DNA khắp bầu trời.
+A new hut raises the roof!,Một túp lều mới mọc mái!
