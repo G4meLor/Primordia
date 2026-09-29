@@ -53,8 +53,8 @@ static func draw_water_backdrop(ci: CanvasItem, cam: Variant, vw: float, vh: flo
 	for layer in 2:
 		var p := 0.18 + float(layer) * 0.22
 		var S := 220.0 - float(layer) * 60.0
-		var ox := cam.x * p
-		var oy := cam.y * p
+		var ox: float = cam.x * p
+		var oy: float = cam.y * p
 		var i0 := floori((ox - vw / 2.0) / S)
 		var i1 := ceili((ox + vw / 2.0) / S)
 		var j0 := floori((oy - vh / 2.0) / S)
@@ -64,8 +64,8 @@ static func draw_water_backdrop(ci: CanvasItem, cam: Variant, vw: float, vh: flo
 				var hx := hash2(float(i), float(j), 11.0 + float(layer) * 77.0)
 				var hy := hash2(float(i), float(j), 23.0 + float(layer) * 77.0)
 				var hp := hash2(float(i), float(j), 41.0 + float(layer) * 77.0)
-				var sx := vw / 2.0 + (float(i) * S + hx * S) - ox
-				var sy := vh / 2.0 + (float(j) * S + hy * S) - oy
+				var sx: float = vw / 2.0 + (float(i) * S + hx * S) - ox
+				var sy: float = vh / 2.0 + (float(j) * S + hy * S) - oy
 				var sz := 1.0 + hp * (2.0 if layer == 0 else 3.4)
 				var tw := 0.25 + 0.2 * sin(t * (0.6 + hp) + hp * 9.0)
 				ci.draw_circle(Vector2(sx, sy), sz, RendererScript.hsl(190.0 + hp * 60.0, 0.5, 0.7, tw))

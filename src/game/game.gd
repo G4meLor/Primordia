@@ -17,8 +17,12 @@ const CamScript := preload("res://src/game/cam.gd")
 const ContextScript := preload("res://src/game/context.gd")
 const StorytellerScript := preload("res://src/game/storyteller.gd")
 const I18nScript := preload("res://src/core/i18n.gd")
+const ParticlesScript := preload("res://src/gfx/particles.gd")
 
 signal stage_changed(stage_id: String)
+## TS ctx.bus.emit(EV.playerDeath, …) shape (M2 T7): the cell sim's
+## context_event hook routes here; the storyteller pump listener is Task 9.
+signal context_event(ev_name: String, from_stage: String)
 
 var context: Variant = null      # M1 GameContext
 var input: Variant = null        # GameInput wrapper (src/core/input.gd)
@@ -36,6 +40,12 @@ var stages := {}                  # StageId -> Stage (TS private stages Map)
 var current: Variant = null       # live Stage (TS private current)
 var transition: Variant = null    # {phase, t, dur, next, title, sub} | null
 var pending_go_to: Variant = null # {id, card, survivesQuit} | null
+
+## TS `_cursor` (game.ts:153) — dedupes the per-frame cursor writes.
+var _cursor := "default"
+## The game-level Particles pool (TS `fx = new Particles(1100)`) behind the
+## stub-dict Callables — cap per the M2 T7 ruling.
+var _fx_pool: Variant = null
 
 ## Stubs of the TS overlays, dictionaries of no-op Callables replaced by their
 ## tasks (hud/editor: UI tasks; fx: particles task). editor keeps an "open"
@@ -67,11 +77,15 @@ func _init(context_v: Variant = null) -> void:
 	}
 	editor["update"] = func(_dt: float) -> void: pass
 	editor["close"] = func() -> void: pass
+	# TS `fx = new Particles(1100)` — the real pool under the stub-dict shape;
+	# bursts stay no-ops until their callers land, render/update are live.
+	_fx_pool = ParticlesScript.new(1100)
 	fx = {
-		"clear": func() -> void: pass,
-		"update": func(_dt: float) -> void: pass,
-		"burst": func(_x: float, _y: float, _n: int, _opts: Variant = null) -> void: pass,
-		"spawn": func(_opts: Variant = null) -> void: pass,
+		"clear": _fx_clear,
+		"update": _fx_update,
+		"burst": _fx_burst,
+		"spawn": _fx_spawn,
+		"render": _fx_render,
 	}
 	# TS GameLoop(deps) — update per fixed step, render once per process frame.
 	loop = LoopScript.new(_do_update, _do_render)
@@ -186,6 +200,13 @@ func _resize() -> void:
 ## The loop's update side — TS Game.update(dt) with this task's scope (see
 ## class header for what lands in Task 9 / later tasks).
 func _do_update(dt: float) -> void:
+	# base cursor for this frame — UI layers upgrade it on hover (game.ts:262)
+	var base_cursor := "crosshair"
+	if current == null or current.id == "menu" or paused:
+		base_cursor = "default"
+	elif transition != null and transition["phase"] == "card":
+		base_cursor = "pointer"
+	set_cursor(base_cursor)
 	var c: Variant = context
 	c.playtime += dt
 	# editor & pause freeze gameplay
@@ -263,3 +284,41 @@ func save_all() -> bool:
 ## Convenience for stages: shake the main camera (TS camShakeFor).
 func cam_shake_for(mag: float, dur: float) -> void:
 	cam.shake(mag, dur)
+
+
+## TS Game.setCursor (game.ts:150): 'default' | 'pointer' | 'crosshair'.
+## UI layers upgrade to pointer over their hover rects; gameplay defaults to
+## a crosshair. Native mapping via the OS cursor shape.
+func set_cursor(c: String) -> void:
+	if _cursor == c:
+		return
+	_cursor = c
+	match c:
+		"pointer":
+			Input.set_default_cursor_shape(Input.CURSOR_POINTING_HAND)
+		"crosshair":
+			Input.set_default_cursor_shape(Input.CURSOR_CROSS)
+		_:
+			Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+
+
+# ---- game fx pool forwards (the dict Callables bind these) ------------------------
+
+func _fx_clear() -> void:
+	_fx_pool.clear()
+
+
+func _fx_update(dt: float) -> void:
+	_fx_pool.update(dt)
+
+
+func _fx_burst(x: float, y: float, n: int, rng_v: Variant, opts: Variant = null) -> void:
+	_fx_pool.burst(x, y, n, rng_v, {} if opts == null else opts)
+
+
+func _fx_spawn(opts: Variant = null) -> void:
+	_fx_pool.spawn({} if opts == null else opts)
+
+
+func _fx_render(ci: Variant) -> void:
+	_fx_pool.render(ci)

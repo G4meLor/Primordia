@@ -1,13 +1,15 @@
 ## PRIMORDIA native entry point (boot scene). Registers the placeholder menu
-## stage and starts the Game loop — Task 9 replaces the placeholder Menu/Cell
-## stages with the real MenuStage; their only job here is proving the boot
-## path and the go_to transition shape (no-title card → out 0.55 → in 0.6).
+## stage and starts the Game loop — Task 9 replaces the placeholder Menu
+## stage with the real MenuStage; the placeholder's only job here is proving
+## the boot path and the go_to transition shape (no-title card → out 0.55 →
+## in 0.6). The REAL cell stage (M2 Task 7) replaces the old placeholder.
 ## PRIMORDIA_BOOT_QUIT_FRAMES=N quits cleanly after N frames (test-only hook,
 ## brief Boot AC: "quits via an env var after N frames").
 extends Node
 
 const GameScript := preload("res://src/game/game.gd")
 const StageScript := preload("res://src/game/stage.gd")
+const CellStageScript := preload("res://src/game/cell/cell_stage.gd")
 
 var game: Variant = null
 
@@ -15,8 +17,8 @@ var _boot_quit_frames := 0
 var _frames := 0
 
 
-## Placeholder menu: Enter/click starts a new game into the placeholder cell
-## stage via the no-title transition path.
+## Placeholder menu: Enter/click starts a new game into the cell stage via
+## the no-title transition path.
 class MenuPlaceholder extends "res://src/game/stage.gd":
 	func _init(g: Variant) -> void:
 		super(g, "menu")
@@ -29,14 +31,8 @@ class MenuPlaceholder extends "res://src/game/stage.gd":
 	## the placeholder just registers its cell once.
 	func start_new_game() -> void:
 		if not game.stages.has("cell"):
-			game.register(CellPlaceholder.new(game))
+			game.register(CellStageScript.new(game))
 		game.go_to("cell", {"title": "", "sub": ""})
-
-
-## Placeholder cell: the real CellStage lands with the cell sim tasks.
-class CellPlaceholder extends "res://src/game/stage.gd":
-	func _init(g: Variant) -> void:
-		super(g, "cell")
 
 
 func _ready() -> void:
