@@ -244,8 +244,9 @@ static func mirror_bucket(w: Dictionary) -> String:
 static func _cond_met(c: Dictionary, s: Dictionary) -> bool:
 	# Missing signal fields default to 0.0 where TS reads undefined
 	# (undefined >= n is a NaN compare -> false). Same outcome for every
-	# catalog threshold: counts >= 1, chaos above > 0, seconds >= 90 — a 0.0
-	# default never accidentally satisfies one.
+	# catalog threshold: counts >= 1, chaos above > 0, seconds >= 60 (the
+	# smallest: war_graves' stageTime trigger) — a 0.0 default never
+	# accidentally satisfies one.
 	var kind: String = c["kind"]
 	if kind == "stageTime":
 		return c["stage"] == s.get("stage") and float(s.get("timer", 0.0)) >= float(c["seconds"])
