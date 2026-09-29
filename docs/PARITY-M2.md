@@ -271,7 +271,9 @@ those two sites. First divergences: s1/s2 tick 9, s3 tick 0 — low-order-bit
 value deltas through the flee/panic divisor and hunt/grudge thresholds the
 distances feed, amplifying chaotically through the crowded scenarios (the
 707→715 meteor-ring shift was this class, caught-then-fixed down to the stale
-position bug the re-record ultimately exposed).
+position bug the re-record ultimately exposed). Badge: after the fixes, the
+suite's fixture re-record returned to **707 px — the exact pre-optimization
+value**; the fixture delta is gone because its cause is gone.
 
 ## §5.2 scorecard
 
