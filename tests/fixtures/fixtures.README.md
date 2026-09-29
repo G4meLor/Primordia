@@ -203,8 +203,8 @@ toxin_sea, kin_memory, world_temperament; temperament cradle) — pins combo fir
 | 3 | cell | 250 | 0 | 0 | 0 | nothing |
 | 4 | cell | 300 | 0 | 0 | 0 | reveal world_temperament |
 | 5 | cell | 300 | 0.44 | 0 | 0 | nothing |
-| 6 | cell | 300 | 0.45 | 0 | 0 | nothing — `above` is STRICT (0.45 > 0.45 false) |
-| 7 | cell | 300 | 0.46 | 0 | 0 | reveal toxin_sea |
+| 6 | cell | 300 | 0.45 | 0 | 0 | reveal toxin_sea — `above` is inclusive (`>= 0.45`) |
+| 7 | cell | 300 | 0.46 | 0 | 0 | nothing (toxin_sea already revealed) |
 | 8 | cell | 300 | 0.46 | 1 | 0 | reveal kin_memory |
 | 9 | cell | 300 | 0.59 | 1 | 0 | nothing |
 | 10 | cell | 300 | 0.61 | 1 | 0 | reveal mutation_moon; fire selection_sweep |

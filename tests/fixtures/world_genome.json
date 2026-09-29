@@ -383,7 +383,7 @@
         },
         {
           "step": 7,
-          "why": "under toxin_sea band; selection_sweep trigger (0.45) not met and toxin_sea absent anyway",
+          "why": "under toxin_sea band; selection_sweep trigger (>= 0.45) not met and toxin_sea absent anyway",
           "signals": {
             "stage": "cell",
             "timer": 200,
@@ -620,7 +620,7 @@
         },
         {
           "step": 5,
-          "why": "just under toxin_sea (chaos > 0.45)",
+          "why": "just under toxin_sea (chaos >= 0.45)",
           "signals": {
             "stage": "cell",
             "timer": 300,
@@ -634,7 +634,7 @@
         },
         {
           "step": 6,
-          "why": "exact 0.45 — `above` is strict, still hidden",
+          "why": "exact 0.45 — `above` is inclusive (>=), reveals toxin_sea",
           "signals": {
             "stage": "cell",
             "timer": 300,
@@ -650,7 +650,7 @@
         },
         {
           "step": 7,
-          "why": "reveals toxin_sea",
+          "why": "toxin_sea already revealed at 0.45 — nothing new",
           "signals": {
             "stage": "cell",
             "timer": 300,
@@ -694,7 +694,7 @@
         },
         {
           "step": 10,
-          "why": "reveals mutation_moon; selection_sweep fires (requires both revealed, chaos > 0.45)",
+          "why": "reveals mutation_moon; selection_sweep fires (requires both revealed, chaos >= 0.45)",
           "signals": {
             "stage": "cell",
             "timer": 300,
