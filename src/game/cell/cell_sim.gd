@@ -22,8 +22,9 @@
 ##    native streams diverge from a same-seed TS run by exactly one draw.
 ##  - TS first-frame death check `deathFade === dt` → `deathStarted` bool.
 ##  - ent.lastPlayerHit union → String ("" = none).
-##  - fx bursts: TS Particles.burst consumes the stage rng (4 draws/particle);
-##    the sim replays those draws verbatim (_fx_burst) and ships the sampled
+##  - fx bursts: TS Particles.burst consumes the stage rng (5 draws/particle:
+##    ang, speed, color pick, ttl, size — gfx/particles.ts:70-84); the sim
+##    replays those draws verbatim (_fx_burst) and ships the sampled
 ##    per-particle primitives to the scene through opts["parts"].
 ## Ent optional fields (swarm/lifespan) stay ABSENT until set, matching TS
 ## undefined semantics — readers use .get().
@@ -119,6 +120,13 @@ func _init(ctx_v: Variant, rng_branch: Variant, hooks: Dictionary = {}) -> void:
 	ctx = ctx_v
 	rng = rng_branch
 	_hooks = hooks
+	# DIVERGENCE D1 (drawn FIRST, before the eco bootstrap — TS field
+	# initializer order): TS `playerSeed = Math.random()*10` (CellStage.ts:97)
+	# draws from the GLOBAL rng; native draws from the stage branch instead.
+	# Visual-only seed. The native stage stream consumes exactly one draw TS
+	# never made, so per-seed runs are native-deterministic but not
+	# stream-aligned with a same-seed TS run.
+	playerSeed = rng.range(0.0, 10.0)
 	pStats = StatsScript.compute_cell_stats(ctx.genome)
 	pmaxHp = float(pStats["max_hp"])
 	php = pmaxHp
@@ -901,10 +909,11 @@ func debug_state() -> Dictionary:
 # ---- internals --------------------------------------------------------------------
 
 ## TS Particles.burst consumes the stage rng — per particle: 1 angle draw,
-## 1 speed draw, 1 color pick (colors array present), 1 ttl draw. The sim
-## replays those draws verbatim so the stream stays TS-aligned, embeds the
-## sampled primitives under opts["parts"] (the scene layer may render them
-## 1:1 or ignore them), and fires the fx_burst hook.
+## 1 speed draw, 1 color pick (colors array present), 1 ttl draw, 1 size
+## draw (range(0.6, 1.4) × opts.size, drawn AFTER ttl — gfx/particles.ts:70-84).
+## The sim replays those 5 draws verbatim so the stream stays TS-aligned,
+## embeds the sampled primitives under opts["parts"] (the scene layer may
+## render them 1:1 or ignore them), and fires the fx_burst hook.
 func _fx_burst(x: float, y: float, n: int, colors: Array, opts: Dictionary = {}) -> void:
 	var o: Dictionary = opts.duplicate()
 	o["colors"] = colors
@@ -915,7 +924,8 @@ func _fx_burst(x: float, y: float, n: int, colors: Array, opts: Dictionary = {})
 		var color: String = String(rng.pick(colors)) if not colors.is_empty() \
 				else String(o.get("color", "#ffffff"))
 		var ttl: float = rng.range(0.4, 1.0) * float(o.get("ttl", 0.7))
-		parts.append({"ang": ang, "sp": sp, "color": color, "ttl": ttl})
+		var psz: float = rng.range(0.6, 1.4) * float(o.get("size", 3.0))
+		parts.append({"ang": ang, "sp": sp, "color": color, "ttl": ttl, "size": psz})
 	o["parts"] = parts
 	_fire("fx_burst", [x, y, n, o])
 

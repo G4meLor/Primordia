@@ -5,6 +5,7 @@
 extends "res://tests/test_base.gd"
 
 const Ctx := preload("res://src/game/context.gd")
+const RngLib := preload("res://src/core/rng.gd")
 const WorldGenome := preload("res://src/evo/world_genome.gd")
 const GenomeLib := preload("res://src/evo/genome.gd")
 const CellSim := preload("res://src/game/cell/cell_sim.gd")
@@ -167,6 +168,30 @@ func test_bootstrap_deterministic_per_seed() -> void:
 	var c := _mk_sim(1235)
 	ok(String(a["ctx"].eco.species[0]["name"]) != String(c["ctx"].eco.species[0]["name"]),
 			"different seeds diverge")
+
+
+func test_player_seed_is_the_branchs_first_draw() -> void:
+	# D1: playerSeed = Math.random()*10 in TS → the stage branch's FIRST draw
+	# natively. Prove order by replicating the draw off a state-copy of the
+	# branch taken BEFORE the sim consumes it.
+	var ctx: Variant = Ctx.new(SEED)
+	var rng: Variant = ctx.rng.branch()
+	var probe: Variant = RngLib.new_from(rng.state())  # stream copy, pre-draw
+	var expected: float = probe.range(0.0, 10.0)
+	var sim: Variant = CellSim.new(ctx, rng, {})
+	approx(float(sim.playerSeed), expected, "playerSeed is the branch's first draw", 1e-9)
+	ok(float(sim.playerSeed) >= 0.0 and float(sim.playerSeed) < 10.0,
+			"playerSeed in [0, 10)")
+	# same seed → same seed value AND same post-construction stream position
+	var b := _mk_sim(SEED)
+	var c := _mk_sim(SEED)
+	approx(float(b["sim"].playerSeed), float(c["sim"].playerSeed),
+			"playerSeed deterministic per seed", 1e-9)
+	eq(b["sim"].rng.state(), c["sim"].rng.state(), "stream position deterministic")
+	# a different seed lands elsewhere (continuous [0,10) — collision is ~2^-32)
+	var d := _mk_sim(SEED + 1)
+	ok(float(b["sim"].playerSeed) != float(d["sim"].playerSeed),
+			"different seeds → different playerSeed")
 
 
 # ---- player movement / drag / boundary -------------------------------------------
@@ -453,6 +478,32 @@ func test_after_timers_fire_on_the_stage_clock() -> void:
 	for i in 40:
 		sim.update(DT, _inp())
 	eq(fired.size(), 2, "timers fire exactly once")
+
+
+func test_fx_burst_replays_five_draws_in_ts_order() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	var s0: int = sim.rng.state()
+	sim._fx_burst(1.0, 2.0, 1, ["#aaa", "#bbb"], {"speed": 100.0, "ttl": 0.8, "size": 4.0})
+	# the replay must consume EXACTLY the TS draw sequence: ang(next), sp
+	# (range 0.3..1), color pick, ttl (range 0.4..1), size (range 0.6..1.4
+	# × opts.size) — verified by replaying 5 draws on a state-copy
+	var probe: Variant = RngLib.new_from(s0)
+	var ang: float = probe.next() * PI * 2.0
+	var sp: float = probe.range(0.3, 1.0) * 100.0
+	var color: String = probe.pick(["#aaa", "#bbb"])
+	var ttl: float = probe.range(0.4, 1.0) * 0.8
+	var psz: float = probe.range(0.6, 1.4) * 4.0
+	eq(sim.rng.state(), probe.state(), "one burst particle = exactly 5 draws, TS order")
+	eq(rec["bursts"].size(), 1, "burst recorded")
+	var parts: Array = rec["bursts"][0][3]["parts"]
+	eq(parts.size(), 1, "one parts row per particle")
+	approx(float(parts[0]["ang"]), ang, "parts.ang", 1e-9)
+	approx(float(parts[0]["sp"]), sp, "parts.sp", 1e-9)
+	eq(parts[0]["color"], color, "parts.color")
+	approx(float(parts[0]["ttl"]), ttl, "parts.ttl", 1e-9)
+	approx(float(parts[0]["size"]), psz, "parts.size (0.6..1.4 × opts.size)", 1e-9)
 
 
 # ---- pellets -----------------------------------------------------------------------
