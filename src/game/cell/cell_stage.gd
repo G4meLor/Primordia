@@ -31,6 +31,7 @@
 extends "res://src/game/stage.gd"
 
 const CellSimScript := preload("res://src/game/cell/cell_sim.gd")
+const EcoScript := preload("res://src/evo/ecosystem.gd")
 const ParticlesScript := preload("res://src/gfx/particles.gd")
 const RendererScript := preload("res://src/gfx/renderer.gd")
 const BackdropScript := preload("res://src/gfx/backdrop.gd")
@@ -495,6 +496,24 @@ func on_enter(from: Variant = null) -> void:
 	sim.deathStarted = false
 	# TS CellStage.ts:250 — the shore gate reads the live genome
 	sim.shoreAvailable = float(game.context.genome.get("legs", 0)) >= 1.0
+	# TS CellStage.ts:237-248 — the ecosystem entry gate. A NEW LIFE reset the
+	# eco (ctx.eco == null → re-seed on the stage's rng branch); a CONTINUE
+	# carries the loaded (possibly empty) roster and must adopt it as-is —
+	# silent resurrection of a loaded sterile save was a repeatable free
+	# reseed exploit; a same-ecology re-entry keeps the live one. The adoption
+	# also keeps the save wire honest: on_exit writes ctx.eco = sim.eco, so a
+	# skipped adoption would clobber a loaded roster with the boot-time one.
+	if game.context.eco != sim.eco:
+		var had_no_eco: bool = game.context.eco == null
+		if had_no_eco:
+			sim.eco = EcoScript.new(sim.rng.branch())
+			sim.seed_ecology()
+		else:
+			sim.eco = game.context.eco
+		game.context.eco = sim.eco
+		sim.eco.designate_kin_tag(game.context.world)
+		sim.discovered.clear()
+		sim.ents.clear()
 	# TS CellStage.ts:249 — the objective line (raw EN key; the hud translates
 	# at draw)
 	if hud_inst != null:
