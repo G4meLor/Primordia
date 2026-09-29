@@ -138,6 +138,13 @@ func test_format_num() -> void:
 	# exactly on 123.5 and rounds up to "12.4k" — pinning that was pinning a
 	# port bug (fix round 2); the spec-exact divide-compare form fixes it
 	eq(MathScript.format_num(12350.0), "12.3k", "format_num below-tie 12.35 (double-round trap)")
+	# RECORDED DIVERGENCE (ruling 2026-09-29): TS prints "16.4k" here —
+	# tie-quotient with fl(16.45) below the tie, where this port's float-grid
+	# divide-compare measures equal and takes the upper (display-only; see
+	# _to_fixed1 and the report's recorded-divergences section)
+	eq(MathScript.format_num(16450.0), "16.5k", "format_num tie-quotient 16450 (recorded divergence)")
+	# fl(1.05) sits ABOVE the .05 tie → ES and port agree on "1.1M"
+	eq(MathScript.format_num(1050000.0), "1.1M", "format_num fl-above tie 1050000 agrees")
 	eq(MathScript.format_num(10000.0), "10.0k", "format_num 1e4 boundary")
 	eq(MathScript.format_num(9999.0), "9999", "format_num below k")
 	eq(MathScript.format_num(123.6), "124", "format_num rounds")

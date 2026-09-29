@@ -114,12 +114,20 @@ static func shortest_vec_on_circle(center: Vector2, r: float, angle: float) -> V
 ## candidates back (n/10), not round the product: _round_js(x*10) double-
 ## rounds — fl(12.35) sits BELOW the .35 tie (−3.55e-16) but fl(12.35)*10
 ## lands exactly on 123.5 and rounds up to 124, printing "12.4k" over TS's
-## "12.3k" (re-review finding, fix round 3). Ties compare with <= so an exact
-## float tie (e.g. 12.25) takes the larger n; false ties cannot occur in this
-## domain — inputs are integer quotients, whose exact distance to a
-## one-decimal tie is ≥ 5e-11 while float compare noise is ~1e-15. format_num
-## only reaches this for n ≥ 1e4, so n > 0 and the GDScript % (rounds toward
-## -inf, unlike JS) never sees a negative.
+## "12.3k" (re-review finding, fix round 3).
+## RECORDED DIVERGENCE (controller ruling 2026-09-29, display-only): on
+## tie-quotient inputs (k-branch k ≡ 50 mod 100; M/B analogous) the exact
+## decimal sits on a one-decimal tie, and this float-grid divide-compare
+## measures EQUAL distances there (bit-exact: 16450 → both 14073748835533/
+## 281474976710656) so it always takes the upper — while ES decides by where
+## fl(quotient) actually fell relative to the exact rational tie. Divergent
+## exactly for the tie-quotients whose fl fell BELOW (16450 → "16.5k" here vs
+## TS "16.4k"; measured 114/1000 k-branch and 42/500 M-branch tie-quotients,
+## ~0.1% of formatted values overall); fl-above and fl-exact ties agree.
+## The exact int64 cross-multiply fix was REJECTED by the ruling: ~30 lines
+## of mantissa/exponent code for a 0.1k display tick, no sim/save-wire impact.
+## format_num only reaches this for n ≥ 1e4, so n > 0 and the GDScript %
+## (rounds toward -inf, unlike JS) never sees a negative.
 static func _to_fixed1(x: float) -> String:
 	var n := floori(x * 10.0)
 	if float(n + 1) / 10.0 - x <= x - float(n) / 10.0:
