@@ -317,6 +317,9 @@ func render() -> void:
 	if world_canvas == null:
 		return
 	var glitch_on: bool = sim.chaos.is_active("glitch") or glitch_forced
+	# the copy only runs while the overlay can consume it (hidden overlay =
+	# no per-frame screen copy)
+	_back_buffer.visible = glitch_on
 	glitch_overlay.visible = glitch_on
 	if glitch_on:
 		(glitch_overlay.material as ShaderMaterial).set_shader_parameter(

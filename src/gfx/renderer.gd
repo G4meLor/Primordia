@@ -123,7 +123,11 @@ static func css_color(s: String) -> Color:
 static func as_color(v: Variant, fallback: Color) -> Color:
 	if v is Color:
 		return v
-	if v is String:
+	# an absent key reads "" through .get(k, "") — "" must reach the fallback,
+	# not css_color("") (which would return opaque white and swallow every
+	# documented default: the text outline rgba(0,0,0,0.75), the panel fill
+	# rgba(8,14,30,0.82), the #eaf2ff text fill)
+	if v is String and v != "":
 		return css_color(v)
 	return fallback
 

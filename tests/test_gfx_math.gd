@@ -5,10 +5,26 @@ extends "res://tests/test_base.gd"
 
 const RendererScript := preload("res://src/gfx/renderer.gd")
 const PainterScript := preload("res://src/gfx/cell_painter.gd")
+const GlitchShader := preload("res://src/gfx/glitch_overlay.gdshader")
 
 
 func _rgb(c: Color) -> Vector3:
 	return Vector3(c.r, c.g, c.b)
+
+
+func test_glitch_shader_uniforms() -> void:
+	# the stage drives the animated alpha (TS 0.03..0.09 with sim time) through
+	# "strength" — a uniform-name mismatch would composite silently at the
+	# constant default (up to 3× the TS trough). get_shader_uniform_list
+	# returns Dictionary rows (name/type/hint); hint_screen_texture uniforms
+	# are excluded from the list, so only tint/strength are asserted here.
+	var rows: Array = GlitchShader.get_shader_uniform_list()
+	var names: Dictionary = {}
+	for row_v in rows:
+		var row: Dictionary = row_v
+		names[String(row["name"])] = true
+	ok(names.has("strength"), "glitch shader exposes the strength uniform")
+	ok(names.has("tint"), "glitch shader exposes the tint uniform")
 
 
 func test_hsl_pinned_values() -> void:

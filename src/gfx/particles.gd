@@ -197,11 +197,11 @@ static func _fade(c: Color, alpha: float) -> Color:
 	return out
 
 
-## TS star: 10-point alternating r / r*0.45 polygon, rotated.
+## TS star: 10-point alternating r / r*0.45 polygon, rotated by p.rot.
 static func _star(ci: CanvasItem, pos: Vector2, rot: float, r: float, col: Color) -> void:
 	var pts := PackedVector2Array()
 	for i in 10:
 		var rr := r if i % 2 == 0 else r * 0.45
-		var ang := (float(i) / 10.0) * TAU
+		var ang := (float(i) / 10.0) * TAU + rot
 		pts.append(pos + Vector2(cos(ang) * rr, sin(ang) * rr))
 	ci.draw_colored_polygon(pts, col)
