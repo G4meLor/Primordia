@@ -16,6 +16,7 @@ const LoopScript := preload("res://src/core/loop.gd")
 const CamScript := preload("res://src/game/cam.gd")
 const ContextScript := preload("res://src/game/context.gd")
 const StorytellerScript := preload("res://src/game/storyteller.gd")
+const I18nScript := preload("res://src/core/i18n.gd")
 
 signal stage_changed(stage_id: String)
 
@@ -24,6 +25,7 @@ var input: Variant = null        # GameInput wrapper (src/core/input.gd)
 var cam: Variant = null          # Cam rig (src/game/cam.gd)
 var loop: Variant = null         # GameLoop (src/core/loop.gd)
 var storyteller: Variant = null  # M1 Storyteller
+var i18n: Variant = null         # I18n core (src/core/i18n.gd)
 
 var vw := 800.0
 var vh := 600.0
@@ -48,6 +50,12 @@ func _init(context_v: Variant = null) -> void:
 	input = InputScript.new()
 	cam = CamScript.new()
 	storyteller = StorytellerScript.new()
+	# i18n (Task 2): vi.csv -> TranslationServer + user://settings.cfg (lang/
+	# muted). apply_locale pushes the saved lang so plain tr() call sites
+	# (context.gd) resolve per the user's setting; muted mirrors TS getMuted().
+	i18n = I18nScript.new()
+	muted = i18n.get_muted()
+	i18n.apply_locale()
 	hud = {
 		"update": func(_dt: float) -> void: pass,
 		"dismiss_banner": func() -> void: pass,
