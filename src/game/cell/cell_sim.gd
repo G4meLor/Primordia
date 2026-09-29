@@ -1,8 +1,9 @@
 ## CELL STAGE sim core — the primordial ocean as a headless RefCounted: state
-## structs, spawn tables, player physics/interactions, pellet economy, zones,
-## death/respawn. Port of Spore src/game/cell/CellStage.ts (frozen), minus the
-## render pass (scene layer, Tasks 7-9), the NPC AI loop (Task 4) and the
-## chaos event bodies (Task 5 — stubbed no-ops below, zero rng draws).
+## structs, spawn tables, player physics/interactions, NPC AI (update_ents),
+## pellet economy, zones, death/respawn. Port of Spore
+## src/game/cell/CellStage.ts (frozen), minus the render pass (scene layer,
+## Tasks 7-9) and the chaos event bodies (Task 5 — stubbed no-ops below,
+## zero rng draws).
 ##
 ## Architecture (M2 ruling): CellSim.new(ctx, rng_branch, hooks) —
 ##   ctx        the M1 GameContext; sim calls ctx methods directly
@@ -610,16 +611,236 @@ func kill_ent(e: Dictionary) -> void:
 	# at the splice tag-free, while contact/drain/toxin deaths keep theirs
 
 
-## Task 4: full NPC AI port (TS CellStage.ts:743-933) — the hp<=0 death sweep
-## (tagged killEnt payment), lifespan expiry, cooldown/stun decay, panic/
-## hunt/flee/wander steering, separation, pellet eating and toxin-zone damage
-## all live in that loop. STUBBED here: deterministically absent — no
-## movement, no rng draws, no removals. Bite-killed ents (hp = -1) linger
-## inert until Task 4's sweep; the player-interaction branches guard
-## e.hp > 0, so nothing double-pays meanwhile.
-@warning_ignore("unused_parameter")
+## Port 1:1 — TS CellStage.ts updateEnts(dt) (~743-933): the hp<=0 death
+## sweep (tagged killEnt payment, else green burst), lifespan expiry,
+## cooldown/stun decay, then per-ent AI — panic > hunt > flee > graze —
+## separation, accel/current/drag/cap integration, world containment, inline
+## pellet eating and toxin-zone damage. Reverse iteration with mid-loop
+## removals is TS-verbatim; ent identity uses eid (GDScript Dictionary ==
+## compares by content — eid is the unique `o === e` proxy). RNG draw sites,
+## in TS evaluation order: (1) the sweep's green burst — 8 particles × 5
+## draws via _fx_burst, only when lastPlayerHit is empty; (2) the tagged
+## sweep path draws inside kill_ent; (3) the graze wanderT re-roll —
+## range(1.5, 4) first, then (only when no pellet target) next() +
+## range(60, 320); the pellet-seek loop itself draws nothing. Every other
+## branch is draw-free.
 func update_ents(dt: float) -> void:
-	pass
+	var i: int = ents.size() - 1
+	while i >= 0:
+		var e: Dictionary = ents[i]
+		if float(e["hp"]) <= 0.0:
+			# contact/drain/tagged toxin deaths pay like a bite (kill_ent marks
+			# hp = -1; the bite branch guards e.hp > 0 so no double-pay)
+			if String(e["lastPlayerHit"]) != "":
+				kill_ent(e)
+				e["lastPlayerHit"] = ""  # no stale-tag leaks into chaos deaths
+			else:
+				_fx_burst(float(e["x"]), float(e["y"]), 8,
+						["#9fff9f", "#8fff4f"], {"speed": 80.0, "ttl": 0.6})
+			ents.remove_at(i)
+			i -= 1
+			continue
+		if e.has("lifespan"):
+			e["lifespan"] = float(e["lifespan"]) - dt
+			if float(e["lifespan"]) <= 0.0:
+				ents.remove_at(i)
+				i -= 1
+				continue
+		e["hurtT"] = maxf(0.0, float(e["hurtT"]) - dt * 3.0)
+		e["eatT"] = maxf(0.0, float(e["eatT"]) - dt * 2.0)
+		e["biteCd"] = maxf(0.0, float(e["biteCd"]) - dt)
+		e["pressCd"] = maxf(0.0, float(e.get("pressCd", 0.0)) - dt)
+		e["stun"] = maxf(0.0, float(e["stun"]) - dt)
+
+		if float(e["stun"]) > 0.0:
+			var sdrag: float = exp(-3.0 * dt)
+			e["vx"] = float(e["vx"]) * sdrag
+			e["vy"] = float(e["vy"]) * sdrag
+			e["x"] = float(e["x"]) + float(e["vx"]) * dt
+			e["y"] = float(e["y"]) + float(e["vy"]) * dt
+			i -= 1
+			continue
+
+		# ---- AI ------------------------------------------------------------------
+		var dPlayer: float = Vector2(e["x"], e["y"]).distance_to(Vector2(px, py))
+		var vision: float = 340.0 * float(e["stats"]["vision"])
+		var iAmBigger: bool = float(e["genome"]["size"]) > float(ctx.genome["size"]) * 1.05 \
+				or (float(e["stats"]["damage"]) > float(pStats["damage"])
+					and float(e["genome"]["size"]) > 1.2)
+
+		# temperament_bands: per-species seeded band on the aggression/fear reads
+		var band: Dictionary = e.get("band", {})
+		var aggr: float = float(band.get("aggression", 1.0))
+		var fear: float = float(band.get("fear", 1.0))
+		# kin_memory: a grudging kin-tag network shifts from fleeing to pressing
+		# (effectiveGrudge hits the harassment valve — capped networks rest)
+		var grudge: float = eco.grudge_of(ctx.world, String(e["speciesId"]))
+		var grudgePress: bool = grudge >= 2.0 and dPlayer < vision * 0.9
+		# corpse_tide: the scavenger line harasses far above its weight
+		var tide: Variant = eco.tide_species()
+		var tideBold: bool = tide != null and String(tide["id"]) == String(e["speciesId"])
+		var hunting: bool = bool(e.get("swarm", false)) \
+				or (String(e["genome"]["diet"]) != "herbivore"
+					and dPlayer < vision * 0.65 * aggr and iAmBigger) \
+				or grudgePress \
+				or (tideBold and dPlayer < vision * 0.5)
+		var fleeing: bool = not bool(e.get("swarm", false)) and grudge < 2.0 \
+				and dPlayer < vision * 0.7 * fear and not iAmBigger
+		# bio_tell: during a warn window the ambient panics away from the strike
+		# epicenter (the player's position) — herds visibly leave. The panic
+		# overrides hunt/flee/wander for the window; a fixed pace keeps the
+		# vacate rate near the catalog's 40-60% band.
+		var panicking: bool = warnDriftT > 0.0 and not bool(e.get("swarm", false)) \
+				and dPlayer < 500.0  # the event footprint (vents/meteor land ≤500 out)
+		var ax := 0.0
+		var ay := 0.0
+		var speed: float = float(e["stats"]["speed"])
+
+		if panicking:
+			# the drift is positional — a deterministic pace that does not drown
+			# in the accel/drag pipeline (~115px per 2.4s window → ~half of an
+			# area-uniform zone vacates, the catalog's 40-60% band)
+			var pd: float = maxf(1.0, dPlayer)
+			e["x"] = float(e["x"]) + ((float(e["x"]) - px) / pd) * 48.0 * dt
+			e["y"] = float(e["y"]) + ((float(e["y"]) - py) / pd) * 48.0 * dt
+			ax = 0.0
+			ay = 0.0
+			speed = minf(speed, 45.0)
+		elif hunting:
+			# grudge presses count toward the harassment valve (one per engagement)
+			if grudgePress and float(e.get("pressCd", 0.0)) <= 0.0:
+				eco.register_press(ctx.world, String(e["speciesId"]))
+				e["pressCd"] = PRESS_COOLDOWN
+			# chase player (or nearby smaller ent)
+			var tx: float = px
+			var ty: float = py
+			if not bool(e.get("swarm", false)):
+				# prefer smaller cells nearby (single pass, squared distances)
+				var best: Dictionary = {}
+				var bestD2: float = vision * vision
+				for o in ents:
+					if int(o["eid"]) == int(e["eid"]) or float(o["hp"]) <= 0.0:
+						continue
+					if float(o["genome"]["size"]) >= float(e["genome"]["size"]) * 0.85:
+						continue
+					var odx: float = float(o["x"]) - float(e["x"])
+					var ody: float = float(o["y"]) - float(e["y"])
+					var d2: float = odx * odx + ody * ody
+					if d2 < bestD2:
+						best = o
+						bestD2 = d2
+				if not best.is_empty():
+					tx = float(best["x"])
+					ty = float(best["y"])
+			var hx: float = tx - float(e["x"])
+			var hy: float = ty - float(e["y"])
+			var hd: float = maxf(1.0, sqrt(hx * hx + hy * hy))
+			ax = hx / hd
+			ay = hy / hd
+			speed *= 1.25 if bool(e.get("swarm", false)) else 1.0
+		elif fleeing:
+			var fd: float = maxf(1.0, dPlayer)
+			ax = (float(e["x"]) - px) / fd
+			ay = (float(e["y"]) - py) / fd
+			# fleeing prey is capped vs the player's ACHIEVABLE speed (accel/2.6
+			# drag terminal), not the stat sheet — the stat-sheet cap preserved
+			# absolute gaps and froze honest chases at ~268px forever
+			speed = minf(speed * 0.95, (float(pStats["accel"]) / 2.6) * 0.85)
+		else:
+			# graze / wander
+			e["wanderT"] = float(e["wanderT"]) - dt
+			if float(e["wanderT"]) <= 0.0:
+				e["wanderT"] = rng.range(1.5, 4.0)
+				# seek pellets if herbivore-ish
+				var target: Dictionary = {}
+				var bd: float = 300.0
+				for p in pellets:
+					var wd: float = Vector2(p["x"], p["y"]).distance_to(Vector2(e["x"], e["y"]))
+					var want: bool = (String(p["kind"]) == "meat") \
+							if String(e["genome"]["diet"]) == "carnivore" \
+							else (String(p["kind"]) == "plant")
+					if wd < bd and want:
+						target = p
+						bd = wd
+				if not target.is_empty():
+					e["tx"] = float(target["x"])
+					e["ty"] = float(target["y"])
+				else:
+					var wa: float = rng.next() * TAU
+					var wr: float = rng.range(60.0, 320.0)
+					e["tx"] = float(e["x"]) + cos(wa) * wr
+					e["ty"] = float(e["y"]) + sin(wa) * wr
+			var gx: float = float(e["tx"]) - float(e["x"])
+			var gy: float = float(e["ty"]) - float(e["y"])
+			var gd: float = sqrt(gx * gx + gy * gy)
+			if gd > 10.0:
+				ax = gx / gd
+				ay = gy / gd
+				speed *= 0.55
+
+		# separation from big crowding
+		for o in ents:
+			if int(o["eid"]) == int(e["eid"]):
+				continue
+			var sdx: float = float(e["x"]) - float(o["x"])
+			var sdy: float = float(e["y"]) - float(o["y"])
+			var sd2: float = sdx * sdx + sdy * sdy
+			var minD: float = 14.0 * (float(e["genome"]["size"]) + float(o["genome"]["size"]))
+			if sd2 < minD * minD and sd2 > 0.01:
+				var sd: float = sqrt(sd2)
+				ax += (sdx / sd) * 0.6
+				ay += (sdy / sd) * 0.6
+
+		var al: float = sqrt(ax * ax + ay * ay)
+		if al > 0.0:
+			e["vx"] = float(e["vx"]) + (ax / al) * float(e["stats"]["accel"]) * dt
+			e["vy"] = float(e["vy"]) + (ay / al) * float(e["stats"]["accel"]) * dt
+		e["vx"] = float(e["vx"]) + current_at(float(e["y"])) * dt
+		var drag: float = exp(-2.4 * dt)
+		e["vx"] = float(e["vx"]) * drag
+		e["vy"] = float(e["vy"]) * drag
+		var sp := sqrt(float(e["vx"]) * float(e["vx"]) + float(e["vy"]) * float(e["vy"]))
+		if sp > speed:
+			e["vx"] = float(e["vx"]) * speed / sp
+			e["vy"] = float(e["vy"]) * speed / sp
+		e["x"] = float(e["x"]) + float(e["vx"]) * dt
+		e["y"] = float(e["y"]) + float(e["vy"]) * dt
+
+		# ents stay in world
+		var dO: float = sqrt(float(e["x"]) * float(e["x"]) + float(e["y"]) * float(e["y"]))
+		if dO > WORLD_R + 100.0:
+			e["vx"] = float(e["vx"]) - (float(e["x"]) / dO) * 40.0 * dt * 10.0
+			e["vy"] = float(e["vy"]) - (float(e["y"]) / dO) * 40.0 * dt * 10.0
+
+		# eat pellets (inline squared distances — hot loop, no allocations)
+		var eatR: float = 14.0 * float(e["genome"]["size"]) + 5.0
+		var eatR2: float = eatR * eatR
+		var diet: String = String(e["genome"]["diet"])
+		var pi: int = pellets.size() - 1
+		while pi >= 0:
+			var p: Dictionary = pellets[pi]
+			var pdx: float = float(p["x"]) - float(e["x"])
+			var pdy: float = float(p["y"]) - float(e["y"])
+			if pdx * pdx + pdy * pdy < eatR2:
+				var kindOk: bool = (String(p["kind"]) == "meat") if diet == "carnivore" \
+						else (String(p["kind"]) == "plant")
+				if kindOk or diet == "omnivore":
+					pellets.remove_at(pi)
+					e["hp"] = minf(float(e["maxHp"]), float(e["hp"]) + 4.0)
+					e["eatT"] = 1.0
+			pi -= 1
+
+		# toxin zones hurt ents
+		for z in zones:
+			if z["kind"] == "toxin" \
+					and Vector2(e["x"], e["y"]).distance_to(Vector2(z["x"], z["y"])) < float(z["r"]):
+				e["hp"] = float(e["hp"]) - float(z["dps"]) * dt
+				e["hurtT"] = maxf(float(e["hurtT"]), 0.2)
+				if bool(z.get("mine", false)):
+					e["lastPlayerHit"] = "toxin"
+		# hp<=0 here is swept by the top-of-loop check next pass (kill_ent
+		# already paid if the kill was tagged)
+		i -= 1
 
 
 func update_pellets(dt: float) -> void:

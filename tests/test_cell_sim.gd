@@ -279,7 +279,9 @@ func test_dash_toxin_electro_abilities() -> void:
 	# electro burst — stuns ents in range
 	sim.update(DT, _inp({"keys_pressed": ["Digit2"]}))
 	approx(sim.electroCd, 10.0 - DT, "electroCd 10")
-	approx(float(e["stun"]), 3.2, "stun = 1.8 + electro*0.7 (electro 2)")
+	# electro sets 1.8 + electro*0.7 in update_player; updateEnts (Task 4,
+	# later in the same frame — TS order) decays it by dt before the read
+	approx(float(e["stun"]), 3.2 - DT, "stun = 1.8 + electro*0.7, updateEnts-decayed")
 	ok(_heard(rec, "zap"), "zap audio")
 	var zapped := false
 	for s in rec["shakes"]:
@@ -314,8 +316,8 @@ func test_player_bite_and_kill_pay() -> void:
 	var defense: float = minf(0.5, float(e["stats"]["defense"]))
 	approx(float(e["hp"]), hp0 - float(sim.pStats["damage"]) * (1.0 - defense),
 			"auto-bite dmg = damage * (1 - min(0.5, defense))", 1e-9)
-	# ent hurtT decays in updateEnts (Task 4) — it holds until then
-	approx(float(e["hurtT"]), 0.6, "hurtT set on bite", 1e-9)
+	# hurtT 0.6 set on bite; updateEnts (Task 4, same frame) decays it ×3dt
+	approx(float(e["hurtT"]), 0.6 - DT * 3.0, "hurtT set on bite", 1e-9)
 	# finish it off — kill_ent called directly on an ent parked AWAY from the
 	# player: at the bite site the dropped meat lands inside pickup radius and
 	# update_pellets eats it the same tick (TS-verbatim — the pay assertions
@@ -429,6 +431,9 @@ func test_contact_proboscis_and_their_bite_invuln() -> void:
 	var big: Dictionary = GenomeLib.default_genome()
 	big["size"] = 1.5
 	var e: Dictionary = sim.spawn_ent(null, sim.px + 5.0, sim.py, big, {})
+	# Task 4: the overlap ent now runs AI + inline pellet eating — keep the
+	# seeded starter pellets out of its eat radius so the damage math is clean
+	sim.pellets.clear()
 	var hp0: float = e["hp"]
 	var contact_dmg: float = float(sim.pStats["contact_damage"]) * DT * 2.0
 	var drain: float = 2.0 * 3.0 * DT
