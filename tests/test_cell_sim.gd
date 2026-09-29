@@ -718,6 +718,37 @@ func test_debug_spawn_near() -> void:
 				"area-uniform strike zone r <= 320")
 
 
+## Bestiary proximity discovery (TS CellStage.ts:461-468): an ent of an
+## undiscovered species inside 420 px discovers it on the next update; swarm
+## ents and the player species never trigger it, and a far ent stays unknown.
+func test_bestiary_proximity_discovery() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var ctx: Variant = m["ctx"]
+	var pool: Array = []
+	for sp in sim.eco.living():
+		if not bool(sp.get("kin", false)):
+			pool.append(sp)
+	var sp: Dictionary = pool[0]
+	var key: String = Ctx.genome_hash_lite(sp["genome"])
+	ok(ctx.bestiary.has(key), "seed-time discovery put the species in the bestiary")
+	# forget it, then park one of its ents just inside the radius
+	ctx.bestiary.erase(key)
+	sim.discovered.clear()
+	sim.spawn_ent(sp, sim.px + 400.0, sim.py, {})
+	sim.update(1.0 / 60.0, _inp())
+	ok(ctx.bestiary.has(key), "ent within 420 px discovers its species")
+	# far outside the radius: forgotten again, no re-discovery
+	var key1: String = Ctx.genome_hash_lite(pool[1]["genome"])
+	ok(ctx.bestiary.has(key1), "sp1 also discovered at seed (pre-erase)")
+	ctx.bestiary.erase(key1)
+	sim.discovered.clear()
+	sim.spawn_ent(pool[1], sim.px + 430.0, sim.py, {})
+	sim.update(1.0 / 60.0, _inp())
+	ok(not ctx.bestiary.has(key1),
+			"ent beyond 420 px stays undiscovered")
+
+
 # ---- death / respawn ------------------------------------------------------------------
 
 

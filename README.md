@@ -13,24 +13,32 @@ Bản TypeScript/Canvas đã feature-complete nhưng trần kỹ thuật đã r�
 
 Non-goal: không đổi gameplay design (5 stage, catalog, chaos philosophy giữ nguyên).
 
-## Trạng thái hiện tại — Milestone 1: sim core hoàn tất
+## Trạng thái hiện tại — Milestone 1 + 2 hoàn tất (sim core + cell stage full parity)
 
-Toàn bộ sim layer đã port 1:1 từ TS và xanh 100% test parity (fixtures JSON sinh từ bản TS frozen):
+Toàn bộ sim layer và **cell stage đã port 1:1 từ TS** và xanh 100% test parity (fixtures JSON sinh từ bản TS frozen):
 
 | Module | Nội dung |
 |---|---|
 | `src/core/rng.gd` | Seeded RNG Mulberry32 bit-exact (uint32 masking) |
-| `src/evo/genome.gd` | Genome — nguồn sự thật của sinh vật, bounds + clamp + hash |
-| `src/evo/parts.gd` + `stats.gd` | Parts catalog (cost/graft) + stats derive |
-| `src/evo/mutation.gd` | mutate/crossover, anomaly/defect, bias |
-| `src/evo/names.gd` | Tên loài procedural |
+| `src/evo/genome.gd` + `parts.gd` + `stats.gd` | Genome (bounds + clamp + hash), parts catalog, stats derive |
+| `src/evo/mutation.gd` + `names.gd` | mutate/crossover, anomaly/defect, tên loài procedural |
 | `src/evo/ecosystem.gd` | Hệ sinh thái sống thật (mods, grudge valve, bio_shift, corpse tide) |
 | `src/evo/world_genome.gd` + `world_traits.gd` | Mỗi run một thế giới mới: traits/turns/combo/temperament |
-| `src/game/storyteller.gd` | Mood engine bless/test/twist |
-| `src/game/chaos.gd` | Chaos scheduler (warn/stacking/mirror) |
+| `src/game/storyteller.gd` + `chaos.gd` | Mood engine + chaos scheduler (warn/stacking/mirror) |
 | `src/game/context.gd` | GameContext + save/load JSON v1 native |
+| `src/game/cell/` | Cell sim (spawn tables, NPC AI, eat/attack, pellet field, DNA) + scene layer |
+| `src/ui/` + `src/game/menu.gd` | HUD, editor, pause, tutorial, menu (slots/difficulty/continue/settings) |
+
+**M2 parity đo được** (chi tiết: [`docs/PARITY-M2.md`](docs/PARITY-M2.md)):
+
+- **381 tests / 15293 checks / 0 failures** headless (`./tools/test.sh`).
+- **7 scene suites xanh dưới xvfb**: boot, bot arc ×3 seeds ×2 determinism passes (bot đi 2 phút "messy play" qua **real input pipeline** — `Input.parse_input_event`, không bao giờ gọi thẳng sim), menu real-click, editor real-click, 2 pixel-assert visual suites (8/8 + 32/32 asserts), perf probe.
+- **4 tiêu chí §5.2 đều đạt**: (a) mọi cell-feature của bản TS có mặt + có test pin, (b) bot arc ×3 seeds, (c) econ probes + determinism 1000-seed, (d) pixel-assert viewport capture.
+- **Perf probe 200 ents**: ≤ 8 ms/tick sim (đo 7.6 ms) — probe đã bắt và fix hot-loop O(N²) của sim (flat typed mirrors + neighborhood grids, bit-exact).
 
 Chiến lược kiến trúc (tách sim khỏi Godot, determinism contract, parity fixtures): [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+**Tiếp theo: Milestone 3 — creature stage** (procedural creature renderer là port nặng nhất: IK 2-bone, gait cycles, coats — task riêng, prototype trước).
 
 ## Tech
 
@@ -42,10 +50,16 @@ Chiến lược kiến trúc (tách sim khỏi Godot, determinism contract, pari
 
 ```bash
 cd ~/Desktop/RD/primordia-native
-./tools/test.sh        # hoặc: ~/.local/bin/godot --headless -s tests/run.gd
+./tools/test.sh          # headless suite (zero-plugin runner, tests/run.gd)
+./tools/test_bot.sh      # bot arc ×3 seeds ×2 determinism (xvfb, real input pipeline)
+./tools/test_perf.sh     # perf probe: 200 ents × 600 ticks ≤ 8 ms/tick (xvfb)
+./tools/test_menu.sh     # menu NEW LIFE flow qua real clicks (xvfb)
+./tools/test_editor_click.sh   # editor purchase qua real clicks (xvfb)
+./tools/test_visual.sh   # pixel-assert cell stage (xvfb)
+./tools/test_visual_suite.sh   # six-moment pixel-assert suite (xvfb)
 ```
 
-Exit 0 = xanh. Chi tiết runner + ràng buộc `-s` mode: `docs/ARCHITECTURE.md` §4.
+Headless exit 0 = xanh; scene suites in `*_OK` và exit 0. Chi tiết runner + ràng buộc `-s` mode: `docs/ARCHITECTURE.md` §4.
 
 ## Lộ trình
 

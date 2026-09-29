@@ -4,91 +4,91 @@
     {
       "id": 1,
       "subject": "Task 1: Core plumbing (math/input/loop/cam/game)",
-      "status": "pending",
-      "description": "**Goal:** See plan docs/superpowers/plans/2026-09-29-native-cell-parity.md Task 1 — full AC/Verify/Steps in plan (task-brief script extracts).\n\n```json:metadata\n{\"modelTier\": \"mechanical\", \"files\": [], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"see plan task 1\"]}\n```"
+      "status": "completed",
+      "description": "**Goal:** Core plumbing foundation — see ledger: complete (4 fix rounds, recorded divergences in ledger).\n\nComplete — see ledger."
     },
     {
       "id": 2,
       "subject": "Task 2: i18n CSV + TranslationServer + audit",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         1
       ],
-      "description": "**Goal:** See plan docs/superpowers/plans/2026-09-29-native-cell-parity.md Task 2 — full AC/Verify/Steps in plan (task-brief script extracts).\n\n```json:metadata\n{\"modelTier\": \"mechanical\", \"files\": [], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"see plan task 2\"]}\n```"
+      "description": "**Goal:** i18n layer — see ledger: complete.\n\nComplete — see ledger."
     },
     {
       "id": 3,
       "subject": "Task 3: Cell sim core (state/spawn/player)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         1,
         2
       ],
-      "description": "**Goal:** See plan docs/superpowers/plans/2026-09-29-native-cell-parity.md Task 3 — full AC/Verify/Steps in plan (task-brief script extracts).\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"see plan task 3\"]}\n```"
+      "description": "**Goal:** Cell sim core — see ledger: complete.\n\nComplete — see ledger."
     },
     {
       "id": 4,
       "subject": "Task 4: NPC AI state machine",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         3
       ],
-      "description": "**Goal:** See plan docs/superpowers/plans/2026-09-29-native-cell-parity.md Task 4 — full AC/Verify/Steps in plan (task-brief script extracts).\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"see plan task 4\"]}\n```"
+      "description": "**Goal:** NPC AI state machine — see ledger: complete.\n\nComplete — see ledger."
     },
     {
       "id": 5,
       "subject": "Task 5: Cell chaos events + world wiring",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         4
       ],
-      "description": "**Goal:** See plan docs/superpowers/plans/2026-09-29-native-cell-parity.md Task 5 — full AC/Verify/Steps in plan (task-brief script extracts).\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"see plan task 5\"]}\n```"
+      "description": "**Goal:** Cell chaos events + world wiring — see ledger: complete.\n\nComplete — see ledger."
     },
     {
       "id": 6,
       "subject": "Task 6: Play-bot arc (real input, 3 seeds)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         5,
         7
       ],
-      "description": "**Goal:** See plan docs/superpowers/plans/2026-09-29-native-cell-parity.md Task 6 — full AC/Verify/Steps in plan (task-brief script extracts).\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"see plan task 6\"]}\n```"
+      "description": "**Goal:** Play-bot arc — see ledger: complete.\n\nComplete — see ledger."
     },
     {
       "id": 7,
       "subject": "Task 7: Cell renderer + pixel-assert",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         3
       ],
-      "description": "**Goal:** See plan docs/superpowers/plans/2026-09-29-native-cell-parity.md Task 7 — full AC/Verify/Steps in plan (task-brief script extracts).\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"see plan task 7\"]}\n```"
+      "description": "**Goal:** Cell renderer + pixel-assert — see ledger: complete.\n\nComplete — see ledger."
     },
     {
       "id": 8,
       "subject": "Task 8: HUD + editor + pause + tutorial",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         7
       ],
-      "description": "**Goal:** See plan docs/superpowers/plans/2026-09-29-native-cell-parity.md Task 8 — full AC/Verify/Steps in plan (task-brief script extracts).\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"see plan task 8\"]}\n```"
+      "description": "**Goal:** HUD/editor/pause/tutorial — see ledger: complete.\n\nComplete — see ledger."
     },
     {
       "id": 9,
       "subject": "Task 9: Menu + game flow + world story pump",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         8
       ],
-      "description": "**Goal:** See plan docs/superpowers/plans/2026-09-29-native-cell-parity.md Task 9 — full AC/Verify/Steps in plan (task-brief script extracts).\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"see plan task 9\"]}\n```"
+      "description": "**Goal:** Menu + game flow — see ledger: complete.\n\nComplete — see ledger."
     },
     {
       "id": 10,
       "subject": "Task 10: Visual suite + econ probes",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         9
       ],
-      "description": "**Goal:** See plan docs/superpowers/plans/2026-09-29-native-cell-parity.md Task 10 — full AC/Verify/Steps in plan (task-brief script extracts).\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"see plan task 10\"]}\n```"
+      "description": "**Goal:** Visual suite + econ probes — see ledger: complete.\n\nComplete — see ledger."
     },
     {
       "id": 11,
@@ -100,5 +100,5 @@
       "description": "**Goal:** See plan docs/superpowers/plans/2026-09-29-native-cell-parity.md Task 11 — full AC/Verify/Steps in plan (task-brief script extracts).\n\n```json:metadata\n{\"modelTier\": \"mechanical\", \"files\": [], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"see plan task 11\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-09-29T18:01:17.740427"
+  "lastUpdated": "2026-09-30T02:00:00Z"
 }

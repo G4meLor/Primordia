@@ -345,10 +345,13 @@ func drop_corpse(n: int = 1) -> void:
 	sp["pop"] = minf(maxf(0.0, pop_sum * 0.08), float(sp["pop"]) + float(n))
 
 
-## The living tide-born scavenger line, if any.
+## The living tide-born scavenger line, if any. Iterates `species` directly
+## with the extinct check folded into the predicate — identical first match to
+## living().find(tideBorn) without the per-call filter allocation (this sits
+## in the per-ent AI hot path).
 func tide_species() -> Variant:
-	for s in living():
-		if s.get("tideBorn") == true:
+	for s in species:
+		if s.get("tideBorn") == true and not bool(s["extinct"]):
 			return s
 	return null
 

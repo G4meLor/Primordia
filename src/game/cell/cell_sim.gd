@@ -94,6 +94,63 @@ var ents: Array[Dictionary] = []
 var pellets: Array[Dictionary] = []
 var zones: Array[Dictionary] = []
 var kelp: Array[Dictionary] = []
+
+# Flat read-mirrors for update_ents' O(N)/O(P) inner scans (M2 perf probe:
+# the 200-ent budget measured the Dictionary chains hot). Same values in the
+# same candidate order — pure read-path change, bit-exact by construction.
+# Rebuilt at update_ents entry; synced on every in-loop mutation (death-sweep
+# removals, position/hp writes, kill_ent/spawn_ent/spawn_pellet appends).
+var _exs := PackedFloat64Array()
+var _eys := PackedFloat64Array()
+var _ehps := PackedFloat64Array()
+var _esizes := PackedFloat64Array()
+var _eeids := PackedInt32Array()
+var _evision := PackedFloat64Array()
+var _edmg := PackedFloat64Array()
+var _espeed := PackedFloat64Array()
+var _eaccel := PackedFloat64Array()
+var _pxs := PackedFloat64Array()
+var _pys := PackedFloat64Array()
+var _pk := PackedInt32Array()  # 0 plant / 1 meat / 2 dna
+var _pdead := PackedInt32Array()  # 1 = eaten this tick (compacted at tick end)
+var _flat_live := false
+# Order-preserving neighborhood grids over the flat arrays (candidate PRUNING
+# only — a candidate the grid excludes provably fails its distance check, and
+# the gathered indices are sorted ascending = the full scan's order, so every
+# order-sensitive accumulation keeps its exact term order). Rebuilt lazily:
+# any ent removal/append or pellet append marks the grid dirty; the next
+# gather rebuilds it. Ent grid cell ≥ 14·(size_i+size_j) for every pair
+# (positions ≥ 2 cells apart are ≥ cell apart > every minD); pellet grids
+# likewise for eatR / the 300 px seek radius.
+var _eg: Dictionary = {}
+var _eg_cell := 29.0
+var _eg_dirty := false
+var _pg_eat: Dictionary = {}
+var _pg_seek: Dictionary = {}
+var _pg_cell := 15.0
+var _pg_dirty := false
+# toxin-zone flat snapshot (zones are constant during update_ents —
+# update_zones runs after it)
+var _zn := 0
+var _zxs := PackedFloat64Array()
+var _zys := PackedFloat64Array()
+var _zr := PackedFloat64Array()
+var _zdps := PackedFloat64Array()
+var _ztoxin := PackedInt32Array()
+var _zmine := PackedInt32Array()
+var _cand := PackedInt32Array()  # reusable candidate gather (grid_near + sort)
+# per-tick AI hoists (invariant reads) + the species grudge cache
+var _first_ai := true
+var _p_size := 1.0
+var _p_damage := 0.0
+var _p_accel := 0.0
+var _gcache: Dictionary = {}
+# per-tick tide_species cache — the original re-read eco.tide_species() per
+# ent; the result can only change mid-tick through kill_ent (drop_corpse's
+# revive/refound), which invalidates. Reproduces the fresh reads exactly.
+var _tide: Variant = null
+var _tide_valid := false
+
 var nextEid := 1
 var time := 0.0
 var eco: Variant = null
@@ -634,6 +691,7 @@ func update_player(dt: float, inp: Dictionary) -> void:
 
 
 func kill_ent(e: Dictionary) -> void:
+	_tide_valid = false  # drop_corpse may revive/refound the tide line
 	tut["killed"] = int(tut["killed"]) + 1
 	_fire("audio_play", ["die", 0.5, clampf((float(e["x"]) - px) / 300.0, -1.0, 1.0)])
 	_fx_burst(float(e["x"]), float(e["y"]), 16,
@@ -648,6 +706,8 @@ func kill_ent(e: Dictionary) -> void:
 			"vx": rng.range(-20.0, 20.0), "vy": rng.range(-20.0, 20.0),
 			"kind": "meat", "ttl": 30, "val": 3,
 		})
+		if _flat_live:
+			_pel_mirror_append(pellets[pellets.size() - 1])
 	if bool(e.get("swarm", false)):
 		ctx.add_dna(8)
 		ctx.add_karma(-0.004)
@@ -703,6 +763,9 @@ func kill_ent(e: Dictionary) -> void:
 ## range(60, 320); the pellet-seek loop itself draws nothing. Every other
 ## branch is draw-free.
 func update_ents(dt: float) -> void:
+	_flat_rebuild()
+	var stunDrag := exp(-3.0 * dt)  # constant per call — same value per ent
+	var entDrag := exp(-2.4 * dt)
 	var i: int = ents.size() - 1
 	while i >= 0:
 		var e: Dictionary = ents[i]
@@ -716,12 +779,23 @@ func update_ents(dt: float) -> void:
 				_fx_burst(float(e["x"]), float(e["y"]), 8,
 						["#9fff9f", "#8fff4f"], {"speed": 80.0, "ttl": 0.6})
 			ents.remove_at(i)
+			_exs.remove_at(i)
+			_eys.remove_at(i)
+			_ehps.remove_at(i)
+			_esizes.remove_at(i)
+			_eeids.remove_at(i)
+			_eg_dirty = true  # index space shifted; next gather rebuilds
 			i -= 1
 			continue
 		if e.has("lifespan"):
 			e["lifespan"] = float(e["lifespan"]) - dt
 			if float(e["lifespan"]) <= 0.0:
 				ents.remove_at(i)
+				_exs.remove_at(i)
+				_eys.remove_at(i)
+				_ehps.remove_at(i)
+				_esizes.remove_at(i)
+				_eeids.remove_at(i)
 				i -= 1
 				continue
 		e["hurtT"] = maxf(0.0, float(e["hurtT"]) - dt * 3.0)
@@ -731,48 +805,79 @@ func update_ents(dt: float) -> void:
 		e["stun"] = maxf(0.0, float(e["stun"]) - dt)
 
 		if float(e["stun"]) > 0.0:
-			var sdrag: float = exp(-3.0 * dt)
-			e["vx"] = float(e["vx"]) * sdrag
-			e["vy"] = float(e["vy"]) * sdrag
+			e["vx"] = float(e["vx"]) * stunDrag
+			e["vy"] = float(e["vy"]) * stunDrag
 			e["x"] = float(e["x"]) + float(e["vx"]) * dt
 			e["y"] = float(e["y"]) + float(e["vy"]) * dt
+			_exs[i] = float(e["x"])
+			_eys[i] = float(e["y"])
 			i -= 1
 			continue
 
 		# ---- AI ------------------------------------------------------------------
-		var dPlayer: float = Vector2(e["x"], e["y"]).distance_to(Vector2(px, py))
-		var vision: float = 340.0 * float(e["stats"]["vision"])
-		var iAmBigger: bool = float(e["genome"]["size"]) > float(ctx.genome["size"]) * 1.05 \
-				or (float(e["stats"]["damage"]) > float(pStats["damage"])
-					and float(e["genome"]["size"]) > 1.2)
+		# hoists: values invariant across the tick's ent loop (the player's
+		# genome/stats and the ent's own identity fields) — same reads, once
+		# per tick instead of once per ent
+		if _first_ai:
+			_p_size = float(ctx.genome["size"])
+			_p_damage = float(pStats["damage"])
+			_p_accel = float(pStats["accel"])
+			_first_ai = false
+		var myEid: int = _eeids[i]
+		var isSwarm := bool(e.get("swarm", false))
+		var eSize: float = _esizes[i]
+		var eEx: float = _exs[i]
+		var eEy: float = _eys[i]
+		var ddx: float = eEx - px
+		var ddy: float = eEy - py
+		var dPlayer := sqrt(ddx * ddx + ddy * ddy)
+		var vision: float = _evision[i]
+		var iAmBigger: bool = eSize > _p_size * 1.05 \
+				or (_edmg[i] > _p_damage and eSize > 1.2)
 
 		# temperament_bands: per-species seeded band on the aggression/fear reads
-		var band: Dictionary = e.get("band", {})
-		var aggr: float = float(band.get("aggression", 1.0))
-		var fear: float = float(band.get("fear", 1.0))
+		var band_v: Variant = e.get("band")
+		var aggr := 1.0
+		var fear := 1.0
+		if band_v is Dictionary:
+			aggr = float((band_v as Dictionary).get("aggression", 1.0))
+			fear = float((band_v as Dictionary).get("fear", 1.0))
 		# kin_memory: a grudging kin-tag network shifts from fleeing to pressing
-		# (effectiveGrudge hits the harassment valve — capped networks rest)
-		var grudge: float = eco.grudge_of(ctx.world, String(e["speciesId"]))
+		# (effectiveGrudge hits the harassment valve — capped networks rest).
+		# Cached per species; a press invalidates its entry (register_press is
+		# the only mid-tick mutation — the original re-read eco.grudge_of per
+		# ent, which the cache reproduces exactly).
+		var sid: String = String(e["speciesId"])
+		var grudge: float
+		if _gcache.has(sid):
+			grudge = _gcache[sid]
+		else:
+			grudge = eco.grudge_of(ctx.world, sid)
+			_gcache[sid] = grudge
 		var grudgePress: bool = grudge >= 2.0 and dPlayer < vision * 0.9
 		# corpse_tide: the scavenger line harasses far above its weight
-		var tide: Variant = eco.tide_species()
-		var tideBold: bool = tide != null and String(tide["id"]) == String(e["speciesId"])
-		var hunting: bool = bool(e.get("swarm", false)) \
-				or (String(e["genome"]["diet"]) != "herbivore"
+		# (cached per tick — kill_ent invalidates; see the member note)
+		if not _tide_valid:
+			_tide = eco.tide_species()
+			_tide_valid = true
+		var tideBold: bool = _tide != null and String(_tide["id"]) == sid
+		var diet: String = String(e["genome"]["diet"])
+		var hunting: bool = isSwarm \
+				or (diet != "herbivore"
 					and dPlayer < vision * 0.65 * aggr and iAmBigger) \
 				or grudgePress \
 				or (tideBold and dPlayer < vision * 0.5)
-		var fleeing: bool = not bool(e.get("swarm", false)) and grudge < 2.0 \
+		var fleeing: bool = not isSwarm and grudge < 2.0 \
 				and dPlayer < vision * 0.7 * fear and not iAmBigger
 		# bio_tell: during a warn window the ambient panics away from the strike
 		# epicenter (the player's position) — herds visibly leave. The panic
 		# overrides hunt/flee/wander for the window; a fixed pace keeps the
 		# vacate rate near the catalog's 40-60% band.
-		var panicking: bool = warnDriftT > 0.0 and not bool(e.get("swarm", false)) \
+		var panicking: bool = warnDriftT > 0.0 and not isSwarm \
 				and dPlayer < 500.0  # the event footprint (vents/meteor land ≤500 out)
 		var ax := 0.0
 		var ay := 0.0
-		var speed: float = float(e["stats"]["speed"])
+		var speed: float = _espeed[i]
 
 		if panicking:
 			# the drift is positional — a deterministic pace that does not drown
@@ -781,41 +886,46 @@ func update_ents(dt: float) -> void:
 			var pd: float = maxf(1.0, dPlayer)
 			e["x"] = float(e["x"]) + ((float(e["x"]) - px) / pd) * 48.0 * dt
 			e["y"] = float(e["y"]) + ((float(e["y"]) - py) / pd) * 48.0 * dt
+			_exs[i] = float(e["x"])
+			_eys[i] = float(e["y"])
 			ax = 0.0
 			ay = 0.0
 			speed = minf(speed, 45.0)
 		elif hunting:
 			# grudge presses count toward the harassment valve (one per engagement)
 			if grudgePress and float(e.get("pressCd", 0.0)) <= 0.0:
-				eco.register_press(ctx.world, String(e["speciesId"]))
+				eco.register_press(ctx.world, sid)
 				e["pressCd"] = PRESS_COOLDOWN
+				# the press moved the valve — later ents of this species must
+				# read the new grudge (the original re-read it per ent)
+				_gcache[sid] = eco.grudge_of(ctx.world, sid)
 			# chase player (or nearby smaller ent)
 			var tx: float = px
 			var ty: float = py
-			if not bool(e.get("swarm", false)):
+			if not isSwarm:
 				# prefer smaller cells nearby (single pass, squared distances)
-				var best: Dictionary = {}
-				var bestD2: float = vision * vision
-				for o in ents:
-					if int(o["eid"]) == int(e["eid"]) or float(o["hp"]) <= 0.0:
+				var hBest := -1
+				var hBestD2: float = vision * vision
+				for oj in ents.size():
+					if _eeids[oj] == myEid or _ehps[oj] <= 0.0:
 						continue
-					if float(o["genome"]["size"]) >= float(e["genome"]["size"]) * 0.85:
+					if _esizes[oj] >= eSize * 0.85:
 						continue
-					var odx: float = float(o["x"]) - float(e["x"])
-					var ody: float = float(o["y"]) - float(e["y"])
+					var odx: float = _exs[oj] - eEx
+					var ody: float = _eys[oj] - eEy
 					var d2: float = odx * odx + ody * ody
-					if d2 < bestD2:
-						best = o
-						bestD2 = d2
-				if not best.is_empty():
-					tx = float(best["x"])
-					ty = float(best["y"])
-			var hx: float = tx - float(e["x"])
-			var hy: float = ty - float(e["y"])
+					if d2 < hBestD2:
+						hBest = oj
+						hBestD2 = d2
+				if hBest >= 0:
+					tx = _exs[hBest]
+					ty = _eys[hBest]
+			var hx: float = tx - eEx
+			var hy: float = ty - eEy
 			var hd: float = maxf(1.0, sqrt(hx * hx + hy * hy))
 			ax = hx / hd
 			ay = hy / hd
-			speed *= 1.25 if bool(e.get("swarm", false)) else 1.0
+			speed *= 1.25 if isSwarm else 1.0
 		elif fleeing:
 			var fd: float = maxf(1.0, dPlayer)
 			ax = (float(e["x"]) - px) / fd
@@ -830,19 +940,26 @@ func update_ents(dt: float) -> void:
 			if float(e["wanderT"]) <= 0.0:
 				e["wanderT"] = rng.range(1.5, 4.0)
 				# seek pellets if herbivore-ish
-				var target: Dictionary = {}
+				var gBest := -1
 				var bd: float = 300.0
-				for p in pellets:
-					var wd: float = Vector2(p["x"], p["y"]).distance_to(Vector2(e["x"], e["y"]))
-					var want: bool = (String(p["kind"]) == "meat") \
-							if String(e["genome"]["diet"]) == "carnivore" \
-							else (String(p["kind"]) == "plant")
+				if _pg_dirty:
+					_rebuild_pg()
+				_cand.clear()
+				_grid_near(_pg_seek, eEx, eEy, 301.0, _cand)
+				if _cand.size() > 1:
+					_cand.sort()  # tie-break order = full-scan order
+				for gi in _cand.size():
+					var pj: int = _cand[gi]
+					if _pdead[pj] == 1:
+						continue
+					var wd: float = Vector2(_pxs[pj], _pys[pj]).distance_to(Vector2(eEx, eEy))
+					var want: bool = (_pk[pj] == 1) if diet == "carnivore" else (_pk[pj] == 0)
 					if wd < bd and want:
-						target = p
+						gBest = pj
 						bd = wd
-				if not target.is_empty():
-					e["tx"] = float(target["x"])
-					e["ty"] = float(target["y"])
+				if gBest >= 0:
+					e["tx"] = _pxs[gBest]
+					e["ty"] = _pys[gBest]
 				else:
 					var wa: float = rng.next() * TAU
 					var wr: float = rng.range(60.0, 320.0)
@@ -857,68 +974,113 @@ func update_ents(dt: float) -> void:
 				speed *= 0.55
 
 		# separation from big crowding
-		for o in ents:
-			if int(o["eid"]) == int(e["eid"]):
+		if _eg_dirty:
+			_rebuild_eg()
+		_cand.clear()
+		_grid_near(_eg, eEx, eEy, _eg_cell, _cand)
+		if _cand.size() > 1:
+			_cand.sort()  # reproduce the full scan's ascending order
+		for oi in _cand.size():
+			var oj: int = _cand[oi]
+			if _eeids[oj] == myEid:
 				continue
-			var sdx: float = float(e["x"]) - float(o["x"])
-			var sdy: float = float(e["y"]) - float(o["y"])
+			var sdx: float = eEx - _exs[oj]
+			var sdy: float = eEy - _eys[oj]
 			var sd2: float = sdx * sdx + sdy * sdy
-			var minD: float = 14.0 * (float(e["genome"]["size"]) + float(o["genome"]["size"]))
+			var minD: float = 14.0 * (eSize + _esizes[oj])
 			if sd2 < minD * minD and sd2 > 0.01:
 				var sd: float = sqrt(sd2)
 				ax += (sdx / sd) * 0.6
 				ay += (sdy / sd) * 0.6
 
+		# locals carry the integration (same ops on the same values in the
+		# same order as the dict round-trips they replace — bit-exact)
 		var al: float = sqrt(ax * ax + ay * ay)
+		var nvx: float = float(e["vx"])
+		var nvy: float = float(e["vy"])
 		if al > 0.0:
-			e["vx"] = float(e["vx"]) + (ax / al) * float(e["stats"]["accel"]) * dt
-			e["vy"] = float(e["vy"]) + (ay / al) * float(e["stats"]["accel"]) * dt
-		e["vx"] = float(e["vx"]) + current_at(float(e["y"])) * dt
-		var drag: float = exp(-2.4 * dt)
-		e["vx"] = float(e["vx"]) * drag
-		e["vy"] = float(e["vy"]) * drag
-		var sp := sqrt(float(e["vx"]) * float(e["vx"]) + float(e["vy"]) * float(e["vy"]))
+			nvx += (ax / al) * _eaccel[i] * dt
+			nvy += (ay / al) * _eaccel[i] * dt
+		nvx += current_at(float(e["y"])) * dt
+		nvx *= entDrag
+		nvy *= entDrag
+		var sp := sqrt(nvx * nvx + nvy * nvy)
 		if sp > speed:
-			e["vx"] = float(e["vx"]) * speed / sp
-			e["vy"] = float(e["vy"]) * speed / sp
-		e["x"] = float(e["x"]) + float(e["vx"]) * dt
-		e["y"] = float(e["y"]) + float(e["vy"]) * dt
+			nvx = nvx * speed / sp
+			nvy = nvy * speed / sp
+		var nx: float = float(e["x"]) + nvx * dt
+		var ny: float = float(e["y"]) + nvy * dt
+		e["x"] = nx
+		e["y"] = ny
+		e["vx"] = nvx
+		e["vy"] = nvy
+		_exs[i] = nx
+		_eys[i] = ny
 
 		# ents stay in world
-		var dO: float = sqrt(float(e["x"]) * float(e["x"]) + float(e["y"]) * float(e["y"]))
+		var dO: float = sqrt(nx * nx + ny * ny)
 		if dO > WORLD_R + 100.0:
-			e["vx"] = float(e["vx"]) - (float(e["x"]) / dO) * 40.0 * dt * 10.0
-			e["vy"] = float(e["vy"]) - (float(e["y"]) / dO) * 40.0 * dt * 10.0
+			e["vx"] = nvx - (nx / dO) * 40.0 * dt * 10.0
+			e["vy"] = nvy - (ny / dO) * 40.0 * dt * 10.0
 
-		# eat pellets (inline squared distances — hot loop, no allocations)
-		var eatR: float = 14.0 * float(e["genome"]["size"]) + 5.0
+		# eat pellets (inline squared distances — hot loop, no allocations).
+		# Eats mark _pdead instead of splicing so the grids' indices stay
+		# stable; the tick-end compaction performs the physical removal
+		# (order-preserving — identical survivor array to splice-as-you-go).
+		# NO candidate sort: every in-range qualifying pellet is eaten and the
+		# capped heal is order-independent, so the gather order can't matter.
+		var eatR: float = 14.0 * eSize + 5.0
 		var eatR2: float = eatR * eatR
-		var diet: String = String(e["genome"]["diet"])
-		var pi: int = pellets.size() - 1
-		while pi >= 0:
-			var p: Dictionary = pellets[pi]
-			var pdx: float = float(p["x"]) - float(e["x"])
-			var pdy: float = float(p["y"]) - float(e["y"])
-			if pdx * pdx + pdy * pdy < eatR2:
-				var kindOk: bool = (String(p["kind"]) == "meat") if diet == "carnivore" \
-						else (String(p["kind"]) == "plant")
-				if kindOk or diet == "omnivore":
-					pellets.remove_at(pi)
-					e["hp"] = minf(float(e["maxHp"]), float(e["hp"]) + 4.0)
-					e["eatT"] = 1.0
-			pi -= 1
+		if _pg_dirty:
+			_rebuild_pg()
+		_cand.clear()
+		_grid_near(_pg_eat, eEx, eEy, _pg_cell, _cand)
+		var ci := _cand.size() - 1
+		while ci >= 0:
+			var pj: int = _cand[ci]
+			if _pdead[pj] == 0:
+				var pdx: float = _pxs[pj] - eEx
+				var pdy: float = _pys[pj] - eEy
+				if pdx * pdx + pdy * pdy < eatR2:
+					var kindOk: bool = (_pk[pj] == 1) if diet == "carnivore" else (_pk[pj] == 0)
+					if kindOk or diet == "omnivore":
+						_pdead[pj] = 1
+						e["hp"] = minf(float(e["maxHp"]), float(e["hp"]) + 4.0)
+						_ehps[i] = float(e["hp"])
+						e["eatT"] = 1.0
+			ci -= 1
 
-		# toxin zones hurt ents
-		for z in zones:
-			if z["kind"] == "toxin" \
-					and Vector2(e["x"], e["y"]).distance_to(Vector2(z["x"], z["y"])) < float(z["r"]):
-				e["hp"] = float(e["hp"]) - float(z["dps"]) * dt
+		# toxin zones hurt ents (flat zone snapshot — zones are constant
+		# during update_ents; the inline distance is (b-a).length() verbatim)
+		for zi in _zn:
+			var zdx: float = _zxs[zi] - float(e["x"])
+			var zdy: float = _zys[zi] - float(e["y"])
+			if _ztoxin[zi] and sqrt(zdx * zdx + zdy * zdy) < _zr[zi]:
+				e["hp"] = float(e["hp"]) - _zdps[zi] * dt
+				_ehps[i] = float(e["hp"])
 				e["hurtT"] = maxf(float(e["hurtT"]), 0.2)
-				if bool(z.get("mine", false)):
+				if _zmine[zi]:
 					e["lastPlayerHit"] = "toxin"
 		# hp<=0 here is swept by the top-of-loop check next pass (kill_ent
 		# already paid if the kill was tagged)
 		i -= 1
+	# tick-end pellet compaction: physically remove this tick's dead (eaten)
+	# pellets — order-preserving, so the survivor array is identical to the
+	# original splice-as-you-go; flat mirrors rebuild at the next entry
+	var dead := 0
+	for pj in _pdead.size():
+		if _pdead[pj] == 1:
+			dead += 1
+	if dead > 0:
+		var kept: Array[Dictionary] = []
+		kept.resize(pellets.size() - dead)
+		var w := 0
+		for pj in pellets.size():
+			if _pdead[pj] == 0:
+				kept[w] = pellets[pj]
+				w += 1
+		pellets = kept
+	_flat_live = false
 
 
 func update_pellets(dt: float) -> void:
@@ -1030,8 +1192,14 @@ func spawn_pellet(kind: String, x: Variant = null, y: Variant = null) -> void:
 		"ttl": 25.0 if kind == "meat" else 40.0,
 		"val": 5 if kind == "meat" else 2,
 	})
+	if _flat_live:
+		_pel_mirror_append(pellets[pellets.size() - 1])
 	if pellets.size() > PELLET_CAP:
 		pellets.pop_front()  # TS shift()
+		if _flat_live:
+			_pxs.remove_at(0)
+			_pys.remove_at(0)
+			_pk.remove_at(0)
 
 
 func spawn_ent_for_species(sp: Dictionary) -> void:
@@ -1081,6 +1249,13 @@ func spawn_ent(sp: Variant, x: float, y: float, genome_override: Dictionary = {}
 	if opts.has("lifespan"):
 		e["lifespan"] = opts["lifespan"]
 	ents.append(e)
+	if _flat_live:
+		_exs.append(float(e["x"]))
+		_eys.append(float(e["y"]))
+		_ehps.append(float(e["hp"]))
+		_esizes.append(float(genome.get("size", 1)))
+		_eeids.append(int(e["eid"]))
+		_eg_dirty = true  # index space shifted; next gather rebuilds
 	return e
 
 
@@ -1106,6 +1281,135 @@ func maintain_population() -> void:
 ## Schedule a callback on the stage's game-time clock (TS after()).
 func after(seconds: float, fn: Callable) -> void:
 	timers.append({"left": seconds, "fn": fn})
+
+
+# ---- flat read-mirrors (update_ents inner scans) --------------------------------
+
+## Rebuild the mirrors from the live arrays. Called at update_ents entry —
+## cross-function mutations (update_player bites, chaos spawns, meteor) land
+## before this point, so only mutations made INSIDE update_ents need mirrors.
+func _flat_rebuild() -> void:
+	var n := ents.size()
+	_exs.resize(n)
+	_eys.resize(n)
+	_ehps.resize(n)
+	_esizes.resize(n)
+	_eeids.resize(n)
+	_evision.resize(n)
+	_edmg.resize(n)
+	_espeed.resize(n)
+	_eaccel.resize(n)
+	for j in n:
+		var e: Dictionary = ents[j]
+		_exs[j] = float(e["x"])
+		_eys[j] = float(e["y"])
+		_ehps[j] = float(e["hp"])
+		_esizes[j] = float(e["genome"]["size"])
+		_eeids[j] = int(e["eid"])
+		var st: Dictionary = e["stats"]
+		_evision[j] = 340.0 * float(st["vision"])
+		_edmg[j] = float(st["damage"])
+		_espeed[j] = float(st["speed"])
+		_eaccel[j] = float(st["accel"])
+	var np := pellets.size()
+	_pxs.resize(np)
+	_pys.resize(np)
+	_pk.resize(np)
+	_pdead.resize(np)
+	_pdead.fill(0)
+	for j in np:
+		var p: Dictionary = pellets[j]
+		_pxs[j] = float(p["x"])
+		_pys[j] = float(p["y"])
+		_pk[j] = _kind_code(String(p["kind"]))
+	_flat_live = true
+	_rebuild_eg()
+	_rebuild_pg()
+	_first_ai = true
+	_gcache.clear()
+	_tide = null
+	_tide_valid = false
+	_zn = zones.size()
+	_zxs.resize(_zn)
+	_zys.resize(_zn)
+	_zr.resize(_zn)
+	_zdps.resize(_zn)
+	_ztoxin.resize(_zn)
+	_zmine.resize(_zn)
+	for zj in _zn:
+		var z: Dictionary = zones[zj]
+		_zxs[zj] = float(z["x"])
+		_zys[zj] = float(z["y"])
+		_zr[zj] = float(z["r"])
+		_zdps[zj] = float(z["dps"])
+		_ztoxin[zj] = 1 if String(z["kind"]) == "toxin" else 0
+		_zmine[zj] = 1 if bool(z.get("mine", false)) else 0
+
+
+func _kind_code(kind: String) -> int:
+	return 1 if kind == "meat" else (0 if kind == "plant" else 2)
+
+
+func _pel_mirror_append(p: Dictionary) -> void:
+	_pxs.append(float(p["x"]))
+	_pys.append(float(p["y"]))
+	_pk.append(_kind_code(String(p["kind"])))
+	_pdead.append(0)
+	_pg_dirty = true
+
+
+## Insert index j into grid g at the cell (x, y) lands in. Packed buckets are
+## copy-on-write — the mutated bucket is written back.
+func _grid_add(g: Dictionary, x: float, y: float, cell: float, j: int) -> void:
+	var ck := Vector2i(floori(x / cell), floori(y / cell))
+	var b: Variant = g.get(ck)
+	if b == null:
+		g[ck] = PackedInt32Array([j])
+	else:
+		var bucket: PackedInt32Array = b
+		bucket.append(j)
+		g[ck] = bucket
+
+
+## Append every candidate index in the 3×3 cell neighborhood of (x, y) to out
+## (unsorted — order-sensitive callers sort ascending to reproduce the full
+## scan's order; the eat gather needs no sort, see the eat loop).
+func _grid_near(g: Dictionary, x: float, y: float, cell: float, out: PackedInt32Array) -> void:
+	var cx := floori(x / cell)
+	var cy := floori(y / cell)
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			var b: Variant = g.get(Vector2i(cx + dx, cy + dy))
+			if b != null:
+				out.append_array(b)
+
+
+## Rebuild the ent grid (also after any ent removal/append — indices shift).
+func _rebuild_eg() -> void:
+	_eg.clear()
+	var n := ents.size()
+	_eg_cell = 29.0
+	for j in n:
+		if 28.0 * _esizes[j] + 1.0 > _eg_cell:
+			_eg_cell = 28.0 * _esizes[j] + 1.0
+	for j in n:
+		_grid_add(_eg, _exs[j], _eys[j], _eg_cell, j)
+	_eg_dirty = false
+
+
+## Rebuild both pellet grids (also after any pellet append/remove).
+func _rebuild_pg() -> void:
+	_pg_eat.clear()
+	_pg_seek.clear()
+	var maxS := 1.0
+	for j in _esizes.size():
+		if _esizes[j] > maxS:
+			maxS = _esizes[j]
+	_pg_cell = 14.0 * maxS + 6.0
+	for pj in pellets.size():
+		_grid_add(_pg_eat, _pxs[pj], _pys[pj], _pg_cell, pj)
+		_grid_add(_pg_seek, _pxs[pj], _pys[pj], 301.0, pj)
+	_pg_dirty = false
 
 
 # ---- chaos event helpers (called by cell_events.gd — the cellEvents.ts
