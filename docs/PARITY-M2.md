@@ -217,7 +217,7 @@ never reach the budget alone) area-uniform ≤320 px around the player from a
 fixed-seed LCG, then steps **600 ticks** under xvfb (llvmpipe, rendering ON).
 
 Asserts (both green):
-- **average wall-clock per sim tick ≤ 8 ms** — measured **7.61–7.76 ms avg** across 4 consecutive runs (max single tick 19.6–27.8 ms; identical world state every run — ents 93, pellets 15, dna 88 — the probe is fully deterministic),
+- **average wall-clock per sim tick ≤ 8 ms** — measured **7.41–7.76 ms avg** across 7 runs of the final code (max single tick 16.6–27.8 ms; identical world state every run of a given build — the probe is fully deterministic),
 - **no NaN drift** — the bot's `assert_sane` invariants (dna ≥ 0 finite, chaos ∈ [0,1], karma ∈ [−1,1], position finite, php ≤ pmaxHp, ents < 300) every 60 ticks + final.
 
 Recorded informationally: full engine-frame wall-clock avg ≈ 129 ms under
@@ -228,18 +228,50 @@ machine's real GPU, not the software rasterizer the probe intentionally runs on.
 **Probe-driven fix (this task):** the first probe run measured **37.5 ms/tick** —
 the probe caught the sim's O(N²)/O(N·P) Dictionary-based inner loops far over
 budget, exactly the §7 risk the spec names ("GDScript perf hot-loop → typed +
-no allocation; lift to C# only when a probe measures it"). Fix (bit-exact by
-construction — same values, same candidate order, same float ops):
+no allocation; lift to C# only when a probe measures it"). Fix:
 `update_ents` now scans flat typed mirrors (`Packed*Array`) of the ent/pellet
 fields, rebuilt per tick and synced on every in-loop mutation; neighborhood
 grids prune candidates that provably fail their distance checks while the
 gathered indices are sorted ascending = the full scan's order (the pellet-eat
 gather needs no sort — eats are order-independent); eaten pellets defer physical
 removal to a tick-end compaction via dead flags; per-ent invariant reads
-(player stats, tide line, grudge-per-species with press invalidation) are
-hoisted/cached. Validated bit-exact by the full suite: 15293 checks green
-including every exact-value and determinism test, and the bot-arc fingerprints
-are unchanged.
+(player stats, tide line, grudge-per-species with press-invalidation +
+kill-bump invalidation) are hoisted/cached.
+
+**Behavior-identity evidence (A-B harness — review round 1).** The optimization's
+first claim ("bit-exact by construction, suite-validated") was **falsified by
+the task's own visual fixture re-record** (`tests/fixtures/visual/reference.json`
+meteor-ring 707→715 px): the post-optimization world demonstrably differed, and
+the suite could not see it — the bot-arc fingerprints are self-compares (run 1
+vs run 2 of the SAME build), not pre/post gates. The permanent instrument is now
+`tools/ab_state_dump.gd`: a full unquantized state dump (every ent/pellet/zone
+field at 17 decimals, eco species rows incl. grudge/harass, the three rng
+stream states, discovered set, tutorial counters) over three fixed crowded
+scenarios — s1 probe-shape (200 ents, 300 ticks), s2 crowded-panic (a 2.5 s
+warn window over the crowd), s3 kin-kill-same-tick (grudge 0→2 mid-sweep) —
+runnable at any commit. It found **three correctness bugs the 15293-check suite
+had passed** (a stale post-panic position feeding the separation/eat gathers;
+a missing grid-dirty on the lifespan-expiry sweep; the grudge cache not
+invalidated by kill_ent's mid-tick grudge bump) plus an eat loop reading the
+pre-integration position — all fixed.
+
+The A-B evidence, on the final code:
+
+| Comparison | Diff | Meaning |
+|---|---|---|
+| base `869e83b` vs HEAD with the two distance sites reverted to `Vector2.distance_to` (f32, scratch build) | **0 lines** across 9843 dumped rows ×3 scenarios | the optimization + fixes are behavior-identical to the reviewed base |
+| base `869e83b` vs HEAD as committed | 14 440 differing lines, **0 structural** (identical row counts everywhere; no eat/kill timing shifts) | every delta traces to the sanctioned f64 class below |
+
+**Sanctioned numeric divergence (controller I5, applied):** the two inlined
+distances (player-distance, ent-vs-zone) compute in f64 where the original
+`Vector2.distance_to` computed in f32 — a parity wart vs TS's f64 `vecDist`;
+the f64 form is TS-closer and stays. The 14 440-line diff is that class and
+nothing else, by construction: HEAD = the 0-diff diagnostic build plus exactly
+those two sites. First divergences: s1/s2 tick 9, s3 tick 0 — low-order-bit
+value deltas through the flee/panic divisor and hunt/grudge thresholds the
+distances feed, amplifying chaotically through the crowded scenarios (the
+707→715 meteor-ring shift was this class, caught-then-fixed down to the stale
+position bug the re-record ultimately exposed).
 
 ## §5.2 scorecard
 

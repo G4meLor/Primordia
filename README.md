@@ -34,7 +34,7 @@ Toàn bộ sim layer và **cell stage đã port 1:1 từ TS** và xanh 100% test
 - **381 tests / 15293 checks / 0 failures** headless (`./tools/test.sh`).
 - **7 scene suites xanh dưới xvfb**: boot, bot arc ×3 seeds ×2 determinism passes (bot đi 2 phút "messy play" qua **real input pipeline** — `Input.parse_input_event`, không bao giờ gọi thẳng sim), menu real-click, editor real-click, 2 pixel-assert visual suites (8/8 + 32/32 asserts), perf probe.
 - **4 tiêu chí §5.2 đều đạt**: (a) mọi cell-feature của bản TS có mặt + có test pin, (b) bot arc ×3 seeds, (c) econ probes + determinism 1000-seed, (d) pixel-assert viewport capture.
-- **Perf probe 200 ents**: ≤ 8 ms/tick sim (đo 7.6 ms) — probe đã bắt và fix hot-loop O(N²) của sim (flat typed mirrors + neighborhood grids, bit-exact).
+- **Perf probe 200 ents**: ≤ 8 ms/tick sim (đo 7.6–7.8 ms) — probe đã bắt và fix hot-loop O(N²) của sim (flat typed mirrors + neighborhood grids). Behavior-identity chứng minh bằng **A-B state-diff harness** (`tools/ab_state_dump.gd`): base ≡ HEAD với 2 distance site reverted = 0 diff; phần delta còn lại là sanctioned f64 class (chi tiết: PARITY-M2.md §17).
 
 Chiến lược kiến trúc (tách sim khỏi Godot, determinism contract, parity fixtures): [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 

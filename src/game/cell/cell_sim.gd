@@ -832,6 +832,11 @@ func update_ents(dt: float) -> void:
 		var eEy: float = _eys[i]
 		var ddx: float = eEx - px
 		var ddy: float = eEy - py
+		# f64 distance — SANCTIONED divergence (controller I5): the
+		# pre-optimization Vector2 form computed in f32 (a parity wart vs
+		# TS's f64 vecDist); this form is TS-closer. Residual threshold-flip
+		# deltas vs the pre-optimization build are part of the sanctioned
+		# class — see PARITY-M2.md §17.
 		var dPlayer := sqrt(ddx * ddx + ddy * ddy)
 		var vision: float = _evision[i]
 		var iAmBigger: bool = eSize > _p_size * 1.05 \
@@ -1062,7 +1067,8 @@ func update_ents(dt: float) -> void:
 			ci -= 1
 
 		# toxin zones hurt ents (flat zone snapshot — zones are constant
-		# during update_ents; the inline distance is (b-a).length() verbatim)
+		# during update_ents; the inline distance is (b-a).length() verbatim).
+		# f64 distance — SANCTIONED divergence (I5), same class as dPlayer.
 		for zi in _zn:
 			var zdx: float = _zxs[zi] - float(e["x"])
 			var zdy: float = _zys[zi] - float(e["y"])
