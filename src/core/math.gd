@@ -25,7 +25,10 @@ static func damp(rate: float, dt: float) -> float:
 
 
 static func smoothstep(t: float) -> float:
-	var x := clamp(t, 0.0, 1.0)
+	# explicit float: unqualified clamp() binds the UNTYPED global utility in
+	# this context (warning-as-error kills the inferred Variant under -s), and
+	# global clamp is value-identical to the TS ternary below for finite input
+	var x: float = clamp(t, 0.0, 1.0)
 	return x * x * (3.0 - 2.0 * x)
 
 
@@ -39,7 +42,8 @@ static func ease_in_cubic(t: float) -> float:
 
 static func ease_out_back(t: float) -> float:
 	var c := 1.70158
-	var x := clamp(t, 0.0, 1.0) - 1.0
+	# explicit float — see smoothstep's clamp resolution note
+	var x: float = clamp(t, 0.0, 1.0) - 1.0
 	return 1.0 + x * x * ((c + 1.0) * x + c)
 
 
