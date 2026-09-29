@@ -1,0 +1,103 @@
+{
+  "planPath": "docs/superpowers/plans/2026-09-29-native-sim-core.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Scaffold + test runner",
+      "status": "pending",
+      "description": "**Goal:** Repo Godot tối thiểu + custom test runner headless zero-plugin, chạy được test xanh/đỏ với exit code đúng.\n\n**Files:**\n- Create: project.godot, .gitignore, tests/run.gd, tests/test_base.gd, tests/test_smoke.gd\n\n**Acceptance Criteria:**\n- [ ] godot --headless -s tests/run.gd → 1 file, 1 test, 2 checks, 0 failures, exit 0\n- [ ] Phiên bản đỏ (assertion sai tạm) → FAIL in rõ + exit 1; xóa assertion tạm sau\n- [ ] Không script error/warning trên output\n\n**Verify:** godot --headless -s tests/run.gd → exit 0\n\n```json:metadata\n{\"files\": [\"project.godot\", \"tests/run.gd\", \"tests/test_base.gd\", \"tests/test_smoke.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"green exit 0\", \"red exit 1 self-tested\", \"no script errors\"], \"modelTier\": \"mechanical\"}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Parity fixtures từ TS",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Sinh fixtures JSON từ code TS vào tests/fixtures/ — trọng tài parity cho mọi port test.\n\n**Files:**\n- Create (TS repo tool): ~/Desktop/RD/Spore/tools/fixture-gen.test.ts\n- Create: tests/fixtures/{rng_stream,genome_stats,eco_tick,mutate_crossover,world_genome,storyteller_walk}.json + fixtures.README.md\n\n**Acceptance Criteria:**\n- [ ] 6 JSON parse được, schema đúng README\n- [ ] rng_stream: seeds 1/42/3735928559 × (next×50, int(2,8)×20, chance(0.3)×20, weighted×10, gauss×10, branch×3)\n- [ ] genome_stats: cell+creature stats cho 8 genome (key genomeHash)\n- [ ] eco_tick: sim 10 phút dt 1s roster 6 loài Rng(7), snapshot mỗi 60s\n- [ ] mutate_crossover: 20 mutate + 10 crossover + 5 bias\n- [ ] world_genome: derive 20 seeds + walk seed 0\n- [ ] storyteller_walk: 120 tick signal script\n- [ ] Generator chạy npx vitest run tools/fixture-gen.test.ts ở TS repo; không sửa file game TS\n\n**Verify:** ls tests/fixtures/*.json | wc -l → 6\n\n```json:metadata\n{\"files\": [\"tests/fixtures/\"], \"verifyCommand\": \"ls ~/Desktop/RD/primordia-native/tests/fixtures/*.json | wc -l\", \"acceptanceCriteria\": [\"6 fixtures committed\", \"schema documented\", \"TS game code untouched\"], \"modelTier\": \"mechanical\"}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: core/rng.gd Mulberry32 bit-exact",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** Port Rng (Mulberry32) bit-exact — nền determinism.\n\n**Files:**\n- Create: src/core/rng.gd, tests/fixtures.gd\n- Test: tests/test_rng.gd\n\n**Acceptance Criteria:**\n- [ ] 50 next() × 3 seeds khớp fixture EXACT (eps 0.0)\n- [ ] int/chance/weighted/gauss/branch khớp fixture\n- [ ] API đầy đủ: next/range/int/chance/pick/weighted/shuffled/gauss/gauss_clamp/branch/state/set_state; pick rỗng → push_error + null\n- [ ] _s luôn & 0xFFFFFFFF\n\n**Verify:** godot --headless -s tests/run.gd → test_rng green\n\n```json:metadata\n{\"files\": [\"src/core/rng.gd\", \"tests/test_rng.gd\", \"tests/fixtures.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"fixture exact eps 0\", \"full API\", \"uint32 masking\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: evo/genome.gd",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Port genome — dict 22 key + bounds + clamp + hash.\n\n**Files:**\n- Create: src/evo/genome.gd\n- Test: tests/test_genome.gd\n\n**Acceptance Criteria:**\n- [ ] default_genome 22 key đúng giá trị TS\n- [ ] GENE_BOUNDS 15 entry; clamp: garbage snap đúng quy tắc (size→1, eyes→1, còn lại 0; hue 120; sat 0.55; enum sai → default); hue âm → @posmod (case -30 → 330)\n- [ ] genome_hash khớp fixture keys (8 genome)\n- [ ] clone deep-enough\n\n**Verify:** godot --headless -s tests/run.gd → test_genome green\n\n```json:metadata\n{\"files\": [\"src/evo/genome.gd\", \"tests/test_genome.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"22-key default\", \"clamp garbage rules\", \"hash matches fixture\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: parts + stats port",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "**Goal:** Port parts catalog + derived stats (pure math) — fixture-driven.\n\n**Files:**\n- Create: src/evo/parts.gd, src/evo/stats.gd\n- Test: tests/test_parts.gd, tests/test_stats.gd\n\n**Acceptance Criteria:**\n- [ ] PARTS 15 part × 8 field; part_cost round(baseCost*pow(costMult,lvl)); part_refund starter-baseline (flagella 2, jaw 1, eyes 1)\n- [ ] standout_part (level ≥2 number-only); graft_value raise-only\n- [ ] compute_cell/creature_stats + would_win khớp fixture 8 genome eps 0\n- [ ] Legless exemption: size 2.2 legless speed = max(8, 24+wing+coat) không trừ size\n\n**Verify:** godot --headless -s tests/run.gd → green\n\n```json:metadata\n{\"files\": [\"src/evo/parts.gd\", \"src/evo/stats.gd\", \"tests/test_parts.gd\", \"tests/test_stats.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"catalog 15 parts\", \"stats fixture exact\", \"legless exemption\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: names port",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Port procedural naming (species_name + epithet).\n\n**Files:**\n- Create: src/evo/names.gd\n- Test: tests/test_names.gd\n\n**Acceptance Criteria:**\n- [ ] Port 1:1 từ src/evo/names.ts (60 dòng) — same pools, same rng order\n- [ ] 10 giá trị đầu seed cố định khớp TS (literal pin sinh từ TS)\n\n**Verify:** godot --headless -s tests/run.gd → test_names green\n\n```json:metadata\n{\"files\": [\"src/evo/names.gd\", \"tests/test_names.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"literal pins match TS\"], \"modelTier\": \"mechanical\"}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: mutation + M1/M2 port",
+      "status": "pending",
+      "blockedBy": [4, 3],
+      "description": "**Goal:** Port mutate/crossover + MutationBias + anomaly latent_allele + defect genes — nguyên trạng sau mọi fix của TS.\n\n**Files:**\n- Create: src/evo/mutation.gd\n- Test: tests/test_mutation.gd\n\n**Acceptance Criteria:**\n- [ ] mutate(genome,rng,rate,bias) — 20 case fixture EXACT; rate clamp 1.2\n- [ ] crossover với CrossoverOpts{mutate_rate,bias} — 10 case + blend-hue 25% EXACT\n- [ ] M1: kinds recessive_echo/dormant/transposed weights 45/35/20 (statistical 200 rolls ±20%); dormant pendingAllele wakeGen +2..+4; transposed luôn trong GENE_BOUNDS; echo marker field\n- [ ] M2: defectRate tổng 0.2/0.3, 600 splices ≤0.35; DEFECT_NAMES đủ frenzy/famine/glass_bones\n- [ ] bias rate_add tăng gene-change statistically\n\n**Verify:** godot --headless -s tests/run.gd → test_mutation green\n\n```json:metadata\n{\"files\": [\"src/evo/mutation.gd\", \"tests/test_mutation.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"fixture exact\", \"anomaly kinds + weights\", \"defect total budget\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: ecosystem core tick",
+      "status": "pending",
+      "blockedBy": [5, 3],
+      "description": "**Goal:** Port eco lõi: flora logistic, herb drain, caps, growth, speciation, notifyKill, EcoMods (mods = Dictionary thuần).\n\n**Files:**\n- Create: src/evo/ecosystem.gd (phần lõi, để chỗ trống có comment # Task 9: valves)\n- Test: tests/test_eco_core.gd\n\n**Acceptance Criteria:**\n- [ ] add_species/tick/notify_kill đúng 5 khối TS (floor 12 sau drain, cap formulas, growth 0.5*gm, decay 0.02, extinct pop<0.4, speciation 0.004*mult*m cap 12)\n- [ ] Fixture eco_tick khớp EXACT mỗi 60s\n- [ ] Empty mods = baseline bit-exact\n- [ ] Single-mod probes (1.6/1.25/1.5/1.3) 60-min: pop≥0, flora≥12, ≥2 loài\n\n**Verify:** godot --headless -s tests/run.gd → test_eco_core green\n\n```json:metadata\n{\"files\": [\"src/evo/ecosystem.gd\", \"tests/test_eco_core.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"fixture exact snapshots\", \"empty-mods baseline\", \"per-mod probes\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: eco valves + bio_shift + tide",
+      "status": "pending",
+      "blockedBy": [8],
+      "description": "**Goal:** Port grudge/harass valve, bio_shift reequilibrate + solvability, corpse tide, force_speciation, serialization.\n\n**Files:**\n- Modify: src/evo/ecosystem.gd (fill chỗ trống Task 8)\n- Test: tests/test_eco_valves.gd\n\n**Acceptance Criteria:**\n- [ ] Grudge decay half-life 40×30s int-clamp + harass cap 4/100 eco-min qua effective_grudge; thuần số học, không consume rng\n- [ ] bio_shift: role-pair conversion + silent pair, dedupe, top-up while<2 TRƯỚC early-return, kin excluded\n- [ ] Corpse tide: ledger cap 8, burst clamp 8% popSum, auto-end ≤5.0, tideBorn excluded khỏi out.extinctions, revive qua drop_corpse\n- [ ] to_json/from_json tolerant (grudge/harass/tideBorn/pending_allele/defect coerce)\n- [ ] Probes mirror TS econ-probe (decay 8→4→0, cap 4 vs uncapped, P(ext|grudge)≤2×, double-dedupe living≥2)\n\n**Verify:** godot --headless -s tests/run.gd → test_eco_valves green\n\n```json:metadata\n{\"files\": [\"src/evo/ecosystem.gd\", \"tests/test_eco_valves.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"valve constants exact\", \"solvability top-up order\", \"tideBorn exclusion\", \"serialization tolerant\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: world genome + catalog",
+      "status": "pending",
+      "blockedBy": [4, 3],
+      "description": "**Goal:** Port world genome: derive (13 traits + temperament + 0-2 turns), accessors, tick_world_reveals, combo eco-side.\n\n**Files:**\n- Create: src/evo/world_genome.gd, src/evo/world_traits.gd\n- Test: tests/test_world_genome.gd\n\n**Acceptance Criteria:**\n- [ ] Catalog đúng TS hiện hành: 13 traits (+turn-only), COMBO_DEFS 5, WORLD_TURN_DEFS 3, ADJ/NOUN 10+10, PATCH_KEYS\n- [ ] derive: rng seed^0x57ef masked, 4-6 traits, symmetric exclusion, temperament, turns 0-2 cạnh tranh, top-up ≥3; 1000-seed determinism\n- [ ] world_num first-wins; world_has; archetype_weights; eco_mods_from_world (gồm combo eco-side rot_circle/selection_sweep)\n- [ ] tick_world_reveals: reveal/combo/turn once; turn swap exclusion + replacement pushed vào out.revealed; timers KHÔNG tăng trong hàm\n- [ ] Fixture world_genome khớp 20 seeds\n\n**Verify:** godot --headless -s tests/run.gd → test_world_genome green\n\n```json:metadata\n{\"files\": [\"src/evo/world_genome.gd\", \"src/evo/world_traits.gd\", \"tests/test_world_genome.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"catalog exact\", \"1000-seed determinism\", \"fixture 20 seeds\", \"turn swap exclusion + codex push\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: storyteller port",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Port mood engine (nhỏ, fixture-driven).\n\n**Files:**\n- Create: src/game/storyteller.gd\n- Test: tests/test_storyteller.gd\n\n**Acceptance Criteria:**\n- [ ] Branch order bless → pacifist gate (karma≥0.5→test trước twist) → twist → test; hysteresis 20s re-arm chỉ khi flip; gap_bias 1.2/1.0/0.78; warn_scale bucket (cradle 1.6/lean 1.0/wildcard 0.8); offer_beat dedupe + poll FIFO; reset() wipe\n- [ ] Fixture storyteller_walk mood timeline khớp từng tick\n- [ ] 5 case TS verbatim (pacifist 200 tick, bless struggling, twist sau hysteresis, hold 10 tick, FIFO dedupe)\n\n**Verify:** godot --headless -s tests/run.gd → test_storyteller green\n\n```json:metadata\n{\"files\": [\"src/game/storyteller.gd\", \"tests/test_storyteller.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"pacifist never twist\", \"fixture walk\", \"5 TS cases verbatim\"], \"modelTier\": \"mechanical\"}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: chaos scheduler port",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Port ChaosScheduler + def structure (weights/apply = Callables; applications là stage-layer).\n\n**Files:**\n- Create: src/game/chaos.gd\n- Test: tests/test_chaos.gd\n\n**Acceptance Criteria:**\n- [ ] Def shape: id/name/warn/warn_s/weight(Callable)/duration/cooldown/apply/tick/end/mood_affinity\n- [ ] update flow: warn 2.5×ctx.warn_scale (warn_s clamp ≥WARN_WINDOW*0.8), hold 1s retry khi max_active, cooldown decay, effective_gap = gap*gap_mult*(1-0.45*chaos), weighted pool max(0.01,w), BASE_GAP 26, trigger() không forward hooks, clear(), warn_remaining getter\n- [ ] Tests scripted defs: warn→apply sequence, max_active hold, cooldown gate, weighted determinism seeded\n\n**Verify:** godot --headless -s tests/run.gd → test_chaos green\n\n```json:metadata\n{\"files\": [\"src/game/chaos.gd\", \"tests/test_chaos.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"scheduler flow exact\", \"warn_s clamp\", \"callables wired\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 13,
+      "subject": "Task 13: context + save",
+      "status": "pending",
+      "blockedBy": [10, 11],
+      "description": "**Goal:** Port GameContext + save/load JSON v1 fresh (không migrate save TS).\n\n**Files:**\n- Create: src/game/context.gd\n- Test: tests/test_context.gd\n\n**Acceptance Criteria:**\n- [ ] Context đầy đủ: seed/rng/genome/dna(40)/karma/chaos(0.15)/difficulty/slot/playtime/total_dna_earned/player_name/stage/bestiary/eco/flags/world/world_stats; add_dna fractional; spend/add_chaos/add_karma clamp; chaos_gap_mult; starting_chaos; discover dedupe genome_hash + signal; mark_extinct\n- [ ] save(slot) → user://saves/slot{n}.json: refuse menu; world blob trait_ids/turn_ids/revealed/combo_fired/fired_turns/world_stats/temperament\n- [ ] load: shape-validate; corrupt → re-derive + defaults; unknown traitIds drop; round-trip giữ runtime state; corrupt file → false không crash; save menu → false\n\n**Verify:** godot --headless -s tests/run.gd → test_context green\n\n```json:metadata\n{\"files\": [\"src/game/context.gd\", \"tests/test_context.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"round-trip runtime state\", \"corrupt tolerant\", \"menu refused\"], \"modelTier\": \"standard\"}\n```"
+    },
+    {
+      "id": 14,
+      "subject": "Task 14: Milestone wrap docs",
+      "status": "pending",
+      "blockedBy": [13, 12, 9, 6, 7],
+      "description": "**Goal:** Kết milestone 1: docs + full suite xanh + tag.\n\n**Files:**\n- Create: docs/ARCHITECTURE.md, README.md, tools/test.sh\n\n**Acceptance Criteria:**\n- [ ] Full suite 0 failures exit 0, không script error\n- [ ] ARCHITECTURE.md: layer tách sim/Godot, determinism contract, runner usage, fixture approach\n- [ ] README: repo intro + status + trỏ specs\n- [ ] tools/test.sh executable\n- [ ] Commit + tag sim-core-m1\n\n**Verify:** cd ~/Desktop/RD/primordia-native && ./tools/test.sh → exit 0\n\n```json:metadata\n{\"files\": [\"docs/ARCHITECTURE.md\", \"README.md\", \"tools/test.sh\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ./tools/test.sh\", \"acceptanceCriteria\": [\"suite green\", \"docs accurate\", \"tag sim-core-m1\"], \"modelTier\": \"mechanical\"}\n```"
+    }
+  ],
+  "lastUpdated": "2026-09-29T08:00:00Z"
+}
