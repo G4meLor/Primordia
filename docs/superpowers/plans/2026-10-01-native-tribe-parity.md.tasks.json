@@ -1,0 +1,74 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Tribe sim core (state, chief, tribesmen, economy)",
+      "status": "pending",
+      "blockedBy": [],
+      "description": "**Goal:** Tribe sim core (state, chief, tribesmen, economy). Full AC in plan Task 1.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/tribe/tribe_sim.gd\", \"tests/test_tribe_sim.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"constants+constructor pins\", \"onEnter restore/re-found/pack conversion\", \"chief move/death/respawn\", \"tribesman job AI + quota\", \"economy + popCap\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Raids, beast, fires, storm helpers, fall/victory",
+      "status": "pending",
+      "blockedBy": [
+        1
+      ],
+      "description": "**Goal:** Raids, beast, fires, storm helpers, fall/victory. Full AC in plan Task 2.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/tribe/tribe_sim.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"raid clock + peaceful gates\", \"siege/flee/war_graves\", \"beast lifecycle\", \"fires+lightning\", \"fall/victory go_to hooks\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Tribe chaos events deck + scheduler wiring",
+      "status": "pending",
+      "blockedBy": [
+        2
+      ],
+      "description": "**Goal:** Tribe chaos events deck + scheduler wiring. Full AC in plan Task 3.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/tribe/tribe_events.gd\", \"src/game/tribe/tribe_sim.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"5 baseline defs verbatim\", \"4 gated defs\", \"Math.random\\u2192rng divergence pinned\", \"mirror/festival flow\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Tribe stage scene node (render, camera, HUD panel)",
+      "status": "pending",
+      "blockedBy": [
+        3
+      ],
+      "description": "**Goal:** Tribe stage scene node (render, camera, HUD panel). Full AC in plan Task 4.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/tribe/tribe_stage.gd\", \"tests/scenes/test_tribe_scene.tscn\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"render order TS-verbatim\", \"cam rate 4 zoom 0.95\", \"hudRects update-dispatch\", \"3-RID painter contract\", \"main.gd registration\", \"xvfb scene test\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: HUD wiring, founding handoff, save/continue",
+      "status": "pending",
+      "blockedBy": [
+        4
+      ],
+      "description": "**Goal:** HUD wiring, founding handoff, save/continue. Full AC in plan Task 5.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/ui/hud.gd\", \"src/main.gd\", \"tests/test_hud_tribe.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"toast_inset 190\", \"found_tribe E2E lands tribe\", \"tribeState save/continue\", \"fall path E2E\", \"i18n 1:1\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Tribe bot + flow integration",
+      "status": "pending",
+      "blockedBy": [
+        5
+      ],
+      "description": "**Goal:** Tribe bot + flow integration. Full AC in plan Task 6.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"tests/bots/bot_tribe.gd\", \"tools/test_bot_tribe.sh\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"bot law audit clean\", \"founding\\u2192gather\\u2192build\\u2192totem arc\", \"raid survival leg\", \"determinism \\u00d72\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Tribe econ probes + visual moments + PARITY-M4",
+      "status": "pending",
+      "blockedBy": [
+        6
+      ],
+      "description": "**Goal:** Tribe econ probes + visual moments + PARITY-M4. Full AC in plan Task 7.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"tests/test_probe_tribe.gd\", \"docs/PARITY-M4.md\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"9 econ probes TS-verbatim\", \"8 visual moments \\u22653 asserts\", \"PARITY-M4 rows + \\u00a75.3 checklist\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: M4 wrap — A-B, perf, review, tag",
+      "status": "pending",
+      "blockedBy": [
+        7
+      ],
+      "description": "**Goal:** M4 wrap — A-B, perf, review, tag. Full AC in plan Task 8.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"docs/PARITY-M4.md\", \"docs/ARCHITECTURE.md\", \"README.md\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"A-B base creature-parity-m3 IDENTICAL\", \"perf split metrics\", \"final review\", \"tag tribe-parity-m4\"]}\n```"
+    }
+  ]
+}
