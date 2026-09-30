@@ -56,7 +56,7 @@ var _probe := {}
 var _day_time := 0.0
 var _death_start := 0.0
 var _herd_seen := false
-var _tp_frame := -10000  # last player-to-the-lane fixture teleport (frame #)
+var _tp_sim := -1.0e9   # sim.time of the last player-to-the-lane fixture teleport
 
 
 func _ready() -> void:
@@ -296,10 +296,12 @@ func _process(_dt: float) -> void:
 		"stampede_live":
 			# the herd (6 ents, applied after the warn) must close within
 			# 450 px; a grazer herd wanders off its lane, so the harness
-			# puppets the player next to the nearest herd ent every 2 s (a
-			# fixture move; the live cam follows). The freeze waits ~1.7 s
-			# after any teleport for the follow to reconverge (rate 5 →
-			# exp(−5·1.7) < 0.001) so the anchors match the capture.
+			# puppets the player next to the nearest herd ent every 2 SIM
+			# seconds (a fixture move; the live cam follows). Both gates run on
+			# sim.time — at this host's llvmpipe pacing (~5 sim-steps per
+			# engine frame) an engine-frame settle of 100 would span 8+ sim
+			# seconds and outlive the herd's 14 s lifespan; the 0.5 s sim
+			# settle after the snap is pacing-free (task-10 review, Important 1).
 			var count := 0
 			var herd_i := -1
 			var best := 1e9
@@ -320,8 +322,15 @@ func _process(_dt: float) -> void:
 				elif count > 0:
 					_fail("stampede herd count %d < 4" % count)
 					return
-			if _herd_seen and best < 500.0 and _frames - _tp_frame > 100 \
-				and _herd_picks(st).size() >= 2:
+			if _herd_seen and herd_i < 0:
+				# the whole herd expired before two anchors were visible — a
+				# clean triage line instead of ents[-1] spam (guard also keeps
+				# the teleport branch below index-safe)
+				_fail("the herd expired before the freeze (candidates %d)"
+						% _herd_picks(st).size())
+				return
+			if _herd_seen and best < 500.0 and st.time - _tp_sim > 0.5 \
+					and _herd_picks(st).size() >= 2:
 				# 500 px: at the world edge the herd parks at ±2900 while the
 				# puppet's clamp holds exactly 350 away — a strict 350 gate
 				# never fires (timeout). Visibility is the anchors-ready
@@ -329,7 +338,7 @@ func _process(_dt: float) -> void:
 				game.current.frozen = true
 				_herd_probes(st)
 				_phase = "stampede_arm"
-			elif _herd_seen and _frames - _tp_frame > 120:
+			elif _herd_seen and herd_i >= 0 and st.time - _tp_sim > 2.0:
 				# teleport AHEAD of the herd (in its running path) and SNAP the
 				# camera (the follow would take ~1.7 s to reconverge — a
 				# running herd outruns it; the snap equals the converged state,
@@ -339,10 +348,14 @@ func _process(_dt: float) -> void:
 				# never re-enters the gate (the east-edge timeout signature).
 				var lane: Dictionary = st.ents[herd_i]
 				var dir_s: float = signf(float(lane["tx"]))
-				st.px = clampf(float(lane["x"]) + dir_s * 350.0, -2900.0, 2900.0)
+				# 250 ahead, not 350: the second herd ent trails 90 px, and at
+				# zoom 1.15 a 350 gap put its body anchor at screen x ~70 —
+				# outside the 92 px anchor band — so a slow-crawling herd never
+				# brought a second candidate in view inside its 14 s lifespan.
+				st.px = clampf(float(lane["x"]) + dir_s * 250.0, -2900.0, 2900.0)
 				st.pz = clampf(float(lane["z"]), -200.0, 240.0)
 				game.cam.snap(st.px, st.pz * Z_TO_Y)
-				_tp_frame = _frames
+				_tp_sim = st.time
 		"stampede_arm":
 			_phase = "stampede_shot"
 		"stampede_shot":
