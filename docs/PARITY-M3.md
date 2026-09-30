@@ -7,19 +7,30 @@ build has a native pin. Two items are explicit, spec-sanctioned deferrals
 (audio synth, the tribe-stage landing) — neither is a creature-stage behavior
 gap.
 
+**M3 wrap (task 11) changes:** the ab_test.sh fail-open hardening +
+failure-path test (M2 carry-forward #1, §15); the perf-probe metric split +
+the creature perf probes with the honest budget split (T10 minor 4 + the
+§5.3 perf AC, §16); the painter degenerate-ring guard (T8 minor 3 —
+zero-area merge rings dropped before `add_polygon`, pinned by
+`test_creature_painter.gd::test_disc_union_drops_degenerate_rings`); the M4
+deferred list (§17).
+
 **Source of truth:** the TS contract (`Spore/tests/bot-creature.test.ts` +
 the feature surface of `Spore/src/game/creature/CreatureStage.ts` +
 `creatureEvents.ts`, both frozen). Native pins reference `tests/` test methods
 (`file::test_name`) or scene suites under `tests/scenes/`.
 
-**Headline numbers:** headless `./tools/test.sh` → **38 files, 524 tests,
-17217 checks, 0 failures**. Scene suites under xvfb (all exit 0): boot, bot
+**Headline numbers:** headless `./tools/test.sh` → **38 files, 525 tests,
+17222 checks, 0 failures**. Scene suites under xvfb (all exit 0): boot, bot
 arc, bot creature (full flow ×2 determinism), menu real-click, editor
 real-click, T7 visual cell (8/8), T6B visual creature (12 asserts), T7
 creature scene + T10 creature moments (one suite, 40 structural asserts —
-the 12 task-7 asserts verbatim-green inside it),
-perf probe (PERF_OK). Probes: `tools/probe_creature.sh` → 7 tests / 122
-checks / 0 failures (also inside the full suite).
+the 12 task-7 asserts verbatim-green inside it), perf probes (cell PERF_OK;
+creature PERF_CREATURE_OK + the headless CREATURE_SIM_OK cross-check).
+Probes: `tools/probe_creature.sh` → 7 tests / 122
+checks / 0 failures (also inside the full suite). A-B gate: base
+`cell-parity-m2` → HEAD **IDENTICAL** (0 diff lines across the four full
+state dumps — §15).
 
 Legend: ✅ pinned · 🟡 pinned indirectly (mechanism noted) · ⏸ spec-sanctioned deferral.
 
@@ -204,13 +215,101 @@ the frozen TS lines in each probe's provenance comment:
 |---|---|
 | Audio synth (WebAudio → AudioStreamGenerator) | Migration spec §7 risk-table item — the sim's audio hooks stay no-op with TS call sites/params pinned (the M1 ruling carries); the synth port is its own task after parity. |
 | Tribe stage landing | The founding handoff is fully native and pinned (`test_found_tribe_snapshot_and_transition` + the bot's real tribe click → the THE FIRST FIRE card); the tribe stage itself is milestone 4 scope (plan Constraint 15). The unregistered id no-ops safely. |
-| Editor creature-preview divergence (fixed in task 10) | The creature-mode preview drew Camera2D-transformed and corrupted the post-preview editor draws (the cell editor was immune at its identity canvas transform). Fixed in `editor.gd` (the screen-inv rides the painter's base_pos/base_zoom + the item transform restore); the T10 editor moment now pixel-pins the editor. |
 
-## §5.3 scorecard
+(Note: the T10 draft listed the editor creature-preview divergence here —
+it is a FIXED divergence, not a deferral; the record lives in the §10
+editor row.)
 
-| Criterion | Evidence | Verdict |
+## 15. A-B behavior-identity across the M3 window (M3 wrap)
+
+`tools/ab_test.sh cell-parity-m2` at the M3 wrap state (head `a9daac0` —
+the last commit touching any sim file; the wrap's later commits are
+instruments/tests/docs only): **IDENTICAL — 0 diff lines.**
+The four full unquantized state dumps (s1 probe-shape / s2 crowded-panic /
+s3 kin-kill / s4 lifespan-crowd, the M2 scenarios verbatim) are
+byte-identical between `cell-parity-m2` and HEAD — both dump
+sha256 `ea35920b…` (the same sha the M2 gate recorded for its HEAD: the
+cell-stage sim state did not move a bit through the whole creature-stage
+window). Evidence: `tests/fixtures/ab/evidence.txt` (verdict=IDENTICAL),
+recorded at the wrap commit.
+
+Ruled lines: none needed — the run produced no diff lines at all. The
+pre-ruled class (the earthquake's ex-`Math.random` blister jitter sourced
+in-stream, `creature_events.gd` header) cannot surface in the cell-state
+dump (it is a creature-deck apply-time draw) and is separately pinned by
+`test_creature_events.gd::test_earthquake_apply_and_divergence_pin`.
+
+Harness hardening landed with this wrap (M2 carry-forward #1): the
+evidence write moved AFTER the FAIL verdict — a failing run no longer
+clobbers `sanctioned_diff_sha256`, so a second failing run cannot launder
+into SANCTIONED_MATCH. Failure path pinned by `tools/test_ab.sh` (stubbed
+GODOT, byte-stable diff sha across two runs; verified red against the
+pre-fix harness).
+
+## 16. Perf (M3 budgets — the M2 lesson applied)
+
+**Metric integrity first (T10 minor 4 fix):** the cell probe's "sim tick"
+window wrapped `step_for_testing` AND `_do_render` (draw-sensitive despite
+its name). Both probes now SPLIT the metrics: the pure sim step
+(`step_for_testing` / `sim.update`) carries the asserted budget; the stage
+render pass and the full frame wall-window are recorded, never asserted.
+The creature probes were born split.
+
+**Creature sim tick @ 60 ents (the §5.3 budget: ≤ 2 ms on the dev
+machine) — NOT met, recorded honestly:**
+
+| Measurement | Number |
+|---|---|
+| `tools/perf_creature_sim.gd` (headless, contention-immune — the primary instrument; 60-ent stock held via a documented invuln pin + top-up, 300 ticks) | **2.49–2.69 ms avg** over 5 runs (max spikes 4–13 ms under ambient load ~3 with a sustained soak process pinned to one core) |
+| Cost shape | linear in ents: ~42 µs/ent/tick (boot-only 4 ents = 0.17 ms; 30 ents = 1.33 ms; 60 ents = 2.5–2.7 ms) |
+| Scene-side cross-check (`tests/scenes/test_perf_creature.gd`, xvfb) | sim avg ~5.4–5.5 ms — inflated by llvmpipe contention (the recorded number, not the asserted one) |
+
+The ~40% gap to the 2 ms target is a creature `update_ents` hot-loop
+optimization candidate for M4 — the M2 playbook applies (flat typed
+mirrors + neighborhood grids), but ONLY with creature-state A-B coverage
+first: the standing dump is cell-state (by design — it must run at any
+commit), and the M2 lesson forbids an unfalsified "bit-exact" claim. The
+standing assert is a regression tripwire at 4 ms (2× target), to be
+tightened to 2.0 when the optimization lands.
+
+**Painter draw @ 60 ents + player (the §5.3 budget: ≤ 4 ms frame on
+llvmpipe) — met at the painter layer, rig caveat on the frame:**
+
+| Measurement | Number |
+|---|---|
+| Painter draw pass (`_do_render` — the RS command build for 61 procedural creatures, the GDScript-side cost the game controls) | **~1.08–1.09 ms avg** (max 2.9 ms) — asserted ≤ 4 ms in the scene probe |
+| Full frame wall-window under llvmpipe (sim + draw + real rasterization) | **~319 ms avg** — rasterization-dominated; no GDScript-side change moves it |
+
+The rig caveat (M2 precedent, restated): llvmpipe is the WORST-case
+rasterizer the probe intentionally runs on — the §5.3 "≤ 4 ms frame"
+budget targets a real GPU, which is faster by orders of magnitude on this
+draw set; llvmpipe's 319 ms frame window is recorded informationally.
+
+**Cell probe re-run with the split metric:** PERF_OK — sim avg 7.615 ms
+(pure-sim window now; the old window measured the same value modulo the
+~0.02 ms render pass — the cell render pass is queue-only, the raster
+lands in the frame window) vs the ≤ 8 ms budget; frame ~125 ms recorded.
+
+## 17. M4 deferred (recorded at M3 wrap)
+
+| Item | Provenance |
+|---|---|
+| Tribe → Civ → Space stages | Migration spec §5 order — the M4 milestone (plan Constraint 15); the founding handoff already lands on the tribe placeholder safely. |
+| war_graves raid pins | T9 report: the TS worldStage war_graves work drives the TRIBE stage (`launchRivalWarriors`, raid DNA caches) — nothing touches the creature stage (verified); pin with the tribe stage. |
+| Cell editor-dict adoption symmetry | T8 carry-forward: `cell_stage.gd` hardcodes `open: false` on re-entry — unreachable until a creature→cell (tribe) `go_to` exists; one-line symmetry fix when M4 wires tribe registration. |
+| Founding-charm timing watch item | T9 report: at world seed 0xBEEF the founding charm completes ~2 s after stage enter (a wild ent within reach) — bounded, failure-labelled, ×2-proven deterministic; keep an eye on it when the tribe flow changes. |
+| Creature `update_ents` hot-loop optimization (2 ms target) | §16: measured 2.5–2.7 ms @ 60 ents vs the 2 ms budget — M4 candidate, with creature A-B coverage built first. |
+| T9 minor 3 (narration pin latch) | T9 review: the native narration pin latch is a direct field assignment (same-strength, weaker-than-TS latch) — documented, no action. |
+| T10 moment pin-gaps ×2 | T10 review minors 1–2: (a) the editor moment pins the corruption fix but has no pixel assert on the preview-creature body itself; (b) the backdrop sun/moon radial-disc fix has no direct pixel assert (pinned via the lava glows). Documented-no-action at M3; cheap probe candidates for M4. |
+
+## §5.3 criteria checklist (M3 wrap)
+
+| Criterion | Evidence pointer | Verdict |
 |---|---|---|
-| (a) Every TS creature feature present | §1–§13 above — every row pinned or explicitly deferred with a spec citation | ✅ |
-| (b) Bot headless full creature arc through the real UI | `tools/test_bot_creature.sh` → BOT_CREATURE_ALL_OK: the cell stage played to a real landfall, the 2-min chaos loop, the real-input founding; ×2 fresh-Game passes, fingerprints bit-identical | ✅ |
-| (c) Econ probes TS-verbatim green | `tools/probe_creature.sh` → 7 tests / 122 checks / 0 failures (§13); full headless suite 38 files / 524 tests / 17217 checks / 0 failures | ✅ |
-| (d) Visual pixel-assert via viewport capture | T6B creature painter (12 asserts) + the T10 eight-moment suite (40 asserts) under xvfb, PIL-checked (§12) | ✅ |
+| (a) Every TS creature feature present | §1–§13 — every row pinned or explicitly deferred with a spec citation (audio synth + tribe landing only, both spec-sanctioned: §14) | ✅ |
+| (b) Bot headless full creature arc through the real UI, ×seeds ×determinism | `tools/test_bot_creature.sh` → **BOT_CREATURE_ALL_OK ×2 passes** (seed LCG 777 / world 0xBEEF): the cell stage played to a real landfall (real KeyE buy + a real 🐢 CRAWL ASHORE click), the 2-min chaos loop with the assert_sane sweep, the real F-hold charm + a real tribe-button click → the tribe placeholder; fingerprints field-identical across both passes (§11) | ✅ |
+| (c) Econ probes TS-verbatim | `tools/probe_creature.sh` → **7 tests / 122 checks / 0 failures** (§13; formulas cited to the frozen TS lines in each probe's provenance comment); also inside the full headless suite | ✅ |
+| (d) Pixel-assert suite, creature moments | T6B creature painter under xvfb (**12 asserts**, `tools/visual_check_creature.py`) + the T10 ten-moment suite (**40 structural asserts**, `tools/visual_check_creature_scene.py`, §12) — every moment ≥ 3 PIL-checked structural asserts over a live viewport capture | ✅ |
+| A-B behavior-identity across the window (M2-inherited gate) | `tools/ab_test.sh cell-parity-m2` → **IDENTICAL, 0 diff lines** (§15); fail-open hardening + failure-path test landed (`tools/test_ab.sh`) | ✅ |
+| Perf budgets measured (§5.3 + §6) | §16: painter draw ≤ 4 ms met (1.08 ms @ 61 creatures); creature sim tick 2 ms target **not met** (2.5–2.7 ms @ 60 ents) — recorded honestly, M4 optimization candidate with the tripwire instrument standing guard | ⚠️ recorded |
+| Full suite green | headless `./tools/test.sh` → 38 files / 525 tests / 17222 checks / 0 failures; all xvfb scene suites exit 0 (bot, bot creature, menu, editor click, visual cell, visual creature, creature scene, perf ×2, boot, visual suite) | ✅ |
