@@ -94,7 +94,7 @@
     {
       "id": 11,
       "subject": "Task 11: M3 wrap (ab_test hardening + perf + review + tag)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         9,
         10
