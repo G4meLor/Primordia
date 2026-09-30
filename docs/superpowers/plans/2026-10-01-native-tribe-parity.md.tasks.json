@@ -19,7 +19,7 @@
     {
       "id": 3,
       "subject": "Task 3: Tribe chaos events deck + scheduler wiring",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         2
       ],
