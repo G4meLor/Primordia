@@ -19,8 +19,8 @@
 ##              audio_play(name, vol, pan), audio_set_mood(name),
 ##              hud_toast_inset(px), hud_show_objective(text), cam_shake(m,d),
 ##              fx_burst(x, y, n, opts), fx_spawn(opts),
-##              context_event(ev, from_stage). (Tasks 2-3 add go_to,
-##              save_all and the storyteller getters.)
+##              context_event(ev, from_stage), go_to(stage, data),
+##              save_all(). (Task 3 adds the storyteller getters via ctx.)
 ## No Input singleton reads: update(dt, inp) takes an input SNAPSHOT
 ## Dictionary (mx/my/wx/wy/down/clicked/take_click/keys_held/keys_pressed —
 ## keys_pressed canonical) the scene layer builds and tests construct
@@ -32,15 +32,16 @@
 ## `stats` dicts carry the M1 stats.gd shape (snake_case keys — the
 ## established compute_creature_stats port surface).
 ##
-## M4 task-1 scope: everything through updateEconomy. Still deferred to the
-## later tasks of this plan (the blocks are listed so they slot in cleanly):
-##   task 2 — launchRivalRaid (TS:561-584), the raid clock around the invuln
-##     decay (TS:327-339; the invuln decay LINE itself already lives in
-##     update() at the TS stream position), updateRivalWarriors camp assault
-##     (TS:858-879), the war_graves combo (TS:709-717), updateBeast
-##     (TS:881-935), updateFires + ignite_tree + lightning_strike
-##     (TS:937-993), the fall/victory stage transitions (TS:381-409, via
-##     go_to/save_all hooks).
+## M4 task-2 scope: the rival war machine + hazards + the two stage
+## transitions — the raid clock (TS:327-339), launchRivalRaid (TS:561-584),
+## the rival-warrior field block (TS:656-707, landed in task 1) now closes
+## with the war_graves combo (TS:709-717), the camp assault (TS:858-879),
+## the beast lifecycle (TS:881-935 + spawn/despawn TS:1004-1021), fires +
+## ignite_tree + lightning_strike (TS:937-993), the raidsBlocked /
+## pauseRaids / launchRivalRaidNow chaos seam (TS:1023-1039 — landed with
+## the raid machine it belongs to; task 3's event defs call it), and the
+## fall/victory paths (TS:381-409) firing the go_to/save_all hooks.
+## Still deferred:
 ##   task 3 — the chaos deck + scheduler wiring (TS:341-369; the scheduler
 ##     instance + deckSeed already exist, deck empty until tribe_events.gd).
 ##
@@ -56,9 +57,9 @@
 ##    NaN → 0 founders (TS:181); the port reads it as an empty pack
 ##    (minimum 3) instead.
 ##  - restore_state's per-hut pop/buildT (TS:231) read `Math.max(0, x ?? 0)`:
-##    a JSON-string value would make TS produce NaN; the port reads
-##    non-numeric garbage as the ?? fallback instead (hyper-corrupt edge,
-##    JSON cannot carry NaN).
+##    TS Math.max/min COERCE numeric strings ("50"→50) where the port reads
+##    the fallback; non-numeric strings NaN the TS read and fall back in the
+##    port (hyper-corrupt edge — JSON cannot carry NaN).
 ##  - mutate_like is ported locally (TS:1426-1431): the M2 mutation.gd
 ##    `mutate` is a different rate/bias operator, not this shape.
 ##  - The chief hut-proximity heal is a TS noop (TS:487-491, `dna += 0`) —
@@ -71,12 +72,22 @@
 ##    branch draw happens in _init/on_enter, TS:135/142) with an EMPTY deck
 ##    until task 3 lands make_tribe_chaos_events; ChaosScheduler._init draws
 ##    nothing, so the stream is already final.
+##  - lightning_strike's TS duck-type `'speciesId' in t || !('wood' in t)`
+##    (TribeStage.ts:979): speciesId exists on neither tree nor hut dicts,
+##    so the branch reduces to "no wood field" = hut — ported as the
+##    explicit `has("wood")` key check with a comment at the site.
+##  - raidsBlocked / pauseRaids / launchRivalRaidNow (TS:1023-1039) landed
+##    with task 2 (they are the raid machine's chaos seam); task 3's event
+##    defs call them — no task-2 code path does.
+##  - firstRaidHint truthiness (TS:334 `!ctx.flags.firstRaidHint`) ports via
+##    the JS-truthiness helper _truthy (the flag may hold any saved value).
 class_name TribeSim
 extends RefCounted
 
 const StatsScript := preload("res://src/evo/stats.gd")
 const GenomeScript := preload("res://src/evo/genome.gd")
 const ChaosScript := preload("res://src/game/chaos.gd")
+const WorldGenomeScript := preload("res://src/evo/world_genome.gd")
 
 const Z_TO_Y := 0.62    # pseudo-depth squash (TribeStage.ts:21)
 const Z_MIN := -200.0
@@ -123,7 +134,7 @@ var tribe: Array = []            # Tribesman dicts
 var huts: Array = []             # {x, z, hp, maxHp, pop, buildT, recruitT?}
 var trees: Array = []            # {x, z, wood, burn, seed}
 var bushes: Array = []           # {x, z, food, regrow}
-var fires: Array = []            # {x, z, ttl, spread} (task 2 fills it)
+var fires: Array = []            # {x, z, ttl, spread} (TS:52)
 var rivalWarriors: Array = []    # {x, z, vx, vz, hp, genome, gait, facing, state}
 var rivals: Array = []           # {x, z, hp, anger, name}
 
@@ -138,7 +149,7 @@ var chaos: Variant = null
 var deckSeed := -1
 var raidTimer := 75.0            # TS:88
 ## war_graves: true while a raid's war party is in the field (TS:91) —
-## consumed by the task-2 combo block.
+## consumed by the war_graves combo at the update_tribesmen tail.
 var raidActive := false
 var deathFade := 0.0             # TS:92
 # TS:93 — totem as a dict (progress/active ride the persist blob camelCase)
@@ -152,7 +163,7 @@ var victoryT := 0.0              # TS:99
 var deathHandled := false        # TS:420
 var hutCd := 0.0                 # TS:524
 var saplingT := 60.0             # TS:969
-var beast: Variant = null        # TS:996 {x, z, hp, genome} | null (task 2)
+var beast: Variant = null        # TS:996 {x, z, hp, genome} | null
 ## TS:998 — the stage clock; drained by update() (fn ALWAYS runs after removal).
 var timers: Array = []           # {left: float, fn: Callable}
 ## TS:276 — {action: "hut"|"totem", r: {x, y, w, h}}; the scene layer
@@ -433,8 +444,9 @@ func pop_cap() -> int:
 ## take_click (pre-taken flag), keys_held: Array[String],
 ## keys_pressed: Array[String]. The scene layer builds it; tests construct
 ## it literally. The sim never touches the Input singleton.
-## Task-1 scope: TS:278-318 minus the task-2 calls (updateRivalWarriors /
-## updateBeast / updateFires) and the task-3 chaos call — see the header list.
+## TS update (TribeStage.ts:278-418) minus the scene surfaces — camera
+## follow, fx pool steps, hud.setAbilities (task 4) and the chaos.update
+## call (task 3; the timers drain already runs at the TS stream position).
 func update(dt: float, inp: Dictionary) -> void:
 	time += dt
 	dayPhase = fmod(dayPhase + dt / 240.0, 1.0)  # TS:282 — 240 s day (tribe flavor)
@@ -472,17 +484,65 @@ func update(dt: float, inp: Dictionary) -> void:
 
 	update_chief(dt, inp)      # TS:317
 	update_tribesmen(dt)       # TS:318 (includes the rival-warrior field block)
-	# updateRivalWarriors (camp assault) / updateBeast / updateFires — task 2
+	update_rival_warriors(dt)  # TS:319 — the camp assault
+	update_beast(dt)           # TS:320
+	update_fires(dt)           # TS:321
 	update_economy(dt)         # TS:322
 
-	# raid clock (TS:327-339) — task 2 adds the raidTimer/peaceful/launch
-	# lines AROUND this; the invuln decay is that block's first line and is
-	# live here already (same stream position) because the task-1 chief
-	# raid-touch gate reads it.
+	# raid clock — peaceful villages get slower, smaller raids and no
+	# raids before the first hut stands (a 3-person camp was one raid
+	# from the spiral on the calmest difficulty) (TS:327-339)
 	invulnT = maxf(0.0, invulnT - dt)
+	raidTimer -= dt
+	var peaceful: bool = ctx.difficulty == "peaceful"
+	if peaceful and huts.is_empty():
+		raidTimer = maxf(raidTimer, 30.0)
+	if raidTimer <= 0.0 and (not peaceful or not huts.is_empty()):
+		raidTimer = 80.0 + rng.range(-15.0, 25.0)
+		if peaceful:
+			raidTimer += 40.0  # half cadence
+		if not _truthy(ctx.flags.get("firstRaidHint")):
+			ctx.flags["firstRaidHint"] = "seen"
+			_fire("hud_toast", [tr("Raiders rally beyond the ridge — press 3 to arm warriors!"),
+					"bad", "⚔️"])
+		launch_rival_raid()
 
 	# chaos.update (TS:342-369) — task 3 (scheduler wiring + the deck)
-	# fall path / victory path (TS:381-409) — task 2 (go_to/save_all hooks)
+
+	# the tribe has fallen: offer the walk back to the wilds instead of limbo
+	# (TS:381-398) — the transitions ride the go_to/save_all hooks (the sim
+	# cannot see the game)
+	if tribe.is_empty() and huts.is_empty() and fallenT == 0.0:
+		fallenT = 0.0001
+		_fire("hud_banner", [{"title": "THE TRIBE HAS FALLEN",
+				"subtitle": "the wilds take you back — stronger", "kind": "danger", "ttl": 6}])
+		_fire("audio_play", ["die", 1.0, 0.0])
+	if fallenT > 0.0:
+		fallenT += dt
+		if fallenT > 4.0 and not fallFired:
+			fallFired = true  # latch — fired every tick otherwise (~33 saves, double cards)
+			# delete the DEAD village blob — restoreState resurrected it on every
+			# FOUND TRIBE and the village re-fell 4s later (3 bounces measured,
+			# slot bricked until NEW LIFE)
+			ctx.flags.erase("tribeState")
+			_fire("save_all", [])
+			_fire("go_to", ["creature", {
+				"title": "BACK TO THE WILDS",
+				"sub": "gather your strength and found a new people",
+			}])
+
+	# victory: totem complete (TS:400-409)
+	if float(totem["progress"]) >= 100.0:
+		victoryT += dt
+		if victoryT > 2.5 and not victoryFired:
+			victoryFired = true  # latch
+			_fire("save_all", [])
+			_fire("audio_play", ["ascend", 1.0, 0.0])
+			_fire("go_to", ["civ", {
+				"title": "THE FIRST CITY",
+				"sub": "drums become laws; laws become empires",
+			}])
+
 	# camera follow + cam.toWorld setWorld + fx pool steps + hud.setAbilities
 	# — scene-side (task 4)
 
@@ -490,6 +550,36 @@ func update(dt: float, inp: Dictionary) -> void:
 ## Stage-time timer (TS after(), TribeStage.ts:998-1002).
 func after(seconds: float, fn: Callable) -> void:
 	timers.append({"left": seconds, "fn": fn})
+
+
+## TS despawnBeast (TribeStage.ts:1004-1010) — the chaos beast event's
+## withdrawal seam (task 3 calls it).
+func despawn_beast() -> void:
+	if beast != null:
+		_fx_burst(float(beast["x"]), float(beast["z"]) * Z_TO_Y, 18,
+				["#c9a4ff", "#9fd8ff"], {"speed": 120.0, "ttl": 0.9})
+		beast = null
+		_fire("hud_toast", [tr("The great beast wanders away…"), "good", "🌿"])
+
+
+## TS spawnBeast (TribeStage.ts:1012-1021) — the chaos beast event's seam.
+func spawn_beast() -> void:
+	var g: Dictionary = GenomeScript.clone_genome(ctx.genome)
+	g["size"] = 2.1
+	g["diet"] = "carnivore"
+	g["jaw"] = 5.0
+	g["spikes"] = 4.0
+	g["horns"] = 3.0
+	g["hue"] = 300.0
+	g["coat"] = "plates"
+	g["eyes"] = 4.0
+	var a: float = rng.next() * TAU
+	beast = {
+		"x": px + cos(a) * 900.0,
+		"z": clampf(pz + sin(a) * 300.0, Z_MIN, Z_MAX),
+		"hp": 420.0,
+		"genome": g,
+	}
 
 
 ## TS handleChiefDeath (TribeStage.ts:422-454).
@@ -671,10 +761,45 @@ func try_totem() -> void:
 	}])
 
 
+## TS launchRivalRaid (TribeStage.ts:561-584).
+func launch_rival_raid() -> void:
+	var rival: Variant = rng.pick(rivals)
+	if float(rival["hp"]) <= 0.0:
+		return
+	# cap the war party — raid stacking smothered small villages
+	var alive := rivalWarriors.size()
+	if alive >= 5:
+		return
+	var wave := 1 if ctx.difficulty == "peaceful" else 2
+	var n: int = mini(wave + floori(rng.range(0.0, 2.0)), 5 - alive)
+	for i_w in n:
+		var g: Dictionary = GenomeScript.clone_genome(ctx.genome)
+		g["hue"] = 5.0
+		g["diet"] = "carnivore"
+		g["spikes"] = 3.0
+		g["jaw"] = 3.0
+		rivalWarriors.append({
+			"x": float(rival["x"]) + rng.range(-60.0, 60.0),
+			"z": float(rival["z"]) + rng.range(-40.0, 40.0),
+			"vx": 0.0, "vz": 0.0,
+			"hp": 60.0,
+			"genome": g,
+			"gait": 0.0,
+			"facing": 1,
+			"state": "march",
+		})
+	_fire("hud_banner", [{
+		"title": "%s RAIDS!" % String(rival["name"]).to_upper(),
+		"subtitle": "defend the huts", "kind": "danger",
+	}])
+	_fire("audio_play", ["alarm", 0.9, 0.0])
+	raidActive = true
+
+
 # ---- tribesmen ----------------------------------------------------------------------
 
-## TS updateTribesmen (TribeStage.ts:586-718) minus the war_graves combo
-## (TS:709-717 — task 2; raidActive stays false without launchRivalRaid).
+## TS updateTribesmen (TribeStage.ts:586-718) — the rival-warrior field
+## block (656-707) closes with the war_graves combo (709-717).
 func update_tribesmen(dt: float) -> void:
 	for i in range(tribe.size() - 1, -1, -1):
 		var t: Dictionary = tribe[i]
@@ -819,7 +944,13 @@ func update_tribesmen(dt: float) -> void:
 				and _vdist(float(home["x"]), float(home["z"]), float(w["x"]), float(w["z"])) < 90.0:
 			rivalWarriors.remove_at(wi)  # slipped away into the brush
 		wi -= 1
-	# war_graves combo (TS:709-717) — task 2 (needs raidActive + combo_active)
+	# war_graves combo (catalog II.a): a finished raid leaves DNA caches in
+	# the wreckage — one payment per raid instance (I-bal wire) (TS:709-717)
+	if raidActive and rivalWarriors.is_empty():
+		raidActive = false
+		if WorldGenomeScript.combo_active(ctx.world, "war_graves"):
+			ctx.add_dna(15.0, "war graves")
+			_fire("hud_toast", [tr("War graves yield DNA."), "reward", "⚔️"])
 
 
 ## Single-pass nearest with STRICT `<`: ties resolve in array order — the
@@ -1018,6 +1149,201 @@ func nearest_hut(t: Dictionary) -> Variant:
 	return _nearest_by(pool, float(t["x"]), float(t["z"]))
 
 
+# ---- rival camps, beast, fires -------------------------------------------------------
+
+## TS updateRivalWarriors (TribeStage.ts:858-879) — the player's warriors
+## assaulting a rival camp.
+func update_rival_warriors(dt: float) -> void:
+	for r in rivals:
+		if float(r["hp"]) <= 0.0:
+			continue
+		var attackers := 0
+		for t in tribe:
+			if String(t["role"]) == "warrior" \
+					and _vdist(float(r["x"]), float(r["z"]),
+							float(t["x"]), float(t["z"])) < 90.0:
+				attackers += 1
+		if attackers > 0:
+			r["hp"] = float(r["hp"]) - float(attackers) * 4.0 * dt
+			r["anger"] = minf(1.0, float(r["anger"]) + dt * 0.1)
+			if rng.chance(dt * 4.0):
+				_fx_burst(float(r["x"]), float(r["z"]) * Z_TO_Y - 14.0, 3,
+						["#ffcf8a"], {"speed": 70.0, "ttl": 0.4})
+			if float(r["hp"]) <= 0.0:
+				_fire("hud_banner", [{
+					"title": "%s JOINS YOUR PEOPLE" % String(r["name"]).to_upper(),
+					"subtitle": "unified by drums", "kind": "reward",
+				}])
+				_fire("audio_play", ["levelup", 1.0, 0.0])
+				food += 60.0
+				wood += 40.0
+				ctx.add_karma(-0.05)
+
+
+## TS updateBeast (TribeStage.ts:881-935) — march the nearest hut (or the
+## chief), siege it, take fighter damage, gore the chief.
+func update_beast(dt: float) -> void:
+	if beast == null:
+		return
+	var b: Dictionary = beast
+	var target: Variant = _nearest_hut_to(float(b["x"]), float(b["z"]))
+	var dx: float = (float(target["x"]) if target != null else px) - float(b["x"])
+	var dz: float = (float(target["z"]) if target != null else pz) - float(b["z"])
+	var d: float = maxf(1.0, sqrt(dx * dx + dz * dz))
+	if d > 40.0:
+		b["x"] = float(b["x"]) + (dx / d) * 90.0 * dt          # TS:888 — x rate 90
+		b["z"] = clampf(float(b["z"]) + (dz / d) * 70.0 * dt, Z_MIN, Z_MAX)  # TS:889 — z rate 70
+	elif target != null:
+		target["hp"] = float(target["hp"]) - 6.0 * dt
+		if float(target["hp"]) <= 0.0:
+			var kept: Array = []
+			for h in huts:
+				if not is_same(h, target):  # TS `h !== target` identity
+					kept.append(h)
+			huts = kept
+			_fire("hud_banner", [{"title": "THE BEAST DESTROYS A HUT", "kind": "danger"}])
+			_fire("audio_play", ["boom", 0.7, 0.0])
+	# tribesmen + chief fight it
+	var fighters := 0
+	for t in tribe:
+		if _vdist(float(t["x"]), float(t["z"]), float(b["x"]), float(b["z"])) < 60.0:
+			fighters += 1
+	var chief_near: bool = _vdist(px, pz, float(b["x"]), float(b["z"])) < 60.0
+	var dps: float = float(fighters) * 9.0 + (14.0 if chief_near else 0.0)
+	b["hp"] = float(b["hp"]) - dps * dt
+	# the BEAST gores the chief — chance scales with chief proximity, not
+	# fighter count (gatherers near the beast were killing the chief from
+	# 2000px away: 18 fells in 163s, DNA 900->66) (A08)
+	if chief_near and rng.chance(dt * 0.5) and deathFade <= 0.0 and invulnT <= 0.0:
+		deathFade = 0.0001
+		deathHandled = false
+		lastDeathCause = "the great beast gored you"
+	if rng.chance(dt * 10.0):
+		_fx_burst(float(b["x"]), float(b["z"]) * Z_TO_Y - 30.0, 2,
+				["#ffcf8a"], {"speed": 80.0, "ttl": 0.4})
+	if float(b["hp"]) <= 0.0:
+		beast = null
+		_fire("hud_banner", [{"title": "THE GREAT BEAST FALLS",
+				"subtitle": "feast for a week (+60 food)", "kind": "reward"}])
+		food += 60.0
+		ctx.add_dna(50.0)
+		_fire("audio_play", ["levelup", 1.0, 0.0])
+		_fx_burst(float(b["x"]), float(b["z"]) * Z_TO_Y, 30,
+				["#ff9a8a", "#ffd08a"], {"speed": 180.0, "ttl": 1.0})
+
+
+## TS nearestHutTo (TribeStage.ts:924-935) — built huts preferred, ALL huts
+## as the fallback pool (same pool rule as nearest_hut, at a raw point).
+func _nearest_hut_to(x: float, z: float) -> Variant:
+	var built: Array = []
+	for h in huts:
+		if float(h["buildT"]) <= 0.0:
+			built.append(h)
+	var pool: Array = built if not built.is_empty() else huts
+	if pool.is_empty():
+		return null
+	return _nearest_by(pool, x, z)
+
+
+## TS updateFires (TribeStage.ts:937-960).
+func update_fires(dt: float) -> void:
+	for i in range(fires.size() - 1, -1, -1):
+		var f: Dictionary = fires[i]
+		f["ttl"] = float(f["ttl"]) - dt
+		# tribesmen extinguish
+		var nearby := 0
+		for t in tribe:
+			if _vdist(float(t["x"]), float(t["z"]), float(f["x"]), float(f["z"])) < 50.0:
+				nearby += 1
+		if nearby > 0:
+			f["ttl"] = float(f["ttl"]) - float(nearby) * 4.0 * dt
+		if rng.chance(dt * 10.0):
+			_fire("fx_spawn", [{
+				"x": float(f["x"]) + rng.range(-14.0, 14.0),
+				"y": float(f["z"]) * Z_TO_Y - rng.range(0.0, 10.0),
+				"vx": rng.range(-8.0, 8.0), "vy": rng.range(-60.0, -30.0),
+				"ttl": 0.8, "size": rng.range(3.0, 7.0),
+				"kind": "smoke", "color": "rgba(255,150,60,0.6)", "drag": 0.6,
+			}])
+		# spread
+		f["spread"] = float(f["spread"]) - dt
+		if float(f["spread"]) <= 0.0 and rng.chance(0.25):
+			f["spread"] = 8.0
+			for tr in trees:  # TS .find — the FIRST unburnt tree within 90
+				if float(tr["burn"]) <= 0.0 \
+						and _vdist(float(tr["x"]), float(tr["z"]),
+								float(f["x"]), float(f["z"])) < 90.0:
+					ignite_tree(tr)
+					break
+		if float(f["ttl"]) <= 0.0:
+			fires.remove_at(i)
+
+
+## TS igniteTree (TribeStage.ts:962-967) — public: the fire spread and
+## lightning_strike both land here.
+func ignite_tree(tree: Dictionary) -> void:
+	if float(tree["burn"]) > 0.0 or float(tree["wood"]) <= 0.0:
+		return  # stumps do not burn
+	tree["burn"] = 8.0
+	fires.append({"x": float(tree["x"]), "z": float(tree["z"]), "ttl": 10.0, "spread": 8.0})
+	_fire("audio_play", ["fire", 0.6, 0.0])
+
+
+## TS lightningStrike (TribeStage.ts:971-993) — public: the storm chaos
+## event (task 3) calls it.
+func lightning_strike() -> void:
+	# strikes a random tree near the tribe, or a hut
+	var targets: Array = []
+	for tr in trees:
+		if float(tr["burn"]) <= 0.0 and float(tr["wood"]) > 0.0:
+			targets.append(tr)
+	targets.append_array(huts)
+	if targets.is_empty():
+		_fire("hud_toast", [tr("The storm crackles but finds nothing to burn"),
+				"info", "⚡"])
+		return
+	var t: Dictionary = rng.pick(targets)
+	# TS duck-type `'speciesId' in t || !('wood' in t)`: speciesId exists on
+	# neither shape here (tree/hut dicts), so the branch reduces to "no wood
+	# field" = hut — ported as the explicit key check
+	if not t.has("wood"):
+		# a hut was picked — burn it directly
+		t["hp"] = maxf(0.0, float(t["hp"]) - 35.0)
+		if float(t["hp"]) <= 0.0:
+			var kept: Array = []
+			for h in huts:
+				if not is_same(h, t):  # TS `h !== hut` identity
+					kept.append(h)
+			huts = kept
+			_fire("hud_banner", [{"title": "LIGHTNING SPLITS A HUT", "kind": "danger"}])
+	else:
+		ignite_tree(t)
+	_fire("cam_shake", [6.0, 0.4])
+	_fire("audio_play", ["zap", 1.0, 0.0])
+	_fire("hud_toast", [tr("Lightning! Fire spreads with the wind!"), "bad", "⚡"])
+
+
+## True when raids are forbidden: peaceful AND no hut standing yet.
+## (TS:1023-1026 — the chaos raid events gate on this.)
+func raids_blocked() -> bool:
+	return ctx.difficulty == "peaceful" and huts.is_empty()
+
+
+## Chaos variant (rival_festival): rivals lay down arms for a while — the
+## raid clock may not fire sooner than `seconds` from now. (TS:1029-1032)
+func pause_raids(seconds: float) -> void:
+	raidTimer = maxf(raidTimer, seconds)
+
+
+## TS launchRivalRaidNow (TribeStage.ts:1034-1039) — the chaos event path
+## bypassed the raid-clock gate — a hutless PEACEFUL camp got raiders anyway
+## (popCap 1, no births, unrecoverable).
+func launch_rival_raid_now() -> void:
+	if raids_blocked():
+		return
+	launch_rival_raid()
+
+
 # ---- economy ------------------------------------------------------------------------
 
 ## TS updateEconomy (TribeStage.ts:1086-1172).
@@ -1168,9 +1494,10 @@ static func _fin(v: Variant) -> bool:
 	return (v is float or v is int) and is_finite(float(v))
 
 
-## TS `x ?? fallback` where a non-number must not poison the math: JSON
-## strings read as the fallback (TS Math.max would yield NaN there — a
-## hyper-corrupt edge; the port reads sane, see header divergence note).
+## TS `x ?? fallback` where a non-number must not poison the math: TS
+## Math.max/min coerce numeric strings ("50"→50) — the port reads the
+## fallback instead; non-numeric strings NaN the TS read (see header
+## divergence note).
 static func _fin_or(v: Variant, fallback: float) -> float:
 	return float(v) if _fin(v) else fallback
 

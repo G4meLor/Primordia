@@ -1342,3 +1342,583 @@ func test_headless_sanity_long_run() -> void:
 	for t in sim.tribe:
 		ok(is_finite(float(t["hp"])) and is_finite(float(t["x"])), "tribesman sane")
 		ok(is_finite(float(t["stats"]["speed"])), "tribesman stats sane")
+
+
+# ---- task 2: raids, beast, fires, transitions ---------------------------------------
+# (TS:327-339 raid clock, 561-584 launch, 709-717 war graves, 858-879 camp
+# assault, 881-935 + 1004-1021 beast, 937-993 fires/lightning, 1023-1039
+# chaos raid seam, 381-409 fall/victory)
+
+# A parallel branch replayed PAST the constructor's full draw sequence (120
+# tree + 78 bush + 4 rival draws + the chaos-scheduler branch draw) — its
+# next draws line up 1:1 with the sim's post-construction stream.
+func _post_ctor_pr(seed_v: int = SEED) -> Variant:
+	var pr: Variant = Ctx.new(seed_v).rng.branch()
+	for i in 30:
+		pr.range(-WORLD_HALF, WORLD_HALF)
+		pr.range(Z_MIN, Z_MAX)
+		pr.range(4.0, 9.0)
+		pr.range(0.0, 9.0)
+	for i in 26:
+		pr.range(-WORLD_HALF, WORLD_HALF)
+		pr.range(Z_MIN, Z_MAX)
+		pr.range(3.0, 7.0)
+	for i in 2:
+		pr.range(1300.0, 2000.0)
+		pr.range(-120.0, 160.0)
+	pr.branch()  # the ChaosScheduler child seed (TribeStage.ts:135)
+	return pr
+
+
+# Register the transition-recording hooks the fall/victory paths fire
+# (missing hook keys are silent no-ops, so tests opt in).
+func _watch_transitions(sim: Variant, rec: Dictionary) -> void:
+	rec["go_to"] = []
+	rec["saves"] = []
+	sim._hooks["go_to"] = func(stage, data): rec["go_to"].append([stage, data])
+	sim._hooks["save_all"] = func(): rec["saves"].append(1)
+
+
+func _toasted_count(rec: Dictionary, fragment: String) -> int:
+	var n := 0
+	for t in rec["toasts"]:
+		if String(t[0]).find(fragment) >= 0:
+			n += 1
+	return n
+
+
+func _banners_with(rec: Dictionary, fragment: String) -> int:
+	var n := 0
+	for b in rec["banners"]:
+		if String(b["title"]).find(fragment) >= 0:
+			n += 1
+	return n
+
+
+func test_raid_clock_cadence_and_first_raid_hint() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var ctx: Variant = m["ctx"]
+	var rec: Dictionary = m["rec"]
+	# tick 1 from a fresh (no on_enter) sim: the ONLY rng draws are the raid
+	# clock's reset roll + the raid launch — pin them against a parallel
+	# branch replayed past the constructor (TS:331-338).
+	sim.raidTimer = 0.0001
+	sim.update(DT, _inp())
+	var pr: Variant = _post_ctor_pr()
+	eq(float(sim.raidTimer), 80.0 + pr.range(-15.0, 25.0), "raidTimer = 80 + rng(-15,25) (TS:332)")
+	eq(_banners_with(rec, "RAIDS!"), 1, "raid banner fired (TS:581)")
+	eq(bool(sim.raidActive), true, "raidActive true (TS:583)")
+	ok(_heard(rec, "alarm"), "alarm audio (TS:582)")
+	eq(String(ctx.flags["firstRaidHint"]), "seen", "firstRaidHint latched (TS:335)")
+	eq(_toasted_count(rec, "Raiders rally"), 1, "first-raid hint toasted")
+	# the hint NEVER re-fires (TS:334 gate)
+	sim.raidTimer = 0.0001
+	sim.update(DT, _inp())
+	eq(_toasted_count(rec, "Raiders rally"), 1, "hint fires only on the first raid")
+	eq(_banners_with(rec, "RAIDS!"), 2, "second raid still banners")
+
+
+func test_raid_clock_peaceful_gates() -> void:
+	# peaceful + hutless: the clock never fires and the timer floors at 30
+	var m := _mk_sim(SEED, {}, "peaceful")
+	var sim: Variant = m["sim"]
+	sim.huts.clear()
+	sim.raidTimer = 0.0001
+	sim.update(DT, _inp())
+	eq(float(sim.raidTimer), 30.0, "peaceful hutless floors raidTimer at 30 (TS:330)")
+	eq(_banners_with(m["rec"], "RAIDS!"), 0, "no raid while peaceful hutless")
+	eq(bool(sim.raidActive), false, "raidActive untouched")
+	# a >30 timer is preserved (Math.max, not a reset)
+	sim.raidTimer = 50.0
+	sim.update(DT, _inp())
+	eq(float(sim.raidTimer), 50.0 - DT, "existing timer preserved")
+	# peaceful WITH a hut: raids fire at half cadence (+40, TS:333)
+	var m2 := _mk_sim(SEED, {}, "peaceful")
+	var sim2: Variant = m2["sim"]
+	sim2.raidTimer = 0.0001
+	sim2.update(DT, _inp())
+	var pr: Variant = _post_ctor_pr()
+	eq(float(sim2.raidTimer), 80.0 + pr.range(-15.0, 25.0) + 40.0,
+			"peaceful reset = 80 + roll + 40")
+	eq(_banners_with(m2["rec"], "RAIDS!"), 1, "peaceful raids once a hut stands")
+
+
+func test_raid_party_wave_cap_and_genome() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	sim.raidTimer = 0.0001
+	sim.update(DT, _inp())
+	# full parallel replay of the launch (TS:561-584): clock roll → pick →
+	# wave roll → per-warrior x/z
+	var pr: Variant = _post_ctor_pr()
+	pr.range(-15.0, 25.0)  # clock reset roll
+	var idx := floori(pr.next() * 2.0)  # rng.pick(rivals)
+	var waven := 2 + floori(pr.range(0.0, 2.0))  # wave 2 + floor(rng(0,2))
+	var rivals_ref: Array = _expected_world(SEED)["rivals"]
+	eq(sim.rivalWarriors.size(), waven, "wave size = 2 + floor(rng(0,2)) (TS:567-568)")
+	eq(_banners_with(rec, "RAIDS!"), 1, "one raid banner")
+	eq(String(rec["banners"][0]["title"]), String(["GNASH", "RUK"][idx]) + " RAIDS!",
+			"banner names the picked rival")
+	for i_w in waven:
+		var w: Dictionary = sim.rivalWarriors[i_w]
+		eq(float(w["x"]), float(rivals_ref[idx]["x"]) + pr.range(-60.0, 60.0),
+				"warrior x spawn offset (TS:571)")
+		eq(float(w["z"]), float(rivals_ref[idx]["z"]) + pr.range(-40.0, 40.0),
+				"warrior z spawn offset (TS:572)")
+		eq(float(w["hp"]), 60.0, "warrior hp 60 (TS:574)")
+		eq(String(w["state"]), "march", "warrior state march (TS:578)")
+		eq(float(w["genome"]["hue"]), 5.0, "raider hue 5 (TS:575)")
+		eq(String(w["genome"]["diet"]), "carnivore", "raider carnivore")
+		eq(float(w["genome"]["spikes"]), 3.0, "raider spikes 3")
+		eq(float(w["genome"]["jaw"]), 3.0, "raider jaw 3")
+
+
+func test_raid_party_cap_five() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	for i in 5:
+		sim.rivalWarriors.append(_warrior_at(1500.0 + float(i) * 10.0, 0.0))
+	sim.raidTimer = 0.0001
+	sim.update(DT, _inp())
+	eq(sim.rivalWarriors.size(), 5, "party capped at 5 (TS:565-566)")
+	eq(_banners_with(rec, "RAIDS!"), 0, "no banner when the cap refuses")
+	eq(bool(sim.raidActive), false, "raidActive untouched by a refused launch")
+
+
+func test_raid_skips_dead_rivals() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	for r in sim.rivals:
+		r["hp"] = 0.0
+	sim.raidTimer = 0.0001
+	sim.update(DT, _inp())
+	eq(sim.rivalWarriors.size(), 0, "no warriors from a dead rival (TS:563)")
+	eq(_banners_with(rec, "RAIDS!"), 0, "no banner")
+	eq(bool(sim.raidActive), false, "raidActive untouched")
+
+
+func test_siege_destroys_hut_and_floors_raid_timer() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	sim.raidTimer = 50.0
+	# hut at (0, 80): dist 31.6 < 40 — but 42.4 from the chief (0, 60), so the
+	# raid-touch block never flips the marcher to 'fight' before the siege
+	var w: Dictionary = _warrior_at(30.0, 90.0)
+	sim.rivalWarriors.append(w)
+	sim.huts[0]["hp"] = 0.05
+	sim.update(DT, _inp())
+	eq(sim.huts.size(), 0, "hut destroyed (TS:688-694)")
+	eq(float(sim.raidTimer), 120.0 - DT, "raidTimer floored at 120 (TS:690)")
+	eq(_banners_with(rec, "A HUT BURNS"), 1, "A HUT BURNS banner")
+	ok(_heard(rec, "boom"), "boom audio")
+	eq(String(w["state"]), "flee", "empty village flips the war party to flee (TS:699-701)")
+	eq(bool(sim.raidActive), false, "no raid launched — raidActive stays false")
+
+
+func test_warrior_flee_home_slip() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	# a fleeing warrior within 90 of home slips away (TS:702-705)
+	var w: Dictionary = _warrior_at(float(sim.rivals[0]["x"]), float(sim.rivals[0]["z"]))
+	w["state"] = "flee"
+	sim.rivalWarriors.append(w)
+	sim.update(DT, _inp())
+	eq(sim.rivalWarriors.size(), 0, "flee + home < 90 → slipped away")
+	# a marching party with NOTHING left to siege goes home (TS:696-701)
+	var m2 := _mk_sim()
+	var sim2: Variant = m2["sim"]
+	var w2: Dictionary = _warrior_at(100.0, 100.0)
+	sim2.rivalWarriors.append(w2)
+	sim2.huts.clear()  # tribe already empty without on_enter
+	sim2.update(DT, _inp())
+	eq(String(w2["state"]), "flee", "hutless + tribeless → state flee")
+
+
+func test_camp_assault_rewards_and_karma() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var ctx: Variant = m["ctx"]
+	var rec: Dictionary = m["rec"]
+	var r: Dictionary = sim.rivals[0]
+	_add_t(sim, float(r["x"]), float(r["z"]), "warrior")
+	r["hp"] = 0.05
+	sim.update(DT, _inp())
+	eq(_banners_with(rec, "JOINS YOUR PEOPLE"), 1, "rival absorbed (TS:870-876)")
+	eq(String(rec["banners"][0]["title"]), "GNASH JOINS YOUR PEOPLE", "banner names the rival")
+	ok(_heard(rec, "levelup"), "levelup audio")
+	eq(float(sim.food), 120.0, "food +60 (TS:873)")
+	eq(float(sim.wood), 70.0, "wood +40 (TS:874)")
+	approx(float(ctx.karma), -0.05, "karma -0.05 (TS:875)")
+	ok(float(r["hp"]) <= 0.0, "rival dead")
+	eq(float(r["anger"]), DT * 0.1, "anger += dt*0.1 (TS:866)")
+	# non-warriors do not assault
+	var m2 := _mk_sim()
+	var sim2: Variant = m2["sim"]
+	var r2: Dictionary = sim2.rivals[0]
+	_add_t(sim2, float(r2["x"]), float(r2["z"]), "gather")
+	sim2.update(DT, _inp())
+	eq(float(r2["hp"]), 100.0, "gatherers never chip the camp (TS:862-863)")
+	eq(float(r2["anger"]), 0.0, "anger untouched")
+
+
+func test_war_graves_combo_pays_once_per_raid() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var ctx: Variant = m["ctx"]
+	var rec: Dictionary = m["rec"]
+	ctx.world["comboFired"] = {"war_graves": true}
+	sim.raidActive = true
+	sim.update(DT, _inp())
+	eq(int(ctx.dna), 55, "war graves +15 DNA (TS:713-715)")
+	eq(_toasted_count(rec, "War graves yield DNA."), 1, "reward toast")
+	eq(bool(sim.raidActive), false, "raidActive cleared (TS:712)")
+	sim.update(DT, _inp())
+	eq(int(ctx.dna), 55, "one payment per raid instance")
+	# combo off: the raid still closes, no DNA
+	var m2 := _mk_sim()
+	var sim2: Variant = m2["sim"]
+	var ctx2: Variant = m2["ctx"]
+	sim2.raidActive = true
+	sim2.update(DT, _inp())
+	eq(bool(sim2.raidActive), false, "raid closes without the combo")
+	eq(int(ctx2.dna), 40, "no DNA without the combo")
+	eq(_toasted_count(m2["rec"], "War graves"), 0, "no toast without the combo")
+	# a live war party holds the raid open
+	var m3 := _mk_sim()
+	var sim3: Variant = m3["sim"]
+	sim3.raidActive = true
+	sim3.rivalWarriors.append(_warrior_at(1500.0, 0.0))
+	sim3.update(DT, _inp())
+	eq(bool(sim3.raidActive), true, "party in the field keeps raidActive")
+
+
+func test_beast_spawn_pin() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	sim.spawn_beast()
+	var pr: Variant = _post_ctor_pr()
+	var a: float = pr.next() * TAU
+	var b: Dictionary = sim.beast
+	eq(float(b["hp"]), 420.0, "beast hp 420 (TS:1018)")
+	eq(float(b["x"]), cos(a) * 900.0, "x = px + cos(a)*900 (TS:1016)")
+	eq(float(b["z"]), clampf(60.0 + sin(a) * 300.0, Z_MIN, Z_MAX), "z = clamp(pz + sin(a)*300) (TS:1017)")
+	var g: Dictionary = b["genome"]
+	eq(float(g["size"]), 2.1, "beast size 2.1 (TS:1013)")
+	eq(String(g["diet"]), "carnivore", "beast carnivore")
+	eq(float(g["jaw"]), 5.0, "beast jaw 5")
+	eq(float(g["spikes"]), 4.0, "beast spikes 4")
+	eq(float(g["horns"]), 3.0, "beast horns 3")
+	eq(float(g["hue"]), 300.0, "beast hue 300")
+	eq(String(g["coat"]), "plates", "beast coat plates")
+	eq(float(g["eyes"]), 4.0, "beast eyes 4")
+	# despawn seam (TS:1004-1010)
+	sim.despawn_beast()
+	eq(sim.beast, null, "despawn clears the beast")
+	ok(_toasted(m["rec"], "wanders away"), "despawn toast")
+	sim.despawn_beast()
+	eq(_toasted_count(m["rec"], "wanders away"), 1, "despawn is a no-op without a beast")
+
+
+func test_beast_march_siege_and_chief_fallback() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	# march: x rate 90, z rate 70 (TS:888-889)
+	sim.beast = {"x": 500.0, "z": -150.0, "hp": 420.0, "genome": {}}
+	sim.update(DT, _inp())
+	var dx: float = (0.0 - 500.0)
+	var dz: float = (80.0 - (-150.0))
+	var d: float = maxf(1.0, sqrt(dx * dx + dz * dz))
+	eq(float(sim.beast["x"]), 500.0 + (dx / d) * 90.0 * DT, "beast x rate 90")
+	eq(float(sim.beast["z"]), -150.0 + (dz / d) * 70.0 * DT, "beast z rate 70")
+	# siege: hp -= 6*dt, destruction banner (TS:890-896)
+	sim.beast = {"x": 0.0, "z": 80.0, "hp": 420.0, "genome": {}}
+	sim.huts[0]["hp"] = 0.05
+	sim.update(DT, _inp())
+	eq(sim.huts.size(), 0, "beast destroys the hut")
+	eq(_banners_with(rec, "THE BEAST DESTROYS A HUT"), 1, "destruction banner")
+	ok(_heard(rec, "boom"), "boom audio")
+	# hutless: the beast prowls toward the CHIEF (TS:885)
+	sim.beast = {"x": 500.0, "z": 60.0, "hp": 420.0, "genome": {}}
+	sim.update(DT, _inp())
+	eq(float(sim.beast["x"]), 500.0 - 90.0 * DT, "chief-fallback march (dx/d = 1)")
+
+
+func test_beast_fighter_dps_and_gore_gate() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	# fighters 9/s each + chief 14/s (TS:899-902)
+	sim.beast = {"x": 0.0, "z": 60.0, "hp": 420.0, "genome": {}}
+	_add_t(sim, 0.0, 60.0, "gather")
+	sim.update(DT, _inp())
+	eq(float(sim.beast["hp"]), 420.0 - (9.0 + 14.0) * DT, "dps = fighters*9 + chief 14")
+	# the gore roll is chief-proximity-gated (A08) — drive it deterministically
+	sim.beast["hp"] = 100000.0  # test seam: keep it alive for the drive
+	var gored := false
+	for i in 5000:
+		sim.update(DT, _inp())
+		if sim.deathFade > 0.0:
+			gored = true
+			break
+	ok(gored, "beast gored the chief (chance dt*0.5, TS:906)")
+	eq(String(sim.lastDeathCause), "the great beast gored you", "death cause recorded")
+	# invuln blocks the gore (TS:906 gate)
+	var m2 := _mk_sim()
+	var sim2: Variant = m2["sim"]
+	sim2.beast = {"x": 0.0, "z": 60.0, "hp": 100000.0, "genome": {}}
+	sim2.invulnT = 99999.0
+	var gored2 := false
+	for i in 1500:
+		sim2.update(DT, _inp())
+		if sim2.deathFade > 0.0:
+			gored2 = true
+			break
+	eq(gored2, false, "invulnT blocks the gore")
+
+
+func test_beast_death_rewards() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var ctx: Variant = m["ctx"]
+	var rec: Dictionary = m["rec"]
+	sim.beast = {"x": 0.0, "z": 60.0, "hp": 0.05, "genome": {}}
+	_add_t(sim, 0.0, 60.0, "gather")  # a fighter makes dps > 0
+	sim.update(DT, _inp())
+	eq(sim.beast, null, "beast falls (TS:914-921)")
+	eq(_banners_with(rec, "THE GREAT BEAST FALLS"), 1, "falls banner")
+	eq(float(sim.food), 120.0, "feast +60 food (TS:917)")
+	eq(int(ctx.dna), 90, "+50 DNA (TS:918)")
+	ok(_heard(rec, "levelup"), "levelup audio")
+
+
+func test_fires_decay_extinguish_and_splice() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	sim.fires.append({"x": 0.0, "z": 0.0, "ttl": 5.0, "spread": 999.0})
+	sim.update(DT, _inp())
+	eq(float(sim.fires[0]["ttl"]), 5.0 - DT, "ttl -= dt (TS:940)")
+	# two tribesmen nearby: -4*dt each (TS:942-943)
+	_add_t(sim, 0.0, 0.0, "gather")
+	_add_t(sim, 10.0, 0.0, "gather")
+	sim.update(DT, _inp())
+	eq(float(sim.fires[0]["ttl"]), 5.0 - 2.0 * DT - 8.0 * DT,
+			"nearby tribesmen extinguish -4*dt each")
+	# splice at 0
+	sim.fires[0]["ttl"] = 0.001
+	sim.update(DT, _inp())
+	eq(sim.fires.size(), 0, "fire splices out at ttl <= 0 (TS:958)")
+
+
+func test_fires_smoke_and_spread_ignite() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	# smoke fx at chance dt*10 (TS:944-950)
+	sim.fires.append({"x": 0.0, "z": 0.0, "ttl": 100.0, "spread": 999.0})
+	var smoked := false
+	for i in 300:
+		sim.update(DT, _inp())
+		if not rec["spawns"].is_empty():
+			smoked = true
+			break
+	ok(smoked, "smoke fx spawned")
+	var s: Dictionary = rec["spawns"][0]
+	eq(String(s["kind"]), "smoke", "smoke kind")
+	eq(String(s["color"]), "rgba(255,150,60,0.6)", "smoke color")
+	# spread: first unburnt tree within 90 ignites (TS:952-957)
+	sim.trees[0]["x"] = 0.0
+	sim.trees[0]["z"] = 0.0
+	sim.fires[0]["spread"] = 0.001
+	var spread := false
+	for i in 300:
+		sim.update(DT, _inp())
+		if sim.fires.size() >= 2:
+			spread = true
+			break
+	ok(spread, "fire spread to a tree")
+	eq(float(sim.trees[0]["burn"]), 8.0 - DT,
+			"tree burn 8, decayed one tick by the burnout block (TS:964 + 1127-1131)")
+	eq(float(sim.fires[1]["ttl"]), 10.0, "new fire ttl 10 (TS:965)")
+	eq(float(sim.fires[1]["spread"]), 8.0, "new fire spread 8")
+	ok(_heard(rec, "fire"), "fire audio (TS:966)")
+
+
+func test_fire_spread_finds_nothing_and_ignite_guards() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	# every tree parked far away — the spread roll hits but ignites nothing
+	for tr in sim.trees:
+		tr["x"] = -2400.0
+	sim.fires.append({"x": 2400.0, "z": 0.0, "ttl": 100.0, "spread": 0.001})
+	var rolled := false
+	for i in 300:
+		sim.update(DT, _inp())
+		if float(sim.fires[0]["spread"]) >= 8.0:
+			rolled = true
+			break
+	ok(rolled, "spread roll consumed, timer reset (TS:954)")
+	eq(sim.fires.size(), 1, "no ignition without a tree within 90")
+	# ignite_tree guards: stumps do not burn, burning trees do not double (TS:963)
+	var stump := {"x": 0.0, "z": 0.0, "wood": 0.0, "burn": 0.0, "seed": 0.0}
+	sim.trees.append(stump)
+	sim.ignite_tree(stump)
+	eq(sim.fires.size(), 1, "stump does not burn")
+	eq(float(stump["burn"]), 0.0, "stump burn untouched")
+	var burning := {"x": 10.0, "z": 0.0, "wood": 5.0, "burn": 8.0, "seed": 0.0}
+	sim.trees.append(burning)
+	sim.ignite_tree(burning)
+	eq(sim.fires.size(), 1, "already-burning tree does not double")
+
+
+func test_lightning_empty_targets_and_hut_branch() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	# no targets: crackles only (TS:974-977)
+	for tr in sim.trees:
+		tr["wood"] = 0.0
+	sim.huts.clear()
+	sim.lightning_strike()
+	eq(_toasted_count(rec, "storm crackles"), 1, "empty-targets toast")
+	eq(rec["shakes"].size(), 0, "no shake without a strike")
+	# hut branch: hp -35 per strike, destruction at 0 (TS:979-986)
+	sim.huts.append({"x": 0.0, "z": 80.0, "hp": 100.0, "maxHp": 100.0, "pop": 0.0, "buildT": 0.0})
+	sim.lightning_strike()
+	eq(float(sim.huts[0]["hp"]), 65.0, "hut hp -35 (TS:982)")
+	eq(rec["shakes"].size(), 1, "shake recorded")
+	eq(rec["shakes"][0], [6.0, 0.4], "shake 6/0.4 (TS:990)")
+	ok(_heard(rec, "zap"), "zap audio (TS:991)")
+	eq(_toasted_count(rec, "Lightning! Fire spreads"), 1, "lightning toast (TS:992)")
+	sim.lightning_strike()
+	eq(float(sim.huts[0]["hp"]), 30.0, "hut hp -35 again")
+	sim.lightning_strike()
+	eq(sim.huts.size(), 0, "LIGHTNING SPLITS A HUT destroys it")
+	eq(_banners_with(rec, "LIGHTNING SPLITS A HUT"), 1, "destruction banner (TS:985)")
+
+
+func test_lightning_tree_branch_pick_pin() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	# single candidate → deterministic ignite (TS:987-988)
+	for i in sim.trees.size():
+		if i != 3:
+			sim.trees[i]["wood"] = 0.0
+	sim.huts.clear()
+	sim.lightning_strike()
+	eq(float(sim.trees[3]["burn"]), 8.0, "the only candidate ignited")
+	eq(sim.fires.size(), 1, "one fire from the strike")
+	eq(float(sim.fires[0]["x"]), float(sim.trees[3]["x"]), "fire sits at the tree")
+	ok(_heard(rec, "fire"), "fire audio")
+	# multi-candidate pick pinned bit-exact against the parallel stream
+	var m2 := _mk_sim()
+	var sim2: Variant = m2["sim"]
+	sim2.huts.clear()
+	sim2.lightning_strike()
+	var pr: Variant = _post_ctor_pr()
+	var idx := floori(pr.next() * 30.0)  # rng.pick over the 30 unburnt trees
+	eq(float(sim2.trees[idx]["burn"]), 8.0, "picked tree (stream-pinned index) ignited")
+	eq(float(sim2.fires[0]["x"]), float(sim2.trees[idx]["x"]), "fire at the picked tree")
+
+
+func test_timer_same_tick_order_is_reverse() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var order: Array = []
+	sim.after(0.05, func(): order.append("a"))
+	sim.after(0.05, func(): order.append("b"))
+	for i in 6:
+		sim.update(DT, _inp())
+	eq(order, ["b", "a"], "same-tick timers drain last-added-first (TS:306 reverse loop)")
+
+
+func test_fall_path_blob_delete_and_go_to() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var ctx: Variant = m["ctx"]
+	var rec: Dictionary = m["rec"]
+	_watch_transitions(sim, rec)
+	ctx.flags["tribeState"] = "{\"food\":50,\"huts\":[],\"tribe\":[]}"
+	sim.huts.clear()
+	# tick 1: the fall banner arms the timer (TS:382-386)
+	sim.update(DT, _inp())
+	eq(float(sim.fallenT), 0.0001 + DT, "fallenT armed at 0.0001 then += dt")
+	eq(_banners_with(rec, "THE TRIBE HAS FALLEN"), 1, "fall banner")
+	ok(_heard(rec, "die"), "die audio")
+	ok(ctx.flags.has("tribeState"), "blob not yet deleted")
+	# drive past 4 s: latch, delete, save, go_to (TS:389-397)
+	for i in 300:
+		sim.update(DT, _inp())
+	eq(bool(sim.fallFired), true, "fallFired latch")
+	eq(rec["go_to"], [["creature", {"title": "BACK TO THE WILDS",
+			"sub": "gather your strength and found a new people"}]], "go_to('creature') payload (TS:396)")
+	eq(rec["saves"].size(), 1, "save_all fired once")
+	eq(ctx.flags.has("tribeState"), false, "dead blob deleted (TS:394)")
+	eq(_banners_with(rec, "THE TRIBE HAS FALLEN"), 1, "banner fires once")
+	for i in 10:
+		sim.update(DT, _inp())
+	eq(rec["go_to"].size(), 1, "go_to latched")
+	eq(rec["saves"].size(), 1, "save_all latched")
+	# the corpse guard keeps save_all from resurrecting the blob (TS:200)
+	sim.persist_state()
+	eq(ctx.flags.has("tribeState"), false, "persist never re-writes a corpse")
+
+
+func test_victory_path_latches() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	_watch_transitions(sim, rec)
+	# progress < 100 never arms the timer (TS:401)
+	sim.totem["progress"] = 99.9
+	for i in 200:
+		sim.update(DT, _inp())
+	eq(float(sim.victoryT), 0.0, "victoryT only accumulates at progress >= 100")
+	eq(rec["go_to"].size(), 0, "no transition below 100")
+	# at 100: victoryT accrues, transition after 2.5 s (TS:401-408)
+	sim.totem["progress"] = 100.0
+	sim.update(DT, _inp())
+	eq(float(sim.victoryT), DT, "victoryT += dt")
+	eq(rec["go_to"].size(), 0, "not before 2.5 s")
+	for i in 300:
+		sim.update(DT, _inp())
+	eq(rec["go_to"], [["civ", {"title": "THE FIRST CITY",
+			"sub": "drums become laws; laws become empires"}]], "go_to('civ') payload (TS:407)")
+	eq(rec["saves"].size(), 1, "save_all before the transition")
+	ok(_heard(rec, "ascend"), "ascend audio")
+	eq(bool(sim.victoryFired), true, "victoryFired latch")
+	for i in 10:
+		sim.update(DT, _inp())
+	eq(rec["go_to"].size(), 1, "victory latched")
+
+
+func test_raids_blocked_pause_and_now() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var ctx: Variant = m["ctx"]
+	eq(bool(sim.raids_blocked()), false, "normal never blocked (TS:1025)")
+	ctx.difficulty = "peaceful"
+	sim.huts.clear()
+	eq(bool(sim.raids_blocked()), true, "peaceful + hutless blocked")
+	sim.huts.append({"x": 0.0, "z": 80.0, "hp": 100.0, "maxHp": 100.0, "pop": 0.0, "buildT": 0.0})
+	eq(bool(sim.raids_blocked()), false, "a standing hut unblocks")
+	# pauseRaids floors the clock (TS:1030-1032)
+	sim.raidTimer = 10.0
+	sim.pause_raids(45.0)
+	eq(float(sim.raidTimer), 45.0, "paused to 45")
+	sim.pause_raids(5.0)
+	eq(float(sim.raidTimer), 45.0, "shorter pause never shortens")
+	# launchRivalRaidNow refuses when blocked (TS:1034-1039)
+	sim.huts.clear()
+	sim.launch_rival_raid_now()
+	eq(sim.rivalWarriors.size(), 0, "blocked launch refuses")
+	eq(_banners_with(m["rec"], "RAIDS!"), 0, "no banner when refused")
+	sim.huts.append({"x": 0.0, "z": 80.0, "hp": 100.0, "maxHp": 100.0, "pop": 0.0, "buildT": 0.0})
+	sim.launch_rival_raid_now()
+	ok(sim.rivalWarriors.size() >= 1, "unblocked launch raids")
+	eq(_banners_with(m["rec"], "RAIDS!"), 1, "banner on the real launch")
