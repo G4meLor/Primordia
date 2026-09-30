@@ -29,6 +29,18 @@
 ## CLIP_AND_DRAW) is the shape-accurate mechanism (llvmpipe/GLES3 probe:
 ## set_clip leaks pattern pixels outside the body, the group mode does not).
 ##
+## Back/front split (task 6 part B, pixel-probed): RS child items composite
+## after ALL of the parent item's own commands, so the body-fill child would
+## bury anything drawn directly on the caller item after it — the part B
+## capture showed the eye pupil only as a sliver above the head-disc edge,
+## with teeth/sclera/muzzle fully covered. TS order (far legs → tail → spikes
+## → BODY → near legs → arms → head → horns → eyes) therefore maps onto three
+## layers: back content straight on the caller item, the fill+patterns on
+## clip_item, and everything TS draws after the body on front_item — a THIRD
+## sub-item, sibling of clip_item parented AFTER it (children render in
+## parenting order). Each front section re-issues add_set_transform(front, ·)
+## with the same composed transforms as before.
+##
 ## Recorded divergences (task 6 report):
 ##  - alpha < 1 (death fade / UI thumbnails): the group mask multiplies the
 ##    pattern alpha and composites it over the background, where TS composites
@@ -39,18 +51,18 @@
 ##  - curve fidelity: canvas draws true arcs/quadratics; Godot draw commands
 ##    get sampled polygons/polylines (discs 24 segments, curves 16) and
 ##    strokes have no round caps/joins (cell_painter divergence precedent).
-##  - RID LIFECYCLE: the two sub-items are caller-owned — free both
-##    (RenderingServer.free_rid) before the next redraw of the same CanvasItem;
-##    the painter is stateless and creates fresh ones per call. For correct
-##    overlap ordering between multiple creatures a stage should give each
-##    creature its own CanvasItem child (RID children render after ALL of the
-##    parent item's own commands).
+##  - RID LIFECYCLE: the three sub-items (clip, pattern, front) are
+##    caller-owned — free all three (RenderingServer.free_rid) before the next
+##    redraw of the same CanvasItem; the painter is stateless and creates fresh
+##    ones per call. For correct overlap ordering between multiple creatures a
+##    stage should give each creature its own CanvasItem child (RID children
+##    render after ALL of the parent item's own commands).
 ##  - pattern rnd is the TS seeded hash (fract of sin(n·127.1 + seed)·
 ##    43758.5453, seed = |round(hue·13.7)|) — no randi/randf anywhere: a
 ##    species always looks like itself.
-## Returns {clip_item: RID, pattern_item: RID, spine: Array} — spine is the
-## rig output the draw consumed (headless smoke asserts count 6 + equality
-## with creature_rig.spine_points; part B pixel-asserts can reuse it).
+## Returns {clip_item: RID, pattern_item: RID, front_item: RID, spine: Array}
+## — spine is the rig output the draw consumed (headless smoke asserts count 6
+## + equality with creature_rig.spine_points; part B pixel-asserts reuse it).
 extends RefCounted
 
 const RendererScript := preload("res://src/gfx/renderer.gd")
@@ -131,18 +143,18 @@ static func draw_creature(ci: CanvasItem, g: Dictionary, pose: Dictionary, opts:
 	var leg_draws: Array = RigScript.leg_draws(g, pose, t)
 
 	# drawLeg (TS:174-194): strokeStyle far ? baseDark : limb (round caps — divergence)
-	var draw_leg := func(ld: Dictionary, far: bool) -> void:
+	var draw_leg := func(ld: Dictionary, far: bool, target: RID) -> void:
 		var stroke := _fade(base_dark if far else limb, alpha)
-		RenderingServer.canvas_item_add_set_transform(item, xf)
-		RenderingServer.canvas_item_add_line(item, Vector2(ld["hx"], ld["hy"]), Vector2(ld["kx"], ld["ky"]), stroke, 4.4 * size, true)
-		RenderingServer.canvas_item_add_line(item, Vector2(ld["kx"], ld["ky"]), Vector2(ld["fx"], ld["fy"]), stroke, 3.2 * size, true)
-		RenderingServer.canvas_item_add_polygon(item,
+		RenderingServer.canvas_item_add_set_transform(target, xf)
+		RenderingServer.canvas_item_add_line(target, Vector2(ld["hx"], ld["hy"]), Vector2(ld["kx"], ld["ky"]), stroke, 4.4 * size, true)
+		RenderingServer.canvas_item_add_line(target, Vector2(ld["kx"], ld["ky"]), Vector2(ld["fx"], ld["fy"]), stroke, 3.2 * size, true)
+		RenderingServer.canvas_item_add_polygon(target,
 				RendererScript.ellipse_points(Vector2(float(ld["fx"]), float(ld["fy"]) - 1.0), 2.6 * size, 1.6 * size, 0.0, 12),
 				PackedColorArray([_fade(base_dark if far else outline, alpha)]))
 	# far-side legs first (TS:195, every 2nd)
 	for i in leg_draws.size():
 		if i % 2 == 1:
-			draw_leg.call(leg_draws[i], true)
+			draw_leg.call(leg_draws[i], true, item)
 
 	# ---- body silhouette discs (TS:198-210): SEG spine discs + head ×1.02 + tail -----
 	var discs: Array = []
@@ -205,6 +217,12 @@ static func draw_creature(ci: CanvasItem, g: Dictionary, pose: Dictionary, opts:
 	# at every real creature position). Patterns draw in pose-local coords and
 	# inherit the mask frame.
 	# RenderingServer.canvas_item_set_transform(pattern_item, xf)
+	# front layer (TS:345-496): sibling of clip_item, parented AFTER it so it
+	# composites after the fill+patterns group — see the header's back/front
+	# split note. Front sections re-issue add_set_transform(front_item, ·) with
+	# the same composed transforms as their TS statements.
+	var front_item: RID = RenderingServer.canvas_item_create()
+	RenderingServer.canvas_item_set_parent(front_item, item)
 
 	# belly (TS:261-264)
 	RenderingServer.canvas_item_add_polygon(pattern_item,
@@ -283,15 +301,15 @@ static func draw_creature(ci: CanvasItem, g: Dictionary, pose: Dictionary, opts:
 			RenderingServer.canvas_item_add_polygon(pattern_item, ring,
 					PackedColorArray([Color(1.0, 1.0, 1.0, hurt * 0.75 * alpha)]))
 
-	# near-side legs on top (TS:345, even i)
+	# near-side legs on top (TS:345, even i) — the first FRONT-layer content
 	for j in leg_draws.size():
 		if j % 2 == 0:
-			draw_leg.call(leg_draws[j], false)
+			draw_leg.call(leg_draws[j], false, front_item)
 
-	# ---- arms (TS:347-370) --------------------------------------------------------------
+	# ---- arms (TS:347-370) — front layer -------------------------------------------------
 	var arms := int(g.get("arms", 0))
 	if arms > 0:
-		RenderingServer.canvas_item_add_set_transform(item, xf)
+		RenderingServer.canvas_item_add_set_transform(front_item, xf)
 		var sh: Dictionary = spine[maxi(1, RigScript.SEG - 3)]  # TS Math.max(1, SEG-3)
 		var sh_x: float = float(sh["x"]) + float(sh["r"]) * 0.3
 		var sh_y: float = float(sh["y"]) + float(sh["r"]) * 0.1
@@ -301,12 +319,12 @@ static func draw_creature(ci: CanvasItem, g: Dictionary, pose: Dictionary, opts:
 			var al := 9.0 * size
 			var hx: float = sh_x + cos(0.9 + swing) * al
 			var hy: float = sh_y + sin(0.9 + swing) * al
-			RenderingServer.canvas_item_add_line(item, Vector2(sh_x, sh_y), Vector2(hx, hy), _fade(limb, alpha), 3.4 * size, true)
-			RenderingServer.canvas_item_add_circle(item, Vector2(hx, hy), 1.8 * size, _fade(outline, alpha))
+			RenderingServer.canvas_item_add_line(front_item, Vector2(sh_x, sh_y), Vector2(hx, hy), _fade(limb, alpha), 3.4 * size, true)
+			RenderingServer.canvas_item_add_circle(front_item, Vector2(hx, hy), 1.8 * size, _fade(outline, alpha))
 
-	# ---- head details (TS:372-425) ---------------------------------------------------------
+	# ---- head details (TS:372-425) — front layer ------------------------------------------
 	var hr: float = float(head["r"])
-	RenderingServer.canvas_item_add_set_transform(item, xf)
+	RenderingServer.canvas_item_add_set_transform(front_item, xf)
 	# jaw / snout by diet (TS:375)
 	var mouth_open: float = maxf(float(pose.get("attack", 0.0)),
 			float(pose.get("eat", 0.0)) * (0.5 + 0.5 * absf(sin(t * 9.0))))
@@ -315,43 +333,43 @@ static func draw_creature(ci: CanvasItem, g: Dictionary, pose: Dictionary, opts:
 		var snout := hr * 0.85
 		var ang := -0.15 + mouth_open * 0.5
 		# ctx.translate(head.x + hr·0.35, head.y + hr·0.25); ctx.rotate(ang)
-		RenderingServer.canvas_item_add_set_transform(item,
+		RenderingServer.canvas_item_add_set_transform(front_item,
 				xf * Transform2D(ang, Vector2(float(head["x"]) + hr * 0.35, float(head["y"]) + hr * 0.25)))
 		# moveTo(0,0) → quad1 → (snout, 0) → quad2 → (0, snout·0.3) → close
 		var snout_loop := PackedVector2Array()
 		snout_loop.append_array(_quad_points(Vector2.ZERO, Vector2(snout, -snout * 0.28), Vector2(snout, 0.0), CURVE_SEGS))
 		snout_loop.append_array(_quad_points(Vector2(snout, 0.0), Vector2(snout * 0.6, snout * 0.22), Vector2(0.0, snout * 0.3), CURVE_SEGS))
 		snout_loop.append(Vector2.ZERO)  # closePath (stroked chord)
-		RenderingServer.canvas_item_add_polygon(item, snout_loop, PackedColorArray([_fade(base, alpha)]))
-		RenderingServer.canvas_item_add_polyline(item, snout_loop, PackedColorArray([_fade(outline, alpha)]), 1.4, true)
+		RenderingServer.canvas_item_add_polygon(front_item, snout_loop, PackedColorArray([_fade(base, alpha)]))
+		RenderingServer.canvas_item_add_polyline(front_item, snout_loop, PackedColorArray([_fade(outline, alpha)]), 1.4, true)
 		# teeth (TS:393-405) — inside the rotated frame
 		var jaw := int(g.get("jaw", 0))
 		if jaw >= 1:
 			var teeth := mini(4, 1 + jaw)
 			for i in teeth:
 				var tx := snout * (0.3 + float(i) * 0.2)
-				RenderingServer.canvas_item_add_polygon(item, PackedVector2Array([
+				RenderingServer.canvas_item_add_polygon(front_item, PackedVector2Array([
 					Vector2(tx - 1.5, snout * 0.06),
 					Vector2(tx, snout * 0.26),
 					Vector2(tx + 1.5, snout * 0.06),
 				]), PackedColorArray([_fade(Color("#f5f2e8"), alpha)]))
 	else:
 		# herbivore rounded muzzle (TS:407-425) — plain pose frame (TS restore)
-		RenderingServer.canvas_item_add_set_transform(item, xf)
+		RenderingServer.canvas_item_add_set_transform(front_item, xf)
 		var muz := Vector2(float(head["x"]) + hr * 0.8, float(head["y"]) + hr * 0.3)
-		RenderingServer.canvas_item_add_polygon(item,
+		RenderingServer.canvas_item_add_polygon(front_item,
 				RendererScript.ellipse_points(muz, hr * 0.5, hr * 0.34, 0.0, 16),
 				PackedColorArray([_fade(belly, alpha)]))
-		RenderingServer.canvas_item_add_polyline(item,
+		RenderingServer.canvas_item_add_polyline(front_item,
 				_closed_loop(RendererScript.ellipse_points(muz, hr * 0.5, hr * 0.34, 0.0, 16)), PackedColorArray([_fade(outline, alpha)]), 1.2, true)
 		if mouth_open > 0.05:
-			RenderingServer.canvas_item_add_polyline(item,
+			RenderingServer.canvas_item_add_polyline(front_item,
 					_arc_points(float(head["x"]) + hr * 0.8, float(head["y"]) + hr * 0.45, hr * 0.24, 0.2, PI - 0.2, 12), PackedColorArray([_fade(outline, alpha)]), 1.6, true)
 
-	# ---- horns (TS:427-444) ------------------------------------------------------------------
+	# ---- horns (TS:427-444) — front layer ---------------------------------------------------
 	var horns := int(g.get("horns", 0))
 	if horns > 0:
-		RenderingServer.canvas_item_add_set_transform(item, xf)
+		RenderingServer.canvas_item_add_set_transform(front_item, xf)
 		for i in horns:
 			var side_h := 1.0 if i % 2 == 0 else -1.0
 			var row := floorf(float(i) / 2.0)  # TS Math.floor(i / 2)
@@ -359,13 +377,13 @@ static func draw_creature(ci: CanvasItem, g: Dictionary, pose: Dictionary, opts:
 			var by: float = float(head["y"]) - hr * 0.75
 			var hl: float = (6.0 + row * 1.5) * size
 			var curve := side_h * (0.5 + row * 0.2)
-			RenderingServer.canvas_item_add_polyline(item,
+			RenderingServer.canvas_item_add_polyline(front_item,
 					_quad_points(Vector2(bx, by),
 							Vector2(bx + curve * hl * 0.5, by - hl * 0.8),
 							Vector2(bx + curve * hl, by - hl * 1.15), CURVE_SEGS), PackedColorArray([_fade(outline, alpha)]), 2.6 * size, true)
 
-	# ---- eyes (TS:446-496) ---------------------------------------------------------------------
-	RenderingServer.canvas_item_add_set_transform(item, xf)  # carnivore branch leaves the snout frame
+	# ---- eyes (TS:446-496) — front layer ------------------------------------------------------
+	RenderingServer.canvas_item_add_set_transform(front_item, xf)  # carnivore branch leaves the snout frame
 	var blink := 0.15 if sin(t * 1.3 + hue) > 0.97 else 1.0
 	var look_dx := float(opts.get("lookDx", 0.0)) * facing
 	var look_dy := float(opts.get("lookDy", 0.0))
@@ -385,10 +403,10 @@ static func draw_creature(ci: CanvasItem, g: Dictionary, pose: Dictionary, opts:
 			ex = float(head["x"]) + hr * 0.1 - float(col) * hr * 0.5
 			ey = float(head["y"]) - hr * (0.62 + side_e * 0.35) + float(col) * hr * 0.12
 		# sclera
-		RenderingServer.canvas_item_add_polygon(item,
+		RenderingServer.canvas_item_add_polygon(front_item,
 				RendererScript.ellipse_points(Vector2(ex, ey), eye_r, eye_r * blink, 0.0, 16),
 				PackedColorArray([sclera_col]))
-		RenderingServer.canvas_item_add_polyline(item,
+		RenderingServer.canvas_item_add_polyline(front_item,
 				_closed_loop(RendererScript.ellipse_points(Vector2(ex, ey), eye_r, eye_r * blink, 0.0, 16)), PackedColorArray([_fade(outline, alpha)]), 1.0, true)
 		if blink > 0.5:
 			# pupil looks at target (TS:471-473)
@@ -404,20 +422,20 @@ static func draw_creature(ci: CanvasItem, g: Dictionary, pose: Dictionary, opts:
 			# mood affects pupil size (TS:475)
 			var mood := String(pose.get("mood", "idle"))
 			var pup := 0.7 if mood == "afraid" else (1.25 if mood == "angry" else 1.0)
-			RenderingServer.canvas_item_add_circle(item,
+			RenderingServer.canvas_item_add_circle(front_item,
 					Vector2(ex + pdx * eye_r * 0.34, ey + pdy * eye_r * 0.3), eye_r * 0.46 * pup, _fade(Color("#131313"), alpha))
 			# highlight
-			RenderingServer.canvas_item_add_circle(item,
+			RenderingServer.canvas_item_add_circle(front_item,
 					Vector2(ex - eye_r * 0.2, ey - eye_r * 0.28), eye_r * 0.14, Color(1.0, 1.0, 1.0, 0.85 * alpha))
 		# angry brow (TS:487-494)
 		if String(pose.get("mood", "idle")) == "angry":
-			RenderingServer.canvas_item_add_line(item,
+			RenderingServer.canvas_item_add_line(front_item,
 					Vector2(ex - eye_r, ey - eye_r * 1.15), Vector2(ex + eye_r * 0.8, ey - eye_r * 0.6),
 					_fade(outline, alpha), 1.6, true)
 
 	# leave the transform in the caller's frame (TS restore, cell_painter semantic)
 	RenderingServer.canvas_item_add_set_transform(item, cam)
-	return {"clip_item": clip_item, "pattern_item": pattern_item, "spine": spine}
+	return {"clip_item": clip_item, "pattern_item": pattern_item, "front_item": front_item, "spine": spine}
 
 
 # ---- private helpers -------------------------------------------------------------------

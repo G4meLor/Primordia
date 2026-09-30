@@ -1,7 +1,8 @@
 ## Creature painter headless smoke — task 6 PART A. No pixel asserts here (the
 ## xvfb pixel suite is part B): the draw path must complete without script
-## errors on a bare offscreen CanvasItem, the Ruling 11 clip sub-items must
-## come back wired (valid RIDs, fresh per call, caller-freeable), a second
+## errors on a bare offscreen CanvasItem, the Ruling 11 clip sub-items (clip,
+## pattern, front — the part B back/front split) must come back wired (valid
+## RIDs, fresh per call, caller-freeable), a second
 ## creature with a different genome/pose must draw on the same item, and the
 ## T1 rig must be consumed verbatim (returned spine ≡ creature_rig.spine_points).
 extends "res://tests/test_base.gd"
@@ -67,17 +68,20 @@ func test_draw_smoke_fixed_genome() -> void:
 	var ci := Node2D.new()  # offscreen: never added to the tree, bare canvas item
 	var res: Dictionary = Painter.draw_creature(ci, _genome_a(), _pose_a(), {"t": 3.7})
 	# the Ruling 11 clip sub-items exist and are valid RIDs
-	ok(res.has("clip_item") and res.has("pattern_item") and res.has("spine"),
-			"draw returns {clip_item, pattern_item, spine}")
+	ok(res.has("clip_item") and res.has("pattern_item") and res.has("front_item")
+			and res.has("spine"), "draw returns {clip_item, pattern_item, front_item, spine}")
 	var clip: RID = res["clip_item"]
 	var pat: RID = res["pattern_item"]
 	ok(clip.is_valid(), "clip sub-item RID valid (exists on the RenderingServer)")
 	ok(pat.is_valid(), "pattern sub-item RID valid")
+	var front: RID = res["front_item"]
+	ok(front.is_valid(), "front sub-item RID valid (back/front split)")
 	# the rig is consumed (spine count 6)
 	var spine: Array = res["spine"]
 	eq(spine.size(), 6, "returned spine has SEG=6 entries")
 	# caller-owned lifecycle: the returned RIDs free cleanly (contract documented
 	# in the painter header — a stage frees them before the next redraw)
+	RenderingServer.free_rid(front)
 	RenderingServer.free_rid(pat)
 	RenderingServer.free_rid(clip)
 	ci.free()
@@ -92,11 +96,14 @@ func test_second_creature_different_genome_pose() -> void:
 			{"t": 1.1, "lookDx": 40.0, "lookDy": -12.0})
 	ok(res_b["clip_item"].is_valid(), "second creature clip RID valid")
 	ok(res_b["pattern_item"].is_valid(), "second creature pattern RID valid")
+	ok(res_b["front_item"].is_valid(), "second creature front RID valid")
 	eq((res_b["spine"] as Array).size(), 6, "second creature spine count 6")
 	# the painter is stateless: fresh sub-items per call, no reuse
 	ok(res_a["clip_item"] != res_b["clip_item"], "stateless: distinct clip items per call")
+	RenderingServer.free_rid(res_b["front_item"])
 	RenderingServer.free_rid(res_b["pattern_item"])
 	RenderingServer.free_rid(res_b["clip_item"])
+	RenderingServer.free_rid(res_a["front_item"])
 	RenderingServer.free_rid(res_a["pattern_item"])
 	RenderingServer.free_rid(res_a["clip_item"])
 	ci.free()
@@ -116,6 +123,8 @@ func test_rig_output_consumed_verbatim() -> void:
 		approx(float(spine[i]["x"]), float(expected[i]["x"]), "spine[%d].x = rig" % i, 1e-9)
 		approx(float(spine[i]["y"]), float(expected[i]["y"]), "spine[%d].y = rig" % i, 1e-9)
 		approx(float(spine[i]["r"]), float(expected[i]["r"]), "spine[%d].r = rig" % i, 1e-9)
+	RenderingServer.free_rid(res["front_item"])
+	RenderingServer.free_rid(res["front_item"])
 	RenderingServer.free_rid(res["pattern_item"])
 	RenderingServer.free_rid(res["clip_item"])
 	ci.free()
@@ -135,6 +144,7 @@ func test_dead_pose_and_optional_paths() -> void:
 			{"t": 2.5, "shadow": false, "alpha": 0.4, "lookDx": -30.0, "lookDy": 8.0})
 	ok(res["clip_item"].is_valid(), "dead pose draw: clip RID valid")
 	eq((res["spine"] as Array).size(), 6, "dead pose spine count 6")
+	RenderingServer.free_rid(res["front_item"])
 	RenderingServer.free_rid(res["pattern_item"])
 	RenderingServer.free_rid(res["clip_item"])
 	ci.free()
