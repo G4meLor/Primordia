@@ -195,11 +195,13 @@ func continue_slot(slot: int) -> void:
 		# the row showed 'CELL · 12 min · 500 DNA' one click earlier. Mark it
 		# and let the player delete (trash) or start over deliberately.
 		corrupt_slots[slot] = true
-		# NOTE: on FIRST boot this toast lands in the pre-hud stub dict (no
-		# real hud exists before any cell entry) and is invisible; after any
-		# cell visit the quit-to-title path keeps the real hud dict installed,
-		# so it displays. TS shows it always (its hud is a Game singleton) —
-		# documented divergence, do not silently drop in a refactor.
+		# NOTE: this toast is recorded but NEVER DRAWN while the menu is the
+		# current stage — the menu draws no hud canvas under the native tree
+		# model (TS's immediate-mode hud drew on every stage, so its toast
+		# displayed). The visible corrupt signal in the menu is the tombstone
+		# row (⚠ name, corrupt stage); the toast keeps the hud-state parity
+		# for the quit-to-title path — documented divergence, do not silently
+		# drop in a refactor.
 		game.hud["toast"].call(
 				game.i18n.tr_key("This slot is corrupted — delete it in CONTINUE, or use NEW LIFE"),
 				"bad", "⚠️")

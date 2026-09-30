@@ -163,7 +163,6 @@ var grid_gather := true
 var _first_ai := true
 var _p_size := 1.0
 var _p_damage := 0.0
-var _p_accel := 0.0
 var _gcache: Dictionary = {}
 # per-tick tide_species cache — the original re-read eco.tide_species() per
 # ent; the result can only change mid-tick through kill_ent (drop_corpse's
@@ -846,7 +845,6 @@ func update_ents(dt: float) -> void:
 		if _first_ai:
 			_p_size = float(ctx.genome["size"])
 			_p_damage = float(pStats["damage"])
-			_p_accel = float(pStats["accel"])
 			_first_ai = false
 		var myEid: int = _eeids[i]
 		var isSwarm := bool(e.get("swarm", false))

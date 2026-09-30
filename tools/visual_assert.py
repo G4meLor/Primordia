@@ -209,13 +209,15 @@ def main():
     check("card", "card-title", n >= 300, "%d title px" % n)
 
     print("---")
+    if failures:
+        print("VISUAL_SUITE_FAIL: %s" % ", ".join(failures))
+        return 1
+    # record written on SUCCESS only — a failing run must not churn the
+    # committed reference details (badge-noise hazard)
     if record_path:
         with open(record_path, "w") as f:
             json.dump({"viewport": [W, H], "asserts": record}, f, indent=1)
         print("record written to %s" % record_path)
-    if failures:
-        print("VISUAL_SUITE_FAIL: %s" % ", ".join(failures))
-        return 1
     print("VISUAL_SUITE_ALL_OK")
     return 0
 
