@@ -10,6 +10,7 @@ const GameScript := preload("res://src/game/game.gd")
 const MenuStageScript := preload("res://src/game/menu.gd")
 const CellStageScript := preload("res://src/game/cell/cell_stage.gd")
 const CreatureStageScript := preload("res://src/game/creature/creature_stage.gd")
+const TribeStageScript := preload("res://src/game/tribe/tribe_stage.gd")
 
 var game: Variant = null
 
@@ -26,13 +27,15 @@ func _ready() -> void:
 	# tribe/civ/space stages join as their milestones land.
 	game.register(CellStageScript.new(game))
 	game.register(CreatureStageScript.new(game))
+	game.register(TribeStageScript.new(game))
 	game.stage_factory = func() -> Array:
 		# fresh instances every NEW LIFE (game.ts:116-118) — run-1 latches
 		# must not leak into run 2 (C1 deck rebuild, totem/civ/space latches).
 		# GAMEPLAY stages only (TS main.ts:35-41): the menu persists — the map
 		# keeps the registered instance, quit-to-title reuses it (the drifter
 		# phase survives), TS shape.
-		return [CellStageScript.new(game), CreatureStageScript.new(game)]
+		return [CellStageScript.new(game), CreatureStageScript.new(game),
+				TribeStageScript.new(game)]
 	game.register(MenuStageScript.new(game))
 	game.start()
 	var env := OS.get_environment("PRIMORDIA_BOOT_QUIT_FRAMES")
