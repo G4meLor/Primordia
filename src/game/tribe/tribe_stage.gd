@@ -631,9 +631,10 @@ func _configure_tribesman(body: CreatureItem, extra: TribeExtraItem, t: Dictiona
 		"airborne": 0.0, "mood": String(t["mood"]), "scale": 1.7,
 	}
 	body.opts = {"t": sim.time}
-	# role + cargo markers (TS:1315)
+	# role + cargo markers (TS:1315) — carrying is null | "food" | "wood"
+	# (match on the raw Variant: String(null) has no constructor)
 	var icon: String
-	match String(t["carrying"]):
+	match t["carrying"]:
 		"food":
 			icon = "🍒"
 		"wood":
