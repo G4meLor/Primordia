@@ -28,7 +28,7 @@
     {
       "id": 4,
       "subject": "Task 4: Tribe stage scene node (render, camera, HUD panel)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         3
       ],
