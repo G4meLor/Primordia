@@ -65,6 +65,10 @@
 ##  - pattern rnd is the TS seeded hash (fract of sin(n·127.1 + seed)·
 ##    43758.5453, seed = |round(hue·13.7)|) — no randi/randf anywhere: a
 ##    species always looks like itself.
+##  - glow gradient falloff: TS stop-1 'transparent' interpolates
+##    premultiplied (edge hue dims ≈ 0.9× via the alpha ramp); _radial_disc
+##    interpolates straight-alpha with hue held — sub-perceptual on a
+##    5·size blob inside the clip (final M3 review M-1).
 ## Returns {clip_item: RID, pattern_item: RID, front_item: RID, spine: Array}
 ## — spine is the rig output the draw consumed (headless smoke asserts count 6
 ## + equality with creature_rig.spine_points; part B pixel-asserts reuse it).
