@@ -50,6 +50,7 @@ const ChaosScript := preload("res://src/game/chaos.gd")
 const CreatureEventsScript := preload("res://src/game/creature/creature_events.gd")
 const NamesScript := preload("res://src/evo/names.gd")
 const PartsScript := preload("res://src/evo/parts.gd")
+const MutationScript := preload("res://src/evo/mutation.gd")
 
 ## Seconds between counted grudge presses for one ent (an engagement, not a
 ## frame) — mirrors the eco-side harassment valve. Kept stage-local: the valve
@@ -1324,8 +1325,13 @@ func update_chaos(dt: float) -> void:
 	if gdom is Callable:
 		dom = float(gdom.call())
 	var on_warn := func(def) -> void:
-		if String(def.get("warn", "")) != "":
-			_fire("hud_banner", [{"title": def["warn"], "kind": "danger", "ttl": 2.4}])
+		# TS `if (def.warn)` evaluates the warn (getter) twice — the truthiness
+		# read and the banner title. effective_warn keeps the static-key
+		# semantics unchanged and re-reads warn_fn Callables here (Ruling 13:
+		# night_pack's box was polled by the weight() call just before spawn).
+		if ChaosScript.effective_warn(def):
+			_fire("hud_banner", [{"title": ChaosScript.effective_warn(def),
+					"kind": "danger", "ttl": 2.4}])
 			_fire("audio_play", ["alarm", 0.5, 0.0])
 	var on_apply := func(def) -> void:
 		_fire("hud_banner", [{"title": def["name"], "kind": "chaos"}])
@@ -1383,6 +1389,209 @@ func add_hazard(x: float, z: float, r: float, dps: float, ttl: float,
 ## Stage-time timer (TS after()).
 func after(seconds: float, fn: Callable) -> void:
 	timers.append({"left": seconds, "fn": fn})
+
+
+## TS dropMeteor (CreatureStage.ts:1133-1153) — boom + a meteor-kind bone +
+## the scorch sweep (ents first, then the player; invuln guards the player
+## only). killEnt inside the loop is TS-true: it marks the corpse, the
+## removal happens in update_ents.
+func drop_meteor(x: float, z: float) -> void:
+	_fire("audio_play", ["boom", 1.0, 0.0])
+	_fire("cam_shake", [12.0, 0.8])
+	_fx_burst(x, float(z) * Z_TO_Y, 40, ["#ffd08a", "#ff8a5a", "#fff"],
+			{"speed": 300.0, "ttl": 1.0, "size": 3.2})
+	_fire("fx_spawn", [{"x": x, "y": float(z) * Z_TO_Y, "kind": "ring", "ttl": 0.8,
+			"size": 26.0, "grow": 3.0, "color": "rgba(255,220,150,0.9)"}])
+	bones.append({"x": x, "z": clampf(z, Z_MIN, Z_MAX), "taken": false, "kind": "meteor"})
+	# scorch nearby
+	for e in ents:
+		if e.has("corpseT"):
+			continue
+		var d: float = _vdist(float(e["x"]), float(e["z"]), x, z)
+		if d < 150.0:
+			e["hp"] = float(e["hp"]) - 55.0 * (1.0 - d / 150.0)
+			e["hurtT"] = 1.0
+			if float(e["hp"]) <= 0.0:
+				kill_ent(e)
+	var dp: float = _vdist(px, pz, x, z)
+	if dp < 150.0 and invuln <= 0.0:
+		php -= 40.0 * (1.0 - dp / 150.0)
+		hurtT = 1.0
+
+
+## TS stampede (CreatureStage.ts:1155-1169) — a herd of large herbivores runs
+## across the island. Genome: the first living species over the size gate,
+## else the player's genome re-based to size 1.8 — a COMPLETE genome either
+## way (spawn_ent only takes whole genomes).
+func stampede() -> void:
+	var sp: Array = []
+	for s in eco.living():
+		if float(s["genome"]["size"]) > 1.2:
+			sp.append(s)
+	var genome: Dictionary
+	if not sp.is_empty():
+		genome = sp[0]["genome"]
+	else:
+		genome = GenomeScript.clone_genome(ctx.genome)
+		genome["size"] = 1.8
+	var z: float = pz + rng.range(-60.0, 60.0)
+	var dir: int = 1 if rng.chance(0.5) else -1
+	for i in 6:
+		var e: Dictionary = spawn_ent(null, px - float(dir) * (800.0 + float(i) * 90.0),
+				clampf(z + rng.range(-40.0, 40.0), Z_MIN, Z_MAX), genome, {})
+		e["lifespanStampede"] = 14.0
+		e["tx"] = float(dir) * WORLD_HALF
+		e["tz"] = z
+		e["mood"] = "alert"
+	_fire("hud_toast", [tr("STAMPEDE! Get out of the way!"), "bad", "🐂"])
+
+
+## TS nightRaid (CreatureStage.ts:1171-1182) — rival carnivores attack the
+## player's nest area. Empty predator pool: silent no-op (TS early return).
+func night_raid() -> void:
+	var predators: Array = []
+	for s in eco.living():
+		if String(s["genome"]["diet"]) == "carnivore" and not bool(s.get("kin", false)):
+			predators.append(s)
+	if predators.is_empty():
+		return
+	var sp: Variant = rng.pick(predators)
+	for i in 3:
+		var e: Dictionary = spawn_ent(sp, px + rng.range(-500.0, 500.0),
+				clampf(pz + rng.range(-160.0, 160.0), Z_MIN, Z_MAX))
+		e["mood"] = "angry"
+		e["tx"] = px
+		e["tz"] = pz
+	_fire("hud_toast", [tr("Night raid! Predators circle your nest!"), "bad", "🌙"])
+
+
+## TS nightPack (CreatureStage.ts:1186-1200) — the raider-bold chaos variant:
+## a coordinated pack closes in as one body from a ring angle (620px out,
+## z band ±240 clamped, per-ent jitter ±90).
+func night_pack() -> void:
+	var predators: Array = []
+	for s in eco.living():
+		if String(s["genome"]["diet"]) == "carnivore" and not bool(s.get("kin", false)):
+			predators.append(s)
+	if predators.is_empty():
+		return
+	var sp: Variant = rng.pick(predators)
+	var a: float = rng.next() * TAU
+	var cx: float = px + cos(a) * 620.0
+	var cz: float = clampf(pz + sin(a) * 240.0, Z_MIN, Z_MAX)
+	for i in 5:
+		var e: Dictionary = spawn_ent(sp, cx + rng.range(-90.0, 90.0),
+				clampf(cz + rng.range(-90.0, 90.0), Z_MIN, Z_MAX))
+		e["mood"] = "angry"
+		e["tx"] = px
+		e["tz"] = pz
+	_fire("hud_toast", [tr("A pack moves as one — eyes close in from the dark!"), "bad", "🐺"])
+
+
+## TS titanWalk (CreatureStage.ts:1204-1216) — Old Blood legend made flesh:
+## one huge, calm wanderer crosses the land. The titan genome is a complete
+## default genome re-based (size 2.6, herbivore, legs 4, horns 3, hue 120,
+## plates, generation 1) and mutated at rate 0.05 BEFORE the dir/z draws.
+func titan_walk() -> void:
+	var g: Dictionary = GenomeScript.clone_genome(GenomeScript.default_genome())
+	g["size"] = 2.6
+	g["diet"] = "herbivore"
+	g["legs"] = 4
+	g["horns"] = 3
+	g["hue"] = 120
+	g["coat"] = "plates"
+	g["generation"] = 1
+	g = MutationScript.mutate(g, rng, 0.05)
+	var dir: int = 1 if rng.chance(0.5) else -1
+	var z: float = clampf(pz + rng.range(-60.0, 60.0), Z_MIN, Z_MAX)
+	var e: Dictionary = spawn_ent(null, px - float(dir) * 900.0, z, g)
+	e["lifespanStampede"] = 30.0
+	e["tx"] = float(dir) * WORLD_HALF
+	e["tz"] = z
+	e["mood"] = "idle"
+	_fire("hud_toast", [tr("The ground trembles — a titan walks past."), "info", "🗿"])
+
+
+## TS mutationStormZap (CreatureStage.ts:1218-1243) — free +1 on a random gene
+## from the 9-gene pool, honoring the bounds table; pStats refresh + fanfare.
+## At the gene's cap: nothing happens (TS `if (cur < hi)`).
+func mutation_storm_zap() -> void:
+	var pool: Array = ["flagella", "cilia", "spikes", "jaw", "legs", "arms",
+			"eyes", "horns", "toxin"]
+	var gene: String = String(rng.pick(pool))
+	var bounds := {
+		"flagella": [0, 6], "cilia": [0, 4], "spikes": [0, 8], "jaw": [0, 5],
+		"legs": [0, 8], "arms": [0, 4], "eyes": [1, 6], "horns": [0, 4], "toxin": [0, 5],
+	}
+	var hi: int = int(bounds[gene][1])  # TS destructures [lo, hi]; lo is void
+	var cur: int = int(ctx.genome[gene])
+	if cur < hi:
+		ctx.genome[gene] = cur + 1
+		pStats = StatsScript.compute_creature_stats(ctx.genome)
+		_fire("hud_toast", ["Mutation storm! %s +1 (free)" % gene, "chaos", "🧪"])
+		_fx_burst(px, pz * Z_TO_Y - 20.0, 22, ["#e2a4ff", "#9fd8ff"],
+				{"speed": 150.0, "ttl": 1.0})
+
+
+## TS glorp (CreatureStage.ts:1245-1252) — a friendly weird blob grants DNA.
+func glorp() -> void:
+	# friendly weird blob grants DNA
+	var dna := 60
+	ctx.add_dna(dna)
+	_fire("audio_play", ["dna", 1.0, 0.0])
+	_fire("hud_float_world", [px + rng.range(-100.0, 100.0), pz * Z_TO_Y - 40.0,
+			"GLORP! +%d" % dna, "#e2a4ff", 16.0])
+	_fire("hud_toast", [tr("A Glorp wanders by and shares its plasma."), "reward", "🫧"])
+
+
+## TS rain (CreatureStage.ts:1254-1258) — the bushes swell (food +2 capped at
+## 8, regrow reset) and flora +15 under the cap.
+func rain() -> void:
+	for b in bushes:
+		b["food"] = minf(8.0, float(b["food"]) + 2.0)
+		b["regrow"] = 0.0
+	eco.flora = minf(float(eco.flora_cap), float(eco.flora) + 15.0)
+	_fire("hud_toast", [tr("Warm rain — the bushes swell with berries."), "good", "🌧"])
+
+
+## TS rainMirror (CreatureStage.ts:1262-1267) — the mirror face: exactly ONE
+## rule inverted — the berry swell rots; the rain itself still falls.
+func rain_mirror() -> void:
+	for b in bushes:
+		b["food"] = maxf(0.0, float(b["food"]) - 2.0)
+	eco.flora = minf(float(eco.flora_cap), float(eco.flora) + 15.0)
+	_fire("hud_toast", [tr("Warm rain — but the berries rot on the bush."), "info", "🌧"])
+
+
+## TS convergePredators (CreatureStage.ts:1287-1294) — predator_convergence:
+## one ent each from up to 3 wild carnivore lines, closing in from beyond the
+## ridge (ring radius 900, z band ±160).
+func converge_predators() -> void:
+	var hunters: Array = []
+	for sp in eco.living():
+		if not bool(sp.get("kin", false)) and String(sp["genome"]["diet"]) == "carnivore":
+			hunters.append(sp)
+	hunters = hunters.slice(0, 3)
+	for hunter in hunters:
+		var a: float = rng.next() * TAU
+		spawn_ent(hunter, px + cos(a) * 900.0, clampf(pz + sin(a) * 160.0, Z_MIN, Z_MAX))
+	if not hunters.is_empty():
+		_fire("hud_toast", [tr("Predators converge on the dominant line."), "chaos", "🩸"])
+
+
+## TS gaiaWanderer (CreatureStage.ts:1296-1305) — gaia_redemption tier 2: the
+## Lone Wanderer — one quiet individual with a gene this run never owned
+## (the bestiary notes it once via discover). No rare gene: silent no-op.
+func gaia_wanderer() -> void:
+	var rare: Variant = ctx.rare_gene()
+	if rare == null:
+		return
+	var g: Dictionary = GenomeScript.default_genome()
+	g[rare["gene"]] = rare["level"]
+	g = GenomeScript.clamp_genome(g)
+	spawn_ent(null, px + rng.range(-500.0, 500.0),
+			clampf(pz + rng.range(-120.0, 120.0), Z_MIN, Z_MAX), g)
+	ctx.discover(g, "%s wanderer" % NamesScript.species_name(rng), "creature")
 
 
 ## predator_convergence (catalog III #3): the player's line (self + pack)
