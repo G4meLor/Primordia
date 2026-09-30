@@ -183,7 +183,9 @@ static func _rival_festival(calm: bool) -> Dictionary:
 ## the richest hoard draws the biggest siege right when it is richest;
 ## severity rides the ONE dominanceSeverity formula, capped like #3. ALWAYS in
 ## the deck — below the threshold (or with no dominance reading) the weight
-## reads 0 and the pool math never picks it.
+## reads 0, which the pool math FLOORS at 0.01 (chaos.gd maxf — TS
+## chaos.ts:210 verbatim), so it stays pickable in principle at the same rate
+## as TS; the strict dominance gate is the real shutter.
 static func _siege_hoard() -> Dictionary:
 	var weight := func(c) -> float:
 		var dom: Variant = c.get("dominance")
