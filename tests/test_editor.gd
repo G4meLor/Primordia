@@ -1,16 +1,19 @@
-# Tests for src/ui/editor.gd — the cell editor port (Task 8). Ports the editor
+# Tests for src/ui/editor.gd — the editor port (Tasks 8/M2). Ports the editor
 # bot-test block of Spore tests/bot.test.ts:119-143 (buy → sell → E-close)
-# plus the cell-editor scope/layout/gate behavior reachable headless: the
-# 'cell' row set, part_cost/part_refund DNA math through context.spend_dna,
-# the spend gate + legs floor guard, diet/pattern/size/hue row flows, scroll
-# bounds, the on_stats_changed hook, the dirty-save on close. The REAL-pipeline
-# click path is tests/scenes/test_editor_click.gd (xvfb, Constraint 8).
+# plus the scope/layout/gate behavior reachable headless: the 'cell' row set,
+# part_cost/part_refund DNA math through context.spend_dna, the spend gate +
+# legs floor guard, diet/pattern/size/hue row flows, scroll bounds, the
+# on_stats_changed hook, the dirty-save on close — and (task 8) the creature
+# row scope, land-stat refresh, coat cycles and the preview painter's
+# caller-owned RIDs. The REAL-pipeline click path is
+# tests/scenes/test_editor_click.gd (xvfb, Constraint 8).
 extends "res://tests/test_base.gd"
 
 const EditorUiScript := preload("res://src/ui/editor.gd")
 const GameInputScript := preload("res://src/core/input.gd")
 const ContextScript := preload("res://src/game/context.gd")
 const PartsScript := preload("res://src/evo/parts.gd")
+const StatsScript := preload("res://src/evo/stats.gd")
 const I18nScript := preload("res://src/core/i18n.gd")
 
 const DT := 1.0 / 60.0
@@ -37,6 +40,7 @@ class MockGame extends RefCounted:
 	var saves := 0
 	var cursors: PackedStringArray = []
 	var hud: Dictionary = {}
+	var editor: Dictionary = {}
 
 	func _init() -> void:
 		context = ContextScript.new(7)
@@ -293,6 +297,82 @@ func test_close_without_changes_skips_save() -> void:
 	ed.close()
 	eq(bool(ed.open), false, "close closes")
 	eq(int(_g.saves), 0, "not dirty → no save (E-spam write storm guard)")
+
+
+# ---- creature mode (task 8 — the TS editor.ts creature branch) ---------------
+
+func test_creature_row_scope_matches_ts() -> void:
+	var ed: Variant = _editor()
+	ed.show("creature")
+	var rows: Array = ed.rows
+	# 10 creature/both parts + coat + diet + pattern + size + hue + sat = 16
+	# (editor.ts:83-87 — coat is creature-only)
+	eq(rows.size(), 16, "creature editor shows 16 rows")
+	var ids := []
+	for r in rows:
+		ids.append(String(r["kind"]) if r["kind"] != "part" else String(r["def"]["id"]))
+	var want := ["spikes", "jaw", "toxin", "legs", "arms", "eyes", "horns", "tail",
+			"wings", "brain", "coat", "diet", "pattern", "size", "hue", "sat"]
+	eq(ids, want, "row order is PARTS-filtered then coat + the five special rows")
+	ok(not ids.has("flagella") and not ids.has("cilia") and not ids.has("proboscis")
+			and not ids.has("electro") and not ids.has("jet"),
+			"cell-only parts filtered out of creature mode")
+
+
+func test_creature_buy_arm_refreshes_land_stats() -> void:
+	var ed: Variant = _editor(500)
+	ed.show("creature")
+	var before := int(_g.context.genome["arms"])
+	var dna_before := int(_g.context.dna)
+	var cost: int = PartsScript.part_cost(_part_def("arms"), before)
+	ed.click_part(_row(_part_def("arms")), "+")
+	eq(int(_g.context.genome["arms"]), before + 1, "arms +1 in creature mode")
+	eq(int(_g.context.dna), dna_before - cost, "dna decreased by part_cost")
+	eq(_stats_hooks, 1, "on_stats_changed hook fired")
+	# refresh_stats(land=true) — the CREATURE stat shape (compute_creature_stats)
+	eq(_g.context.stats, StatsScript.compute_stats(_g.context.genome, true),
+			"creature-mode refresh computes the land stat shape")
+
+
+func test_creature_coat_row_cycles_with_cost_gate() -> void:
+	var ed: Variant = _editor(30)
+	ed.show("creature")
+	eq(String(_g.context.genome["coat"]), "skin", "starter coat")
+	ed.click_row({"kind": "coat"}, 10.0, {"x": 0.0, "y": 0.0, "w": 300.0, "h": 44.0})
+	eq(String(_g.context.genome["coat"]), "fur", "skin → fur (COATS order)")
+	eq(int(_g.context.dna), 5, "fur costs 25")
+	ed.click_row({"kind": "coat"}, 10.0, {"x": 0.0, "y": 0.0, "w": 300.0, "h": 44.0})
+	eq(String(_g.context.genome["coat"]), "fur", "insufficient DNA for scales (35) — blocked")
+	eq(int(_g.context.dna), 5, "blocked cycle leaves the DNA untouched")
+	eq(_g.toasts.size(), 1, "gate toast")
+	eq(String(_g.toasts[0][0]), "Not enough DNA", "coat gate toast key")
+
+
+func test_creature_preview_paints_and_frees_caller_rids() -> void:
+	var ed: Variant = _editor()
+	ed.show("creature")
+	var ci := Node2D.new()  # offscreen bare canvas item (painter-test pattern)
+	ed._draw_preview(ci, 100.0, 300.0)
+	eq(ed._preview_rids.size(), 3, "preview stores the three caller-owned sub-RIDs")
+	for rid in ed._preview_rids:
+		ok((rid as RID).is_valid(), "preview sub-RID valid")
+	# redraw frees the previous frame's RIDs first (steady-state contract)
+	ed._draw_preview(ci, 100.0, 300.0)
+	eq(ed._preview_rids.size(), 3, "redraw keeps exactly one RID triple")
+	ed.free_preview_rids()
+	eq(ed._preview_rids.size(), 0, "free clears the pool")
+	ci.free()
+
+
+func test_editor_dict_mirrors_mode() -> void:
+	var ed: Variant = _editor()
+	var g: Variant = _g
+	g.editor = {"open": false}
+	ed.show("creature")
+	eq(bool(g.editor["open"]), true, "dict open flag synced")
+	eq(String(g.editor["mode"]), "creature", "dict mode synced (stage-switch adoption)")
+	ed.close()
+	eq(bool(g.editor["open"]), false, "dict open flag cleared on close")
 
 
 # ---- borrowed_flesh graft rows (buildRows unshift) ---------------------------

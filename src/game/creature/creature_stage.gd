@@ -229,8 +229,22 @@ func _install_overlays() -> void:
 	}
 	if editor_inst == null:
 		editor_inst = EditorUiScript.new(game)
+	# TS shared-Editor semantics: the Editor is ONE Game-level instance and
+	# switchStage (game.ts:208-227) touches no editor field — the overlay
+	# survives a stage switch. Native per-stage instances adopt the live dict
+	# state here; unreachable in normal play while the editor blocks gameplay
+	# (no transition can start or advance under game.gd's `blocked` branch),
+	# wired for the recorded TS behavior.
+	var carry_open := false
+	var carry_mode := "cell"
+	if game.editor is Dictionary:
+		carry_open = bool(game.editor.get("open", false))
+		carry_mode = String(game.editor.get("mode", "cell"))
+		if carry_open:
+			editor_inst.show(carry_mode)
 	game.editor = {
-		"open": false,
+		"open": editor_inst.open,
+		"mode": editor_inst.mode,
 		"show": editor_inst.show,
 		"close": editor_inst.close,
 		"update": editor_inst.update,
@@ -792,6 +806,10 @@ func on_enter(from: Variant = null) -> void:
 func on_exit() -> void:
 	if sim != null:
 		sim.on_exit()
+	# the editor preview's caller-owned RIDs die with the stage being left
+	# (a carried-open editor re-paints through the adopting stage's instance)
+	if editor_inst != null:
+		editor_inst.free_preview_rids()
 	# rig ownership: restore the disabled default the other stages expect
 	var c2d: Variant = game.cam.cam2d
 	if c2d != null:

@@ -1,8 +1,8 @@
 ## The Evolution Editor — Spore's signature feature. Live genome editing with
 ## DNA accounting, animated preview and instant visual feedback. Port of Spore
 ## src/ui/editor.ts (frozen). Works in cell mode (water parts) and creature
-## mode (body plan — the creature PREVIEW painter is a later milestone; the
-## rows/stats flows are complete).
+## mode (body plan — the creature preview paints through the task-6 creature
+## painter, TS editor.ts:322-326 pose numbers; the row/stat flows are shared).
 ##
 ## Task 8 ruling: RefCounted (the TS class shape — no Control node); drawn by
 ## the owning scene as the layer above the hud (TS game.ts:549). Buy/sell runs
@@ -24,6 +24,7 @@ const StatsScript := preload("res://src/evo/stats.gd")
 const NamesScript := preload("res://src/evo/names.gd")
 const WorldGenomeScript := preload("res://src/evo/world_genome.gd")
 const CellPainterScript := preload("res://src/gfx/cell_painter.gd")
+const CreaturePainter := preload("res://src/gfx/creature_painter.gd")
 
 var open := false
 var mode := "cell"            # 'cell' | 'creature' (TS Editor.mode)
@@ -45,6 +46,10 @@ var row_rects: Array = []
 var on_stats_changed: Callable = func() -> void: pass
 
 var _game: Variant = null
+## The creature preview's caller-owned sub-RIDs (task 6 painter contract) —
+## freed at the top of every redraw, on close() and via free_preview_rids()
+## on stage teardown.
+var _preview_rids: Array = []
 
 
 func _init(game_v: Variant) -> void:
@@ -63,6 +68,7 @@ func show(mode_v: String) -> void:
 func close() -> void:
 	open = false
 	_sync_open()
+	free_preview_rids()
 	# dirty-flag: E-spam used to write localStorage ~30×/s (~2700 saves in a
 	# 90s session) — only persist when the genome actually changed
 	if dirty_since_save:
@@ -73,12 +79,14 @@ func close() -> void:
 	# TS audio.play('click') — audio core is its own task
 
 
-## The game dict mirrors the live flag: game.gd's blocked check and the
-## stage's KeyE gate read `editor["open"]` (the stub-dict contract), and a
-## dict value would otherwise be a stale snapshot of the instance field.
+## The game dict mirrors the live flag + mode: game.gd's blocked check and the
+## stage's KeyE gate read `editor["open"]` (the stub-dict contract), a dict
+## value would otherwise be a stale snapshot of the instance field, and the
+## stage-switch adoption (creature_stage._install_overlays) carries `mode`.
 func _sync_open() -> void:
 	if _game != null and "editor" in _game and _game.editor is Dictionary:
 		_game.editor["open"] = open
+		_game.editor["mode"] = mode
 
 
 func toggle(mode_v: String) -> void:
@@ -362,8 +370,8 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 			"hurt": 0.0, "eat": maxf(0.0, sin(preview_t * 1.4)) * 0.5, "dash": 0.0,
 			"seed": 3.7,
 		}, {"t": preview_t})
-	# (creature mode draws via the creature painter — a later milestone; the
-	# row/stat flows below are complete for both modes)
+	else:
+		_draw_preview(ci, pv_x, pv_y)
 
 	# stats readout
 	var stats: Dictionary = StatsScript.compute_stats(g, mode == "creature")
@@ -613,6 +621,28 @@ func _row_label(ci: CanvasItem, x: float, y: float, w: float, h: float, name: St
 			x + 12.0, y + 30.0,
 			{"size": 10.0, "fill": RendererScript.css_color("rgba(190,215,245,0.65)"),
 					"align": "left", "maxWidth": w - 24.0})
+
+
+## TS editor.ts:322-326 — the creature-mode preview through the task-6 painter.
+## Pose numbers verbatim (facing 1, speed 0.12, mood happy, scale 2.1). The
+## painter's three sub-RIDs are CALLER-OWNED (task 6 contract): freed at the
+## top of every redraw, on close() and via free_preview_rids() on stage
+## teardown. Extracted from draw() so headless tests can drive it on a bare
+## CanvasItem (the draw_* helpers would guard outside _draw).
+func _draw_preview(ci: CanvasItem, pv_x: float, pv_y: float) -> void:
+	free_preview_rids()
+	var res: Dictionary = CreaturePainter.draw_creature(ci, _g(), {
+		"x": pv_x, "y": pv_y, "facing": 1, "speed": 0.12, "gaitPhase": gait,
+		"attack": 0.0, "hurt": 0.0, "eat": 0.0, "airborne": 0.0,
+		"mood": "happy", "scale": 2.1,
+	}, {"t": preview_t})
+	_preview_rids = [res["clip_item"], res["pattern_item"], res["front_item"]]
+
+
+func free_preview_rids() -> void:
+	for rid in _preview_rids:
+		RenderingServer.free_rid(rid)
+	_preview_rids = []
 
 
 # ---- lookup helpers (TS DIETS.find / PATTERNS.find / COATS.find) --------------
