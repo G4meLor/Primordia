@@ -356,7 +356,13 @@ def main():
         row = row_median_lum(stampede, int(fyy + 30), W * 0.08, W * 0.92)
         c = px(stampede, bxx, byy)
         off = sum(abs(c[k] - row) for k in range(3)) / 3.0
-        check("herd-body-%s" % chr(97 + i), off >= 40,
+        # "visible against the lawn" in either direction: the herd genome is
+        # the roster's first size>1.2 species, so the body hue varies by eco
+        # state — a dark-purple herd (B >> G) scored off ~23 against the
+        # luminance row although it is clearly not lawn. Accept a directional
+        # color gap too; the lawn itself is green-dominant and fails all three.
+        body = off >= 40 or c[2] - c[1] >= 30 or c[0] - c[1] >= 30
+        check("herd-body-%s" % chr(97 + i), body,
               "body %s vs lawn row %.0f (off %.0f)" % (c, row, off))
     bxx, byy, fxx, fyy = ents[0]
     row = row_median_lum(stampede, int(fyy + 30), W * 0.08, W * 0.92)

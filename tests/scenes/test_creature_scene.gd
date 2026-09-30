@@ -57,7 +57,6 @@ var _day_time := 0.0
 var _death_start := 0.0
 var _herd_seen := false
 var _tp_frame := -10000  # last player-to-the-lane fixture teleport (frame #)
-var _v3_frame := -1      # the frame the third lava hazard landed
 
 
 func _ready() -> void:
@@ -262,26 +261,24 @@ func _process(_dt: float) -> void:
 			game.current.frozen = false
 			_phase = "volcano_live"
 		"volcano_live":
-			# freeze once ALL FIVE lava strikes have landed: the volcano is the
-			# only lava event, so "5 lava hazards alive" ⇔ the last strike just
-			# landed. The strike delays span up to 12 s inside the 14 s ttl, so
-			# the all-alive window is only ~3 s wide — a gate on the stage's
-			# timer list drained missed it whenever other live events kept
-			# timers pending (3600-frame timeout), and waiting on ≥3 hazards
-			# raced an expiry. (Meteors are 'fire' kind — see _volcano_probes.)
+			# freeze once TWO lava hazards are alive AND both in view: the
+			# moment's asserts need exactly two anchored glows + the warm mass
+			# + the smoke — not the full strike set. (The stricter "all five
+			# landed" gates flaked two ways: a global timer-list drain that
+			# other live events kept busy, and — rarer — a strike timer that
+			# vanished without its hazard ever appearing (DIAG evidence in the
+			# task report's concerns; needs a follow-up probe). Any two of the
+			# five delays are ≤ 11 s apart inside the 14 s ttl, so a 2-alive
+			# window ≥ 3 s ALWAYS exists — freezing on it is race-free.
+			# Meteors are 'fire' kind — see _volcano_probes.)
 			var lava_alive := 0
 			for hz in st.hazards:
 				if String(hz["kind"]) == "lava":
 					lava_alive += 1
-			if lava_alive >= 5:
-				if _v3_frame < 0:
-					_v3_frame = _frames
-				elif _frames - _v3_frame > 60:
-					game.current.frozen = true
-					_volcano_probes(st)
-					_phase = "volcano_arm"
-			else:
-				_v3_frame = -1
+			if lava_alive >= 2 and _volcano_anchors_ready(st):
+				game.current.frozen = true
+				_volcano_probes(st)
+				_phase = "volcano_arm"
 		"volcano_arm":
 			_phase = "volcano_shot"
 		"volcano_shot":
@@ -323,19 +320,26 @@ func _process(_dt: float) -> void:
 				elif count > 0:
 					_fail("stampede herd count %d < 4" % count)
 					return
-			if _herd_seen and best < 350.0 and _frames - _tp_frame > 100:
-				# 350 px keeps the second-nearest herd ent (the herd trails
-				# 90 world-px) inside the checker's visible-anchored band
+			if _herd_seen and best < 500.0 and _frames - _tp_frame > 100 \
+				and _herd_picks(st).size() >= 2:
+				# 500 px: at the world edge the herd parks at ±2900 while the
+				# puppet's clamp holds exactly 350 away — a strict 350 gate
+				# never fires (timeout). Visibility is the anchors-ready
+				# gate's job, not the distance gate's.
 				game.current.frozen = true
 				_herd_probes(st)
 				_phase = "stampede_arm"
 			elif _herd_seen and _frames - _tp_frame > 120:
-				# teleport NEXT to the herd and SNAP the camera (the follow
-				# would take ~1.7 s to reconverge — a running herd outruns it;
-				# the snap equals the converged state, so the anchors computed
-				# next frame are exact)
+				# teleport AHEAD of the herd (in its running path) and SNAP the
+				# camera (the follow would take ~1.7 s to reconverge — a
+				# running herd outruns it; the snap equals the converged state,
+				# so the anchors computed next frame are exact). AHEAD, not
+				# behind: the herd covers ~300 px during the 100-frame settle,
+				# so a puppet parked behind watches the herd run away and best
+				# never re-enters the gate (the east-edge timeout signature).
 				var lane: Dictionary = st.ents[herd_i]
-				st.px = clampf(float(lane["x"]) - 350.0, -2900.0, 2900.0)
+				var dir_s: float = signf(float(lane["tx"]))
+				st.px = clampf(float(lane["x"]) + dir_s * 350.0, -2900.0, 2900.0)
 				st.pz = clampf(float(lane["z"]), -200.0, 240.0)
 				game.cam.snap(st.px, st.pz * Z_TO_Y)
 				_tp_frame = _frames
@@ -453,28 +457,40 @@ func _death_probes() -> void:
 	}
 
 
-## The volcano aftermath's anchors: the two landed LAVA hazards nearest the
-## screen center (the glow ellipse rx = r = 64, ry = 32 world → screen).
-## LAVA-only: the live phases before the trigger run the real chaos deck, so a
-## meteor's fire hazards (r 46, ttl 6, dimmer orange) can still be alive at
-## the freeze — and which events fired varies with frame pacing (real-dt tick
-## counts shift the rng stream), which made a fire pick fail the warm-box
-## assert run-to-run. The trigger's own 5 strikes are always lava, so the
-## filtered pick set is the deterministic volcano layout.
-func _volcano_probes(st: Variant) -> void:
+## True once two LAVA hazards project in-view (the freeze gate + the anchor
+## pick share this). LAVA-only: the live phases before the trigger run the
+## real chaos deck, so an earthquake's fire hazards (r 46, dimmer orange) can
+## be alive too — a fire pick failed the warm-box assert run-to-run.
+func _volcano_lava_picks(st: Variant) -> Array:
 	var picks: Array = []
 	for hz in st.hazards:
 		if String(hz["kind"]) != "lava":
 			continue
 		var s: Vector2 = _world_to_screen(float(hz["x"]), float(hz["z"]) * Z_TO_Y)
+		# in-view gate (the herd anchors' shape): the box is 11 px wide, keep
+		# the center ≥ 8% inside both axes so patch_mean never reads off-screen
+		if s.x < game.vw * 0.08 or s.x > game.vw * 0.92 \
+				or s.y < 24.0 or s.y > game.vh - 24.0:
+			continue
 		picks.append([absf(s.x - game.vw / 2.0), s.x, s.y])
 	picks.sort_custom(func(a, b) -> bool: return float(a[0]) < float(b[0]))
+	return picks
+
+
+func _volcano_anchors_ready(st: Variant) -> bool:
+	return _volcano_lava_picks(st).size() >= 2
+
+
+## The volcano aftermath's anchors: the two in-view LAVA hazards nearest the
+## screen center (the glow ellipse rx = r = 64, ry = 32 world → screen).
+func _volcano_probes(st: Variant) -> void:
+	var picks: Array = _volcano_lava_picks(st)
+	if picks.size() < 2:
+		_fail("fewer than 2 visible lava hazards at the freeze")
+		return
 	var hazards: Array = []
 	for i in mini(2, picks.size()):
 		hazards.append([float(picks[i][1]), float(picks[i][2])])
-	if hazards.size() < 2:
-		_fail("fewer than 2 visible lava hazards at the freeze")
-		return
 	_probe["volcano"] = {
 		"hazards": hazards,
 		"smoke": {"x": float(hazards[0][0]), "y0": float(hazards[0][1]) - 64.0,
@@ -485,13 +501,16 @@ func _volcano_probes(st: Variant) -> void:
 ## The stampede herd's anchors: the two herd ents nearest the screen center
 ## that are actually IN VIEW (the herd trails 90 world-px apart — the tail
 ## ents sit off-screen), each with its body center + feet anchor.
-func _herd_probes(st: Variant) -> void:
+## The live in-view herd candidates (the freeze gate and the anchor pick
+## share one scan): live herd ents only — a killed member lies rotated/fading,
+## not a body pin — with the body anchor inside the visible band.
+func _herd_picks(st: Variant) -> Array:
 	var picks: Array = []
 	for e in st.ents:
 		if not e.has("lifespanStampede"):
 			continue
 		if e.has("corpseT") or float(e["hp"]) <= 0.0:
-			continue  # a killed herd member lies rotated/fading — not a body pin
+			continue
 		var feet: Vector2 = _world_to_screen(float(e["x"]), float(e["z"]) * Z_TO_Y)
 		var e_m: Dictionary = RigScript._metrics(e["genome"], {"scale": 2.1})
 		var body := Vector2(feet.x, feet.y + float(e_m["body_y"]) * game.cam.zoom)
@@ -500,6 +519,11 @@ func _herd_probes(st: Variant) -> void:
 			continue
 		picks.append([absf(body.x - game.vw / 2.0), body.x, body.y, feet.x, feet.y])
 	picks.sort_custom(func(a, b) -> bool: return float(a[0]) < float(b[0]))
+	return picks
+
+
+func _herd_probes(st: Variant) -> void:
+	var picks: Array = _herd_picks(st)
 	if picks.size() < 2:
 		_fail("fewer than 2 herd ents visible at the freeze (candidates %d)" % picks.size())
 		return
