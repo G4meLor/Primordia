@@ -838,6 +838,17 @@ func on_exit() -> void:
 		c2d.enabled = false
 
 
+## TS CreatureStage.persistState (CreatureStage.ts:344-347) — the autosave
+## flush seam: game.save_all()/the 60s autosave call current.persist_state()
+## (game.ts:239/296 optional call), which the sim's on_exit/befriend paths
+## don't cover — a mid-creature autosave without this wrote a slot whose
+## flags.packGenomes lagged the live pack, and CONTINUE restored 0 friends.
+## The cell stage has no such method TS-true (CellStage.ts defines none).
+func persist_state() -> void:
+	if sim != null:
+		sim.persist_state()
+
+
 # ---- hooks (CreatureSim → scene/game/storyteller) -------------------------------
 
 func _build_hooks() -> Dictionary:
