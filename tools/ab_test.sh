@@ -56,6 +56,21 @@ elif [ -n "$DIFF_SHA" ] && [ "$DIFF_SHA" = "$RECORDED_SHA" ]; then
 	VERDICT="SANCTIONED_MATCH"
 fi
 
+echo "ab: base=$BASE_SHA"
+echo "ab: head=$HEAD_SHA"
+echo "ab: diff_lines=$DIFF_LINES"
+if [ "$VERDICT" = "FAIL" ]; then
+	# fail-CLOSED on the evidence file (M2 final-review carry-forward): the
+	# write used to sit ABOVE this check, so a failing run clobbered
+	# sanctioned_diff_sha256 with its own diff sha — and the SECOND failing
+	# run then read its own sha back and laundered into SANCTIONED_MATCH
+	# (exit 0). On FAIL nothing in tests/fixtures/ab/ is touched; the failing
+	# diff lands in /tmp for eyeballing. tools/test_ab.sh pins the failure path.
+	echo "AB_TEST_FAIL: diff sha $DIFF_SHA does not match the recorded sanctioned diff (see $EVIDENCE)"
+	cp "$WORK/ab.diff" /tmp/ab_test_fail.diff 2>/dev/null || true
+	exit 1
+fi
+
 STAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 HEAD_COMMIT="$(git rev-parse HEAD)"
 {
@@ -70,14 +85,5 @@ HEAD_COMMIT="$(git rev-parse HEAD)"
 	echo "verdict=$VERDICT"
 } > "$EVIDENCE"
 cp "$WORK/ab.diff" tests/fixtures/ab/last_diff.txt 2>/dev/null || true
-
-echo "ab: base=$BASE_SHA"
-echo "ab: head=$HEAD_SHA"
-echo "ab: diff_lines=$DIFF_LINES"
-if [ "$VERDICT" = "FAIL" ]; then
-	echo "AB_TEST_FAIL: diff sha $DIFF_SHA does not match the recorded sanctioned diff (see $EVIDENCE)"
-	cp "$WORK/ab.diff" /tmp/ab_test_fail.diff 2>/dev/null || true
-	exit 1
-fi
 echo "AB_TEST_OK verdict=$VERDICT"
 exit 0
