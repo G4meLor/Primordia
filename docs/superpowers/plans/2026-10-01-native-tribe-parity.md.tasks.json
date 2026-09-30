@@ -3,7 +3,7 @@
     {
       "id": 1,
       "subject": "Task 1: Tribe sim core (state, chief, tribesmen, economy)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [],
       "description": "**Goal:** Tribe sim core (state, chief, tribesmen, economy). Full AC in plan Task 1.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/tribe/tribe_sim.gd\", \"tests/test_tribe_sim.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"constants+constructor pins\", \"onEnter restore/re-found/pack conversion\", \"chief move/death/respawn\", \"tribesman job AI + quota\", \"economy + popCap\"]}\n```"
     },
