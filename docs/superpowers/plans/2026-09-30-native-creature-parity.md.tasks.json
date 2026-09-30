@@ -25,12 +25,12 @@
     {
       "id": 4,
       "subject": "Task 4: Charm minigame + pack + founding",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         2,
         3
       ],
-      "description": "**Goal:** try_charm/update_charm (marker 0.75 start, mustExit anti-mash), pack persistence, found_tribe → tribe PLACEHOLDER. Full AC in plan Task 4.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/creature/creature_sim.gd\", \"tests/test_charm.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"3-beat charm sequence befriends\", \"mash-in-zone does nothing\", \"pack-full + size gates\", \"found_tribe snapshot + placeholder transition\"]}\n```"
+      "description": "**Goal:** try_charm/update_charm (marker 0.75 start, mustExit anti-mash), pack persistence, found_tribe → tribe PLACEHOLDER.\n\nComplete — see ledger (commit 12227ca, review clean)."
     },
     {
       "id": 5,
@@ -102,5 +102,5 @@
       "description": "**Goal:** Close M3: ab_test.sh fail-open fix, A-B run, perf, whole-branch review, tag creature-parity-m3. Full AC in plan Task 11.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"tools/ab_test.sh\", \"docs/PARITY-M3.md\", \"docs/ARCHITECTURE.md\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ./tools/test.sh\", \"acceptanceCriteria\": [\"ab_test failure-path test proves no laundering\", \"A-B 4 scenarios IDENTICAL or ruled\", \"sim tick <= 2ms @60 ents\", \"tag creature-parity-m3\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-09-30T09:30:00Z"
+  "lastUpdated": "2026-09-30T10:05:00Z"
 }
