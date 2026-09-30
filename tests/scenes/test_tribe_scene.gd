@@ -197,8 +197,11 @@ func _process(_dt: float) -> void:
 			for i in st.tribe.size():
 				st.tribe[i]["x"] = 220.0 + float(i) * 40.0
 				st.tribe[i]["z"] = 100.0
-			st.px = 0.0
+			st.px = 150.0
 			st.pz = 60.0
+			# the raid banner drains on HUD time (frame delta) — dismiss it so
+			# the night/death/zsort captures carry no stale overlay
+			game.hud["dismiss_banner"].call()
 			game.cam.snap(st.px, st.pz * Z_TO_Y)
 			_night_probes(st)
 			_phase = "night_arm"
