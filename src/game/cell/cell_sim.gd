@@ -119,12 +119,27 @@ var _flat_live := false
 # the gathered indices are sorted ascending = the full scan's order, so every
 # order-sensitive accumulation keeps its exact term order). Rebuilt lazily:
 # any ent removal/append or pellet append marks the grid dirty; the next
-# gather rebuilds it. Ent grid cell ≥ 14·(size_i+size_j) for every pair
-# (positions ≥ 2 cells apart are ≥ cell apart > every minD); pellet grids
-# likewise for eatR / the 300 px seek radius.
+# gather rebuilds it. Exactness of the pruning, per grid:
+# - ent grid: cell ≥ 14·(size_i+size_j) for every pair, and the buckets hold
+#   LIVE cells (tick-start build + _ent_cell_sync at every position write) —
+#   so a candidate within minD of the scanning ent's live position is always
+#   in the ent's current-cell ±1 neighborhood. (A tick-start-frame-only grid
+#   would NOT be exact: an ent drifting across a boundary mid-tick while its
+#   bucket stayed stale could be missed — the sync closes that gap.)
+# - pellet grids: pellets never move during update_ents, so build cells are
+#   live cells; cell > eatR / the 300 px seek radius covers every in-range
+#   candidate.
+# The grid_gather=false seam (test_grid_gather_equivalence_full_scan) runs
+# seeded crowded configs through both gathers and asserts identical state —
+# the automated grid≡full-scan gate behind this comment.
 var _eg: Dictionary = {}
 var _eg_cell := 29.0
 var _eg_dirty := false
+# each ent's CURRENT grid cell (kept live by _ent_cell_sync — buckets always
+# reflect live positions, which is what makes the 3x3 gather exact under
+# mid-tick drift, not just at tick start)
+var _ecellx := PackedInt32Array()
+var _ecelly := PackedInt32Array()
 var _pg_eat: Dictionary = {}
 var _pg_seek: Dictionary = {}
 var _pg_cell := 15.0
@@ -139,6 +154,11 @@ var _zdps := PackedFloat64Array()
 var _ztoxin := PackedInt32Array()
 var _zmine := PackedInt32Array()
 var _cand := PackedInt32Array()  # reusable candidate gather (grid_near + sort)
+## Test seam (grid-equivalence test): false forces the candidate gathers to
+## full scans — the same lists the pre-optimization loops iterated. The
+## equivalence test runs identical seeded configs through both modes and
+## asserts identical state evolution.
+var grid_gather := true
 # per-tick AI hoists (invariant reads) + the species grudge cache
 var _first_ai := true
 var _p_size := 1.0
@@ -785,6 +805,8 @@ func update_ents(dt: float) -> void:
 			_ehps.remove_at(i)
 			_esizes.remove_at(i)
 			_eeids.remove_at(i)
+			_ecellx.remove_at(i)
+			_ecelly.remove_at(i)
 			_eg_dirty = true  # index space shifted; next gather rebuilds
 			i -= 1
 			continue
@@ -813,6 +835,7 @@ func update_ents(dt: float) -> void:
 			e["y"] = float(e["y"]) + float(e["vy"]) * dt
 			_exs[i] = float(e["x"])
 			_eys[i] = float(e["y"])
+			_ent_cell_sync(i)
 			i -= 1
 			continue
 
@@ -896,6 +919,7 @@ func update_ents(dt: float) -> void:
 			e["y"] = float(e["y"]) + ((float(e["y"]) - py) / pd) * 48.0 * dt
 			_exs[i] = float(e["x"])
 			_eys[i] = float(e["y"])
+			_ent_cell_sync(i)
 			# the drift moved THIS ent — the downstream sections (separation,
 			# eat, toxin zones) must see the post-drift position the way the
 			# pre-optimization code did (it read e["x"]/e["y"] live)
@@ -958,9 +982,13 @@ func update_ents(dt: float) -> void:
 				if _pg_dirty:
 					_rebuild_pg()
 				_cand.clear()
-				_grid_near(_pg_seek, eEx, eEy, 301.0, _cand)
-				if _cand.size() > 1:
-					_cand.sort()  # tie-break order = full-scan order
+				if grid_gather:
+					_grid_near(_pg_seek, eEx, eEy, 301.0, _cand)
+					if _cand.size() > 1:
+						_cand.sort()  # tie-break order = full-scan order
+				else:
+					for pj3 in pellets.size():
+						_cand.append(pj3)
 				for gi in _cand.size():
 					var pj: int = _cand[gi]
 					if _pdead[pj] == 1:
@@ -990,9 +1018,13 @@ func update_ents(dt: float) -> void:
 		if _eg_dirty:
 			_rebuild_eg()
 		_cand.clear()
-		_grid_near(_eg, eEx, eEy, _eg_cell, _cand)
-		if _cand.size() > 1:
-			_cand.sort()  # reproduce the full scan's ascending order
+		if grid_gather:
+			_grid_near(_eg, eEx, eEy, _eg_cell, _cand)
+			if _cand.size() > 1:
+				_cand.sort()  # reproduce the full scan's ascending order
+		else:
+			for oj in ents.size():
+				_cand.append(oj)
 		for oi in _cand.size():
 			var oj: int = _cand[oi]
 			if _eeids[oj] == myEid:
@@ -1029,6 +1061,7 @@ func update_ents(dt: float) -> void:
 		e["vy"] = nvy
 		_exs[i] = nx
 		_eys[i] = ny
+		_ent_cell_sync(i)
 
 		# ents stay in world
 		var dO: float = sqrt(nx * nx + ny * ny)
@@ -1050,7 +1083,11 @@ func update_ents(dt: float) -> void:
 		if _pg_dirty:
 			_rebuild_pg()
 		_cand.clear()
-		_grid_near(_pg_eat, nx, ny, _pg_cell, _cand)
+		if grid_gather:
+			_grid_near(_pg_eat, nx, ny, _pg_cell, _cand)
+		else:
+			for pj2 in pellets.size():
+				_cand.append(pj2)
 		var ci := _cand.size() - 1
 		while ci >= 0:
 			var pj: int = _cand[ci]
@@ -1273,6 +1310,8 @@ func spawn_ent(sp: Variant, x: float, y: float, genome_override: Dictionary = {}
 		_ehps.append(float(e["hp"]))
 		_esizes.append(float(genome.get("size", 1)))
 		_eeids.append(int(e["eid"]))
+		_ecellx.append(0)
+		_ecelly.append(0)  # placeholders — the dirty rebuild derives real cells
 		_eg_dirty = true  # index space shifted; next gather rebuilds
 	return e
 
@@ -1402,6 +1441,36 @@ func _grid_near(g: Dictionary, x: float, y: float, cell: float, out: PackedInt32
 				out.append_array(b)
 
 
+## Keep ent i's bucket membership on its LIVE cell — called after every
+## position write. Without this, an ent drifting across a cell boundary mid
+## tick would sit in a stale bucket while the gather centers on live
+## positions, and a within-minD candidate could be missed (the ent grid is
+## the only one that needs this: pellets never move during update_ents).
+func _ent_cell_sync(i: int) -> void:
+	if _eg_dirty:
+		return  # pending wholesale rebuild — the sync would be discarded
+	var ck := Vector2i(floori(_exs[i] / _eg_cell), floori(_eys[i] / _eg_cell))
+	if ck.x == int(_ecellx[i]) and ck.y == int(_ecelly[i]):
+		return
+	var old := Vector2i(int(_ecellx[i]), int(_ecelly[i]))
+	var b: Variant = _eg.get(old)
+	if b != null:
+		var bucket: PackedInt32Array = b
+		var k := bucket.find(i)
+		if k >= 0:
+			bucket.remove_at(k)
+			_eg[old] = bucket
+	var nb: Variant = _eg.get(ck)
+	if nb == null:
+		_eg[ck] = PackedInt32Array([i])
+	else:
+		var nbucket: PackedInt32Array = nb
+		nbucket.append(i)
+		_eg[ck] = nbucket
+	_ecellx[i] = ck.x
+	_ecelly[i] = ck.y
+
+
 ## Rebuild the ent grid (also after any ent removal/append — indices shift).
 func _rebuild_eg() -> void:
 	_eg.clear()
@@ -1410,8 +1479,12 @@ func _rebuild_eg() -> void:
 	for j in n:
 		if 28.0 * _esizes[j] + 1.0 > _eg_cell:
 			_eg_cell = 28.0 * _esizes[j] + 1.0
+	_ecellx.resize(n)
+	_ecelly.resize(n)
 	for j in n:
 		_grid_add(_eg, _exs[j], _eys[j], _eg_cell, j)
+		_ecellx[j] = floori(_exs[j] / _eg_cell)
+		_ecelly[j] = floori(_eys[j] / _eg_cell)
 	_eg_dirty = false
 
 

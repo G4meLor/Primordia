@@ -961,3 +961,89 @@ func test_determinism_600_ticks() -> void:
 	for f in 60:
 		c["sim"].update(DT, _inp({"down": true, "wx": 100.0, "wy": 0.0}))
 	ok(_snap(c["sim"])["kelp"] != _snap(a["sim"])["kelp"], "different seed diverges")
+
+
+## The grid gather must select the exact same candidate sets — and produce the
+## identical pushes/eats — as the full scans it replaced. N seeded crowded
+## configs run twice (production grid vs the forced full-scan seam) with a
+## moving crowd (hunt/flee/graze drift across cell boundaries mid-tick); the
+## FULL sim state must evolve bit-identically. Half the configs ride a
+## scripted 2.5 s warn window so the panic drift + downstream gathers are
+## covered too. Any diff = a real grid-selection bug (the A-B harness's
+## automated stand-in for the hand proof in PARITY-M2.md §17).
+func test_grid_gather_equivalence_full_scan() -> void:
+	var chaos_lib := load("res://src/game/chaos.gd")
+	for cfg in 12:
+		var seed_v: int = 0xAB1000 + cfg * 7919
+		var grid_m := _mk_sim(seed_v)
+		var full_m := _mk_sim(seed_v)
+		var grid: Variant = grid_m["sim"]
+		var full: Variant = full_m["sim"]
+		full.grid_gather = false
+		if cfg % 2 == 0:
+			# scripted warned def — the panic window (the harness s2 shape)
+			var wdef: Dictionary = {
+				"id": "gq", "name": "GQ PANIC", "warn": "incoming…",
+				"weight": func(_c): return 1.0,
+				"duration": [30.0, 30.0], "cooldown": 999,
+				"apply": func(_s, _rng): pass,
+			}
+			grid.chaos = chaos_lib.new(grid.rng.branch(), [wdef])
+			grid.chaos._since_last = 1000.0
+			full.chaos = chaos_lib.new(full.rng.branch(), [wdef.duplicate(true)])
+			full.chaos._since_last = 1000.0
+		# identical seeded crowd: mixed sizes/species spread ±450 (some pairs
+		# cross cell boundaries as they move — the tick-start-rebuild gap the
+		# 3x3 gather must not have)
+		var lcg: int = 0x61D10 + cfg
+		var n := 30 + (cfg * 7) % 50
+		for j in n:
+			lcg = (lcg * 1103515245 + 12345) & 0x7fffffff
+			var ang := float(lcg) / float(0x7fffffff) * TAU
+			lcg = (lcg * 1103515245 + 12345) & 0x7fffffff
+			var rad := float(lcg) / float(0x7fffffff) * 450.0
+			lcg = (lcg * 1103515245 + 12345) & 0x7fffffff
+			var sz: float = [0.6, 0.85, 1.1, 1.35, 1.6, 1.9, 2.2][lcg % 7]
+			var pool: Array = []
+			for sp in grid.eco.living():
+				if not bool(sp.get("kin", false)):
+					pool.append(sp)
+			var g: Dictionary = pool[j % pool.size()]["genome"].duplicate()
+			g["size"] = sz
+			var gx: float = grid.px + cos(ang) * rad
+			var gy: float = grid.py + sin(ang) * rad
+			grid.spawn_ent(pool[j % pool.size()], gx, gy, g)
+			full.spawn_ent(pool[j % pool.size()], gx, gy, g.duplicate(true))
+		eq(grid.ents.size(), full.ents.size(), "cfg %d: identical spawn" % cfg)
+		for t in 12:
+			var inp := _inp({
+				"wx": sin(float(t) * 0.9) * 400.0, "wy": cos(float(t) * 0.6) * 400.0,
+				"down": t % 30 < 18,
+				"keys_held": ["KeyW"] if t % 70 < 25 else [],
+				"keys_pressed": ["Space"] if t % 240 == 120 else [],
+			})
+			grid.update(DT, inp)
+			full.update(DT, inp)
+			# full-precision state compare — identical execution is bit-equal
+			var ga: Array = []
+			var fa: Array = []
+			for e in grid.ents:
+				ga.append([e["eid"], e["x"], e["y"], e["vx"], e["vy"], e["hp"],
+						e["eatT"], e["stun"], e["wanderT"], e["tx"], e["ty"]])
+			for e in full.ents:
+				fa.append([e["eid"], e["x"], e["y"], e["vx"], e["vy"], e["hp"],
+						e["eatT"], e["stun"], e["wanderT"], e["tx"], e["ty"]])
+			if str(ga) != str(fa):
+				# locate the first diverging ent for the failure message
+				var why := "state shapes differ (ents %d vs %d)"
+				for k in mini(ga.size(), fa.size()):
+					if str(ga[k]) != str(fa[k]):
+						why = "ent idx %d: grid=%s full=%s" % [k, str(ga[k]), str(fa[k])]
+						break
+				ok(false, "cfg %d tick %d: grid vs full-scan diverged — %s"
+						% [cfg, t, why])
+				return
+			eq(grid.pellets.size(), full.pellets.size(),
+					"cfg %d tick %d: pellet count" % [cfg, t])
+			eq(snappedf(grid.px, 1e-9), snappedf(full.px, 1e-9),
+					"cfg %d tick %d: player x" % [cfg, t])

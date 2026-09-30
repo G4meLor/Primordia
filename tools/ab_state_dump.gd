@@ -11,6 +11,9 @@
 #                        tagged contact-dying (the death sweep pays them at
 #                        the top of update_ents → grudge 0→2 mid-tick → the
 #                        later same-species ents' grudge reads)
+#   s4  lifespan-crowd — 100-ent crowd + 20 ents with 2–4 s lifespans mixed
+#                        in; the expiry sweeps fire mid-crowd across 600
+#                        ticks (ent-grid dirty flags under removal pressure)
 # Uses ONLY the public sim surface that predates the M2 perf work, so the
 # same script runs at any commit:
 #   godot --headless -s tools/ab_state_dump.gd > ab_<label>.txt
@@ -79,14 +82,14 @@ func _inp(t: float, i: int) -> Dictionary:
 	}
 
 
-func _spawn_budget(sim: Variant) -> void:
+func _spawn_budget(sim: Variant, target := 200) -> void:
 	var pool: Array = []
 	for sp in sim.eco.living():
 		if not bool(sp.get("kin", false)):
 			pool.append(sp)
 	var lcg := 0x51EF
 	var spawned := 0
-	while int(sim.ents.size()) < 200:
+	while int(sim.ents.size()) < target:
 		lcg = (lcg * 1103515245 + 12345) & 0x7fffffff
 		var a := float(lcg) / float(0x7fffffff) * TAU
 		lcg = (lcg * 1103515245 + 12345) & 0x7fffffff
@@ -236,10 +239,42 @@ func _run_s3() -> void:
 		_dump("s3", i, sim)
 
 
+func _run_s4() -> void:
+	var m := _mk(0x51F0)
+	var sim: Variant = m["sim"]
+	for i in SETTLE:
+		sim.update(DT, _inp(float(i) * DT, i))
+	_spawn_budget(sim, 100)
+	# 20 temporary ents (lifespan 2–4 s) mixed into the crowd — they expire
+	# between ticks 120 and 240, each expiry sweeping the ent arrays under
+	# full grid/mirror load
+	var pool: Array = []
+	for sp in sim.eco.living():
+		if not bool(sp.get("kin", false)):
+			pool.append(sp)
+	var lcg := 0xBEEF
+	for j in 20:
+		lcg = (lcg * 1103515245 + 12345) & 0x7fffffff
+		var a := float(lcg) / float(0x7fffffff) * TAU
+		lcg = (lcg * 1103515245 + 12345) & 0x7fffffff
+		var d := sqrt(float(lcg) / float(0x7fffffff)) * 320.0
+		lcg = (lcg * 1103515245 + 12345) & 0x7fffffff
+		var g: Dictionary = pool[j % pool.size()]["genome"].duplicate()
+		g["size"] = SIZE_MIX[j % SIZE_MIX.size()]
+		sim.spawn_ent(pool[j % pool.size()], sim.px + cos(a) * d,
+				sim.py + sin(a) * d, g, {"lifespan": 2.0 + float(j % 3)})
+	_dump("s4", -1, sim)
+	for i in 600:
+		sim.update(DT, _inp(float(i) * DT, i))
+		if i % 30 == 29:
+			_dump("s4", i, sim)
+
+
 func _initialize() -> void:
 	print("AB_DUMP_BEGIN")
 	_run_s1()
 	_run_s2()
 	_run_s3()
+	_run_s4()
 	print("AB_DUMP_END")
 	quit(0)
