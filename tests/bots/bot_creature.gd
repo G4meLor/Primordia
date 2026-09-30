@@ -42,15 +42,23 @@
 ## active list — a read, not a sim call).
 ##
 ## Determinism: the full bot run ×2 at LCG seed 777 (TS `let seed = 777`)
-## and world seed 0xBEEF (TS GameContext(0xbeef)) must produce identical
-## quantized fingerprints (the M2 bot-arc pattern).
+## and world seed 0xBEEF must produce identical quantized fingerprints (the
+## M2 bot-arc pattern). The 0xBEEF pin is a NATIVE necessity: the TS bot's
+## startNewGame() takes no seed (bot-creature.test.ts:43), so its
+## GameContext(0xbeef) was clobbered by a random-seeded world — harmless there
+## (the TS bot asserts invariants, not fingerprints). Natively the pinned
+## world must survive start_new_game for the ×2 gate to mean anything —
+## same re-pin-through-the-real-menu shape as the M2 arc (test_bot_arc.gd
+## _prologue).
 extends RefCounted
 
 const BotDriverScript := preload("res://tests/bots/bot_driver.gd")
 const PartsScript := preload("res://src/evo/parts.gd")
 
 const DT := 1.0 / 60.0
-const WORLD_SEED := 0xBEEF   # TS bot-creature: new GameContext(0xbeef)
+const WORLD_SEED := 0xBEEF   # NATIVE pin for the ×2 determinism gate — the TS
+# 0xbeef context was clobbered (its startNewGame() takes no seed, so the world
+# re-rolled random; harmless there). See the determinism note in this header.
 const LCG_SEED := 777        # TS bot-creature: let seed = 777
 const Z_TO_Y := 0.62         # creature sim's z→screen-y (creature_sim.gd)
 const TRANSITION_POLL := 600 # brief AC: ≤ 600 frames for the arrival card
@@ -343,6 +351,13 @@ func chaos_survival(game: Variant) -> String:
 					and float(s2["php"]) > float(s2["pmaxHp"]) + 0.001:
 				return "chaos f=%d: php > pmaxHp + 0.001 (%s > %s)" % [f,
 						str(s2["php"]), str(s2["pmaxHp"])]
+			# the driver's M2 invariants across the whole 2-min run (dna finite
+			# ≥ 0, chaos ∈ [0,1], karma ∈ [-1,1] — the cell-stage position/ents
+			# checks are cell-only by design): collected + failed on non-empty,
+			# matching what the end-of-run failure message already claims
+			var sane: PackedStringArray = driver.assert_sane(game)
+			if not sane.is_empty():
+				return "chaos f=%d: assert_sane violations: %s" % [f, str(sane)]
 			trace.append({"f": f, "fp": creature_fingerprint(game)})
 
 	if String(game.context.stage) != "creature":

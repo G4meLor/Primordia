@@ -106,7 +106,9 @@ func show_banner(m: Dictionary) -> void:
 	# one at a time on screen — concurrent banners queue instead of erasing
 	# each other (raid no longer wipes the chaos warning it triggered)
 	if _cur_banner != null and float(_cur_banner["ttl"]) > 0.5:
-		var last: Variant = _banner_queue.back()
+		# TS reads bannerQueue[len-1] → undefined on an empty queue; back()
+		# errors on empty, so guard it (same null the branch below handles)
+		var last: Variant = _banner_queue.back() if not _banner_queue.is_empty() else null
 		if (last == null or String(last["title"]) != b["title"]) \
 				and String(_cur_banner["title"]) != b["title"]:
 			_banner_queue.append(b)
