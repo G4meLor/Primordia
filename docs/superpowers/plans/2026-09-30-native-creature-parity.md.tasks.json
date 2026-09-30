@@ -72,7 +72,7 @@
     {
       "id": 9,
       "subject": "Task 9: Creature bot + flow integration",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         4,
         7,
