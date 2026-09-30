@@ -4,9 +4,9 @@
 ## the chaos update loop. Port of Spore src/game/creature/CreatureStage.ts
 ## (frozen), minus the render pass and the scene-only surfaces (editor
 ## overlay, tutorial engine, camera/fx stepping, HUD objective — scene layer,
-## later tasks). NPC AI (update_ents), the charm minigame (try_charm/
-## update_charm) and the founding/tribe flow are LATER TASKS: the call sites
-## stand here in TS order with stub bodies so the tick shape is already true.
+## later tasks). NPC AI (update_ents) and the charm minigame (try_charm/
+## update_charm) live here; found_tribe fires the founding handoff through
+## hooks (the tribe stage itself is M4 — plan Constraint 15).
 ##
 ## Architecture (M2 ruling, same as cell_sim.gd): CreatureSim.new(ctx,
 ## rng_branch, hooks) —
@@ -33,6 +33,10 @@
 ##    a present hook overrides (scene/test injection seam).
 ##  - The wing-hop fx burst anchors at (px, py) in TS — py is the JUMP HEIGHT
 ##    there, not the depth-squashed z. Ported verbatim (TS quirk, TS:674).
+##  - Corrupt packGenomes member with a truthy non-object genome (TS:329):
+##    the TS spread `{ ...defaultGenome(), ...item.genome }` no-ops on a
+##    number and spawns a default-genome member; the port skips the member
+##    (the restore gate requires item.genome to be a Dictionary).
 ## TS-optional ent fields (eggT/corpseT/flying/lifespanStampede/pressCd) stay
 ## ABSENT until set, matching TS undefined semantics — readers use .get().
 class_name CreatureSim
@@ -111,7 +115,7 @@ var chaos: Variant = null
 ## compares and rebuilds.
 var deckSeed := -1
 
-# charm minigame (state fields now; the bodies are Task 4)
+# charm minigame state (TS:112-120)
 var charmTarget: Variant = null
 var charmHits := 0
 var charmMarker := 0.0
@@ -128,6 +132,10 @@ var tribeReady := false
 # each frame (TS render() mutated tribeRect directly — native: the scene
 # writes this same dict, the sim only hit-tests it).
 var tribeRect := {"x": 0.0, "y": 0.0, "w": 200.0, "h": 46.0}
+## TS game.transitionTarget, mirrored by the scene each frame (like
+## tribeRect — the sim cannot see the game): found_tribe's tutorial-finish
+## gate reads it. null = no transition in flight.
+var transitionTarget: Variant = null
 var deathFade := 0.0
 # TS `deathFade <= dt` first-frame idiom -> an honest bool (divergence ruling).
 var deathStarted := false
@@ -531,19 +539,20 @@ func update(dt: float, inp: Dictionary) -> void:
 	# editor (Tab or E) — scene overlay; the TS branch RETURNS early here
 	# (TS:467-475, the dead cannot edit). Native scene owns that gate.
 
-	# found-tribe button (handleTribeClick -> foundTribe) — Task 5.
+	# found-tribe button: TS handleTribeClick routes the click into
+	# found_tribe (below); the click routing is scene-side (the button rect
+	# is scene-owned, Task 7).
 	# tutorial — scene-side engine.
 
-	# charm interactions (hold F) — the minigame body is Task 4; the call
-	# site + the reset branch are TS-true now (TS:487-493). The editor-open
-	# gate is scene-side (the sim's editor never blocks).
+	# charm interactions (hold F) — try_charm + the release reset (TS:487-493).
+	# The editor-open gate is scene-side (the sim's editor never blocks).
 	if inp.get("keys_held", []).has("KeyF"):
 		try_charm()
 	else:
 		charmActive = false
 		charmTarget = null
 	if charmActive:
-		update_charm(dt)
+		update_charm(dt, inp)
 
 	update_player(dt, inp)
 	# bio_tell: the panic window tracks the live warn phase — herds drift out
@@ -903,7 +912,7 @@ func kill_ent(e: Dictionary) -> void:
 	# corpse meat
 	_fx_burst(float(e["x"]), float(e["z"]) * Z_TO_Y, 10, ["#ffb08a"],
 			{"speed": 80.0, "ttl": 0.7, "size": 3.0})
-	e["corpseT"] = 12.0  # meat lasts a while; the corpse lifecycle is Task 3
+	e["corpseT"] = 12.0  # meat lasts a while; the corpse lifecycle lives in update_ents
 	e["hp"] = 0.0
 	# pack members gain loyalty when you hunt
 	for p in ents:
@@ -1126,20 +1135,163 @@ func update_ents(dt: float) -> void:
 			kill_ent(e)
 
 
-# ---- charm (Task 4) -------------------------------------------------------------------
+# ---- charm -------------------------------------------------------------------------
 
-## TASK 4: the charm minigame ports here (TS CreatureStage.ts:1023-1058) —
-## target pick, pack/size gates, the beat-marker start. The F-key call site
-## + the reset branch already run in update(); until then holding F still
-## wards off bites (the tolerance lives in update_player, TS-true).
+## TS tryCharm (CreatureStage.ts:1023-1058): the nearest eligible ent within
+## 120 (pack/corpse/baby/packCd>0 excluded), the pack-full and size gates,
+## then the minigame init — the marker starts at 0.75, OUTSIDE the hit zone
+## (a marker born at 0 made F-hold + Space-mash an instant win), the dir coin
+## is the init path's only rng draw, mood alert, click audio, first-time
+## charmsSeen hint. The F-key call site + the release reset run in update().
 func try_charm() -> void:
-	pass
+	if charmActive:
+		return
+	if php <= 0.0 or deathFade > 0.0:
+		return
+	var best: Variant = null
+	var bd := 120.0
+	for e in ents:
+		if bool(e["pack"]) or e.has("corpseT") or bool(e["baby"]) \
+				or float(e["packCd"]) > 0.0:
+			continue
+		var d: float = _vdist(float(e["x"]), float(e["z"]), px, pz)
+		if d < bd:
+			best = e
+			bd = d
+	if best == null:
+		return
+	var packCount := 0
+	for e in ents:
+		if bool(e["pack"]):
+			packCount += 1
+	if packCount >= packLimit:
+		_fire("hud_toast", ["Your pack is full (%d) — evolve Arms/Brain for more" % packLimit, "info", "🐾"])
+		return
+	if float(best["genome"]["size"]) > float(ctx.genome["size"]) * 1.6 \
+			and float(ctx.genome.get("brain", 0)) < 2.0:
+		_fire("hud_toast", [tr("It ignores your squeaking. Grow bigger or smarter."), "info", "🐾"])
+		return
+	charmTarget = best
+	charmActive = true
+	charmHits = 0
+	# start OUTSIDE the hit zone — a marker born at 0 makes F-hold +
+	# Space-mash an instant win (mash-to-win exploit)
+	charmMarker = 0.75
+	charmDir = 1 if rng.chance(0.5) else -1
+	charmMustExit = false
+	best["mood"] = "alert"
+	_fire("audio_play", ["click", 0.5, 0.0])
+	if charmsSeen == 0:
+		charmsSeen = 1
+		_fire("hud_toast", [tr("Wait for the beat marker to swing into the glow, THEN press SPACE"), "info", "🎵"])
 
 
-## TASK 4: the beat bar (TS CreatureStage.ts:1060-1115) — marker oscillation,
-## the 3-hit befriending, miss annoyance, persistState on success.
-func update_charm(_dt: float) -> void:
-	pass
+## TS updateCharm (CreatureStage.ts:1060-1115) — the beat bar: escape
+## conditions (target gone/corpse/>200px), marker oscillation (speed
+## 1.6 + hits*0.5, bounce at ±1), the mustExit re-arm (|m| >= 0.4) that makes
+## in-zone spam a no-op, the 3-hit befriend (clears the despawn clock, karma
+## +0.03, persist_state keeps the pack across autosaves) and the miss
+## annoyance (mood angry, packCd 6).
+func update_charm(dt: float, inp: Dictionary) -> void:
+	var e: Variant = charmTarget
+	var inList := false
+	if e != null:
+		for other in ents:
+			if is_same(other, e):
+				inList = true
+				break
+	if e == null or e.has("corpseT") or not inList \
+			or _vdist(float(e["x"]), float(e["z"]), px, pz) > 200.0:
+		charmActive = false
+		charmTarget = null
+		# the toast only reads when an ALIVE target left the list — a corpse
+		# or an outdistanced target releases silently (TS:1062-1068)
+		if e != null and not e.has("corpseT") and not inList:
+			_fire("hud_toast", [tr("It got away — chase it into a corner, or grow faster."), "info", "🐾"])
+		return
+	# marker oscillates
+	var speed: float = 1.6 + float(charmHits) * 0.5
+	charmMarker += float(charmDir) * speed * dt
+	if charmMarker > 1.0:
+		charmMarker = 1.0
+		charmDir = -1
+	if charmMarker < -1.0:
+		charmMarker = -1.0
+		charmDir = 1
+	# after a hit the marker must leave and re-enter the zone — no mashing
+	if absf(charmMarker) >= 0.4:
+		charmMustExit = false
+
+	if inp.get("keys_pressed", []).has("Space"):
+		var zone: float = 0.35 - float(charmHits) * 0.05
+		if charmMustExit:
+			_fire("audio_play", ["hurt", 0.25, 0.0])  # ignored — spamming in the zone does nothing
+		elif absf(charmMarker) < zone:
+			charmMustExit = true
+			charmHits += 1
+			tut["actioned"] = int(tut["actioned"]) + 1
+			_fire("audio_play", ["charm", 0.8, 0.0])
+			_fire("fx_spawn", [{
+				"x": float(e["x"]), "y": float(e["z"]) * Z_TO_Y - 30.0,
+				"kind": "star", "ttl": 0.7, "size": 6.0, "color": "#ffe08a",
+				"vy": -40.0,
+			}])
+			if charmHits >= 3:
+				# befriended! — adopting a herd member clears its despawn clock
+				e.erase("lifespanStampede")  # TS `= undefined`
+				e["pack"] = true
+				e["mood"] = "happy"
+				charmActive = false
+				charmTarget = null
+				ctx.add_karma(0.03)
+				_fire("audio_play", ["levelup", 0.7, 0.0])
+				_fire("hud_toast", [tr("A new friend joins your pack!"), "good", "🐾"])
+				persist_state()  # keep the pack across autosaves, not just foundTribe
+				_fx_burst(float(e["x"]), float(e["z"]) * Z_TO_Y - 20.0, 14,
+						["#ffe08a", "#9fe89a", "#9fd8ff"],
+						{"speed": 110.0, "ttl": 0.9})
+		else:
+			# miss — target gets annoyed
+			charmActive = false
+			if charmTarget != null:
+				charmTarget["mood"] = "angry"
+				charmTarget["packCd"] = 6.0
+				charmTarget = null
+			_fire("audio_play", ["hurt", 0.4, 0.0])
+			_fire("hud_toast", [tr("It did not like your rhythm."), "info", "🐾"])
+
+
+# ---- founding ------------------------------------------------------------------------
+
+## TS foundTribe (CreatureStage.ts:1643-1652) — the founding handoff. The
+## tribe stage does not exist in M3 (plan Constraint 15): the transition
+## rides the "go_to" hook (scene-side wiring -> game.go_to; an unregistered
+## target then silently no-ops in switch_stage, game.gd TS-true) and the
+## tutorial finish rides "tutorial_finish" (the scene's wiring owns the
+## tutorial object; the transitionTarget != 'menu' gate is sim-side — the
+## scene mirrors game.transition_target into transitionTarget each frame,
+## like tribeRect). Missing hook key = silent no-op per the M2 pattern.
+func found_tribe() -> void:
+	if transitionTarget != "menu":
+		_fire("tutorial_finish", [])
+	# TS: ents.filter(e => e.pack) — corpses ride too (no corpseT filter
+	# here, unlike persistState) — verbatim
+	var pack: Array = []
+	for e in ents:
+		if bool(e["pack"]):
+			pack.append(e)
+	pack = pack.slice(0, 6)
+	var list: Array = []
+	for p in pack:
+		list.append({"genome": p["genome"], "baby": p["baby"]})
+	ctx.flags["packGenomes"] = JSON.stringify(list)
+	ctx.flags["playerSpeciesName"] = ctx.player_name
+	ctx.save()
+	_fire("audio_play", ["ascend", 1.0, 0.0])
+	_fire("go_to", ["tribe", {
+		"title": "THE FIRST FIRE",
+		"sub": "%s looks at the stars and decides to stay" % ctx.player_name,
+	}])
 
 
 # ---- chaos -----------------------------------------------------------------------------

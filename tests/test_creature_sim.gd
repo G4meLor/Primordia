@@ -641,23 +641,18 @@ func test_their_bite_and_bite_hint() -> void:
 	approx(float(sim3.php), 70.0, "pack allies do not bite")
 
 
-func test_charm_stub_structure_and_ward() -> void:
+func test_charm_ward_and_call_site() -> void:
 	var m := _mk_sim()
 	var sim: Variant = m["sim"]
 	var e: Dictionary = sim.spawn_ent(null, float(sim.px), float(sim.pz))
-	# try_charm/update_charm are Task 4 stubs: F-hold runs the call site
-	# without the minigame, but the F tolerance in update_player is TS-true
+	# F-hold runs the call site (TS:487-493): the minigame arms on the
+	# adjacent ent, and the F tolerance in update_player is TS-true
 	for i in 60:
 		sim.update(DT, _inp({"keys_held": ["KeyF"]}))
-	eq(bool(sim.charmActive), false, "charm minigame not active (Task 4 stub)")
-	eq(bool(sim.charmTarget == null), true, "no charm target")
+	eq(bool(sim.charmActive), true, "F hold arms the minigame on an adjacent ent")
 	approx(float(e["hp"]), 70.0, "F hold wards off the player bite")
 	approx(float(sim.php), 70.0, "F hold wards off their bite (invuln aside)")
 	approx(float(e["biteCd"]), 0.0, "no their-bite attempts while charmed")
-	# the Task 4 hook-up: with F held the flag rides into update_charm (stub)
-	sim.charmActive = true
-	sim.update(DT, _inp({"keys_held": ["KeyF"]}))
-	eq(bool(sim.charmActive), true, "update_charm stub keeps the flag (Task 4 fills)")
 	# F released -> the TS reset branch clears the minigame
 	sim.update(DT, _inp({}))
 	eq(bool(sim.charmActive), false, "F release resets charmActive (TS:490-492)")

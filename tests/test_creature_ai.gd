@@ -235,8 +235,9 @@ func test_grudge_hunt_opens_when_player_hurt() -> void:
 	sp["kin_tag"] = true
 	sp["grudge"] = 2.0
 	var e: Dictionary = sim.spawn_ent(sp, float(sim.px) + 500.0, float(sim.pz))
-	# full hp: grudge radius not met, prey gate dead (herbivore), flee gate
-	# dead (grudge >= 2 restores... blocks it) -> graze
+	# full hp: the grudge radius is not met (468*0.9 = 421.2 < 500), the prey
+	# gate is dead (herbivore), the flee gate is dead (grudge >= 2 blocks the
+	# flee branch, TS:936) -> graze
 	sim.update(DT, _inp({}))
 	eq(String(e["mood"]), "idle", "grudge-2 kin idles while the player is healthy")
 	eq(sp.get("harass", 0), 0, "no press counted at full hp")
