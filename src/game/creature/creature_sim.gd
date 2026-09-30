@@ -1649,6 +1649,19 @@ func debug_spawn_pack(n: int) -> void:
 		spawn_ent(null, px + float(i + 1) * 45.0, pz, {}, {"pack": true})
 
 
+## Debug/test: the founding-bot's DNA + brain cheat — the ONE documented sim
+## mutator beyond debug_state/debug_spawn_pack (bot parity law's exception
+## list). The TS bot-creature.test.ts:97-98 mutates the context directly
+## (`c.genome.brain = 3; c.dna = 999`); natively the bot drives the sim
+## instead, and the brain bump must recompute the derived stats (packLimit
+## 2 + arms/2 + brain/2 gates the charm's pack-full check and the pack
+## restore cap) or the founded pack reads a stale limit.
+func debug_grant(dna_amount: float, brain_level: int) -> void:
+	ctx.dna = dna_amount
+	ctx.genome["brain"] = brain_level
+	on_stats_changed()
+
+
 # ---- internals --------------------------------------------------------------------
 
 ## TS Particles.burst consumes the stage rng — per particle: 1 angle draw,
