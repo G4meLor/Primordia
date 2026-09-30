@@ -45,6 +45,15 @@ const WINDOW := 1200  # 20 s of stage time — under the ~24.5 s first-chaos gap
 # Spore/tools/econ-probe-pin.test.ts (npx vitest run --config
 # tools/vitest.config.ts tools/econ-probe-pin.test.ts). Scenario: see _boot.
 
+# ---- hud toast recorder (method Callable — defaults apply on the 5-arg shape)
+
+var _toasts: Array = []
+
+
+func _rec_toast(text: String, kind: String, icon: String, _ttl := 4.0,
+		_card: Variant = null) -> void:
+	_toasts.append([text, kind, icon])
+
 
 # ---- scenario scaffold ---------------------------------------------------------
 
@@ -333,10 +342,12 @@ func test_kin_memory_grudge_through_stage_kills() -> void:
 		if bool(sim.eco.species[i].get("kin_tag", false)):
 			host_i = i
 	eq(host_i, 0, "kin host is the first herding line (TS verbatim)")
-	# reroute the hud toast dict entry into a recorder (read at call time)
-	var toasts: Array = []
-	g.hud["toast"] = func(text: String, kind: String, icon: String) -> void:
-		toasts.append([text, kind, icon])
+	# reroute the hud toast dict entry into a recorder (read at call time).
+	# METHOD Callable, not a lambda: the world-toast shape (game.gd world_toast)
+	# calls with 5 args — lambdas error on the count mismatch, method defaults
+	# absorb it (game.gd _stub_toast precedent).
+	_toasts = []
+	g.hud["toast"] = _rec_toast
 	_run_window(g, 300, [
 		{"step": 5, "species_index": host_i},
 		{"step": 65, "species_index": host_i},
@@ -347,7 +358,7 @@ func test_kin_memory_grudge_through_stage_kills() -> void:
 	eq(float(host.get("grudge", 0.0)), 3.0, "grudge 3 after three stage kills (TS verbatim)")
 	eq(float(host.get("harass", 0.0)), 0.0, "no presses without AI engagement (TS verbatim)")
 	var warnings := 0
-	for t in toasts:
+	for t in _toasts:
 		if String(t[0]).contains("the kin are watching"):
 			warnings += 1
 	eq(warnings, 1, "exactly one warning precedes the ledger (catalog I.b)")

@@ -39,9 +39,9 @@
 ##
 ## Scene-side divergences (recorded): the TS editor branch early-returns for
 ## the frame (CreatureStage.ts:467-475); natively the sim keeps advancing
-## (the cell-stage T3 ruling). The tutorial engine slot exists but the engine
-## build lands with task 8 (tutorial stays null; charm UI then uses the
-## non-lifted y, TS `tutorial?.active ? vh-256 : vh-170`).
+## (the cell-stage T3 ruling). The tutorial engine (task 8) builds in
+## on_enter from the TS table — while it teaches the charm step the charm UI
+## lifts to the TS `tutorial?.active ? vh-256 : vh-170` slot.
 extends "res://src/game/stage.gd"
 
 const CreatureSimScript := preload("res://src/game/creature/creature_sim.gd")
@@ -52,6 +52,7 @@ const CreaturePainter := preload("res://src/gfx/creature_painter.gd")
 const HudScript := preload("res://src/ui/hud.gd")
 const EditorUiScript := preload("res://src/ui/editor.gd")
 const PauseScript := preload("res://src/ui/pause.gd")
+const TutorialScript := preload("res://src/ui/tutorial.gd")
 
 var sim: Variant = null            # CreatureSim (RefCounted sim core)
 var fx: Variant = null             # stage Particles pool (TS `new Fx(1300)`)
@@ -800,7 +801,28 @@ func on_enter(from: Variant = null) -> void:
 	sim.on_enter()
 	if hud_inst != null:
 		hud_inst.show_objective = "HUNT or CHARM (hold F near a creature) — press TAB for editor"
-	# the tutorial engine build lands with task 8 (TS:306-313)
+	# TS CreatureStage.ts:306-313 — the first-run tutorial (per save slot).
+	# The update()/draw() slots already honor the engine. NOTE: no finish() on
+	# exit — TS CreatureStage.onExit (337-340) only persists state, unlike the
+	# cell stage; the founding handoff finishes it through the sim's
+	# tutorial_finish hook (_h_tutorial_finish).
+	if tutorial == null:
+		tutorial = TutorialScript.new(game, "tutCreature", _build_tutorial_steps())
+
+
+## TS CreatureStage.ts:306-313 — the first-run tutorial table, verbatim. Step
+## texts stay raw EN keys (translated at render by the engine); the done
+## lambdas poll the sim's tut counters (TS's done(g) closures bind the same
+## state — the sim reference rides the stage).
+func _build_tutorial_steps() -> Array:
+	return [
+		{"id": "action", "text": "Walk with the mouse. 🦴 bones = free DNA. Danger has teeth here.",
+			"done": func() -> bool: return int(sim.tut["actioned"]) >= 1},
+		{"id": "charm", "text": "Hold F next to a creature → press SPACE on the beat ×3 → friend!",
+			"done": func() -> bool: return int(sim.tut["actioned"]) >= 2},
+		{"id": "editor", "text": "Press TAB — the editor works on land too. Brain ×3 unlocks the tribe.",
+			"done": func() -> bool: return int(sim.tut["editorOpened"]) >= 1},
+	]
 
 
 func on_exit() -> void:
