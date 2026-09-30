@@ -63,7 +63,7 @@
     {
       "id": 8,
       "subject": "Task 8: HUD/editor/tutorial creature wiring",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         7
       ],
