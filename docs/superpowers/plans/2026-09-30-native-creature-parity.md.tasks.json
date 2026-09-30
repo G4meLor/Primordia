@@ -35,11 +35,11 @@
     {
       "id": 5,
       "subject": "Task 5: Creature chaos events + chaos.gd warn_fn extension",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         2
       ],
-      "description": "**Goal:** 8 baseline + 4 gated creature event defs; chaos.gd warn_fn extension (TS warn-getter parity); Math.random→rng divergence documented. Full AC in plan Task 5.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/creature/creature_events.gd\", \"src/game/chaos.gd\", \"tests/test_creature_events.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"12 defs verbatim weights/durations\", \"warn_fn: high packChaos → null\", \"M1 chaos tests unchanged-green\", \"dominance threshold gate\"]}\n```"
+      "description": "**Goal:** 8 baseline + 4 gated creature event defs; chaos.gd warn_fn extension (TS warn-getter parity); Math.random→rng divergence documented.\n\nComplete — see ledger (commits d5439ad/87ca59f/7a80917; controller-executed review Approved — final reviewer re-covers)."
     },
     {
       "id": 6,
@@ -102,5 +102,5 @@
       "description": "**Goal:** Close M3: ab_test.sh fail-open fix, A-B run, perf, whole-branch review, tag creature-parity-m3. Full AC in plan Task 11.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"tools/ab_test.sh\", \"docs/PARITY-M3.md\", \"docs/ARCHITECTURE.md\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ./tools/test.sh\", \"acceptanceCriteria\": [\"ab_test failure-path test proves no laundering\", \"A-B 4 scenarios IDENTICAL or ruled\", \"sim tick <= 2ms @60 ents\", \"tag creature-parity-m3\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-09-30T10:05:00Z"
+  "lastUpdated": "2026-09-30T12:10:00Z"
 }
