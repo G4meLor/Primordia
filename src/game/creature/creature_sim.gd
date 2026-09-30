@@ -136,6 +136,10 @@ var packLimit := 2
 var tut := {"actioned": 0, "editorOpened": 0}
 ## bio_tell: seconds left in the ambient panic-drift window.
 var warnDriftT := 0.0
+## Pointer-held state for the corpse-eat read in update_ents (TS input2Down
+## reads game.input live inside updateEnts, CreatureStage.ts:848 — the native
+## sim takes the input SNAPSHOT through update(), which parks the flag here).
+var _inp_down := false
 ## mirror_rule state (minor 14) — the shared MirrorLedger.
 var mirrorLedger := ChaosScript.MirrorLedger.new()
 var spawnTimerCheckT := 0.0
@@ -479,6 +483,8 @@ func maintain_population() -> void:
 ## it literally. The sim never touches the Input singleton.
 func update(dt: float, inp: Dictionary) -> void:
 	time += dt
+	# the frame's pointer state, for update_ents' corpse-eat read (TS input2Down)
+	_inp_down = bool(inp.get("down", false))
 
 	# stage timers
 	for ti in range(timers.size() - 1, -1, -1):
@@ -905,18 +911,219 @@ func kill_ent(e: Dictionary) -> void:
 			p["mood"] = "happy"
 
 
-# ---- NPC AI (Task 3) ----------------------------------------------------------------
+# ---- NPC AI -------------------------------------------------------------------------
 
-## TASK 3: NPC AI — the full updateEnts loop ports here 1:1 (TS
-## CreatureStage.ts:835-1019): corpse lifecycle (decay -> 35% bone, the
-## player's carnivore meat-eat, carnivore ents' corpse grazing), cooldown
-## decay, baby growth (eggT), stampede lifetime (pack exempt), the
-## panic/charmed/pack/hunt/flee/graze chain, bush grazing, hazard damage and
-## the hp<=0 -> kill_ent sweep. The call site already sits in update() in TS
-## order; until then ents hold their spawn state (only the player and the
-## world objects move).
-func update_ents(_dt: float) -> void:
-	pass
+## TS CreatureStage.ts:835-1019 — the z-band NPC loop, reverse index (corpses
+## and stampede ents splice out mid-loop). Per-ent branch order: corpse
+## lifecycle (player meat-eat, 35% bone on expiry, removal) -> anim/cooldown
+## decay -> baby growth (eggT) -> stampede lifetime (pack exempt -> cleared) ->
+## movement AI (panic drift > charmed hold > pack follow > wild
+## hunt/flee/graze) -> physics -> bush/corpse grazing -> hazard damage ->
+## the hp<=0 killEnt sweep. Rng draws stay TS-lazy: the corpse bone roll, the
+## corpse-eat audio chance, and the two wander offsets only when no bush won.
+func update_ents(dt: float) -> void:
+	for i in range(ents.size() - 1, -1, -1):
+		var e: Dictionary = ents[i]
+
+		# corpses: meat that player/predators can eat, then bones
+		if e.has("corpseT"):
+			e["corpseT"] = float(e["corpseT"]) - dt
+			if float(e["corpseT"]) <= 0.0:
+				if rng.chance(0.35):
+					bones.append({"x": e["x"], "z": e["z"], "taken": false, "kind": "bone"})
+				ents.remove_at(i)
+			elif php > 0.0 and deathFade <= 0.0 \
+					and _vdist(float(e["x"]), float(e["z"]), px, pz) < 30.0 \
+					and String(ctx.genome["diet"]) != "herbivore" and _inp_down:
+				# eat corpse (player)
+				php = minf(pmaxHp, php + 14.0 * dt)
+				ctx.add_dna(2.4 * dt)
+				eatT = 1.0
+				if rng.chance(dt * 5.0):
+					_fire("audio_play", ["eat", 0.4, 0.0])
+			continue
+
+		e["hurtT"] = maxf(0.0, float(e["hurtT"]) - dt * 3.0)
+		e["eatT"] = maxf(0.0, float(e["eatT"]) - dt * 2.0)
+		e["biteCd"] = maxf(0.0, float(e["biteCd"]) - dt)
+		e["attack"] = maxf(0.0, float(e["attack"]) - dt * 2.2)
+		e["packCd"] = maxf(0.0, float(e["packCd"]) - dt)
+		e["pressCd"] = maxf(0.0, float(e.get("pressCd", 0.0)) - dt)
+
+		# baby growth
+		if bool(e["baby"]) and e.has("eggT"):
+			e["eggT"] = float(e["eggT"]) - dt
+			if float(e["eggT"]) <= 0.0:
+				e["baby"] = false
+				e["stats"] = StatsScript.compute_creature_stats(e["genome"])
+				e["maxHp"] = float(e["stats"]["max_hp"])
+				e["hp"] = float(e["maxHp"])
+
+		# stampede lifetime
+		if e.has("lifespanStampede"):
+			e["lifespanStampede"] = float(e["lifespanStampede"]) - dt
+			if float(e["lifespanStampede"]) <= 0.0:
+				if not bool(e["pack"]):
+					ents.remove_at(i)
+					continue
+				e.erase("lifespanStampede")  # TS `= undefined`
+
+		# ---- movement AI ------------------------------------------------------
+		var tx: float
+		var tz: float
+		var sp: float = float(e["stats"]["speed"])
+		var dPlayer: float = _vdist(float(e["x"]), float(e["z"]), px, pz)
+		var vision: float = 360.0 * float(e["stats"]["vision"])
+		var night := is_night()
+
+		var charmed: bool = charmActive and charmTarget != null \
+				and is_same(e, charmTarget)
+		# bio_tell: during a warn window the ambient panics away from the strike
+		# epicenter (the player's position) — herds visibly leave the region
+		if warnDriftT > 0.0 and not bool(e["pack"]) and not charmed:
+			var d: float = maxf(1.0, dPlayer)
+			tx = float(e["x"]) + ((float(e["x"]) - px) / d) * 120.0
+			tz = clampf(float(e["z"]) + ((float(e["z"]) - pz) / d) * 120.0, Z_MIN, Z_MAX)
+			sp = 40.0
+			e["mood"] = "alert"
+		elif charmed:
+			# the charm target holds still for the minigame — walking away
+			# mid-song made the beat bar unwinnable at gate-stage speeds
+			tx = float(e["x"])
+			tz = float(e["z"])
+			sp = 0.0
+			e["vx"] = float(e["vx"]) * exp(-8.0 * dt)
+			e["vz"] = float(e["vz"]) * exp(-8.0 * dt)
+			e["mood"] = "alert"
+		elif bool(e["pack"]):
+			# follow player, help attack
+			var followD := 60.0
+			if dPlayer > followD + 40.0:
+				tx = px - signf(px - float(e["x"])) * followD
+				tz = pz
+				sp *= 1.05
+			else:
+				tx = float(e["x"])
+				tz = float(e["z"])
+				sp = 0.0
+			e["mood"] = "happy"
+		else:
+			var preySpecies: bool = String(e["genome"]["diet"]) != "herbivore"
+			var playerThreat: bool = float(pStats["damage"]) > float(e["stats"]["damage"]) * 0.8 \
+					or float(ctx.genome["size"]) > float(e["genome"]["size"])
+			# hunt radius shrinks with the size gap — big carnivores ignore a
+			# much smaller player (full-vision aggro on a hatchling was a
+			# death spiral: 21 deaths/8.9 min measured)
+			var sizeGap: float = maxf(0.35,
+					1.0 - (float(e["genome"]["size"]) - float(ctx.genome["size"])) * 0.6)
+			var peaceful: float = 0.65 if String(ctx.difficulty) == "peaceful" else 1.0
+			# temperament_bands: per-species seeded band on the aggression/fear reads
+			var band: Dictionary = e.get("band", {})
+			var aggr: float = float(band.get("aggression", 1.0))
+			var fear: float = float(band.get("fear", 1.0))
+			# kin_memory: a grudging kin-tag network presses in force — and it
+			# targets the weakest moment (hunt radius opens when the player is
+			# hurt). effectiveGrudge rides the harassment valve: capped networks
+			# rest and flee is restored.
+			var grudge: float = eco.grudge_of(ctx.world, String(e["speciesId"]))
+			var grudgeHunt: bool = grudge >= 2.0 and dPlayer < vision * 0.9 \
+					* (1.4 if php < pmaxHp * 0.4 else 1.0)
+			if (preySpecies and dPlayer < vision * sizeGap * peaceful * aggr \
+					and not playerThreat) or grudgeHunt:
+				# grudge presses count toward the harassment valve (one per engagement)
+				if grudgeHunt and float(e.get("pressCd", 0.0)) <= 0.0:
+					eco.register_press(ctx.world, String(e["speciesId"]))
+					e["pressCd"] = PRESS_COOLDOWN
+				# hunt player
+				tx = px
+				tz = pz
+				e["mood"] = "angry"
+			elif not charmed and grudge < 2.0 \
+					and dPlayer < vision * 0.45 * fear and playerThreat \
+					and float(e["packCd"]) <= 0.0 and not e.has("lifespanStampede"):
+				# flee
+				tx = float(e["x"]) + (float(e["x"]) - px) * 2.0
+				tz = clampf(float(e["z"]) + (float(e["z"]) - pz) * 2.0, Z_MIN, Z_MAX)
+				sp *= 1.05
+				e["mood"] = "afraid"
+			else:
+				# wander / graze bushes
+				e["wanderT"] = float(e["wanderT"]) - dt
+				if float(e["wanderT"]) <= 0.0:
+					e["wanderT"] = rng.range(2.0, 5.0)
+					var best: Variant = null
+					var bd := 420.0
+					if String(e["genome"]["diet"]) != "carnivore":
+						for b in bushes:
+							if float(b["food"]) <= 0.0:
+								continue
+							var d2: float = _vdist(float(b["x"]), float(b["z"]),
+									float(e["x"]), float(e["z"]))
+							if d2 < bd:
+								best = b
+								bd = d2
+					if best != null:
+						e["tx"] = float(best["x"])
+						e["tz"] = float(best["z"])
+					else:
+						e["tx"] = clampf(float(e["x"]) + rng.range(-300.0, 300.0),
+								-WORLD_HALF, WORLD_HALF)
+						e["tz"] = clampf(float(e["z"]) + rng.range(-160.0, 160.0),
+								Z_MIN, Z_MAX)
+				tx = float(e["tx"])
+				tz = float(e["tz"])
+				sp *= 0.5
+				e["mood"] = "idle"
+				if night:
+					e["mood"] = "alert"
+
+		var dx: float = tx - float(e["x"])
+		var dz: float = tz - float(e["z"])
+		var dl: float = sqrt(dx * dx + dz * dz)
+		if dl > 8.0:
+			e["vx"] = float(e["vx"]) + (dx / dl) * float(e["stats"]["accel"]) * dt
+			e["vz"] = float(e["vz"]) + (dz / dl) * float(e["stats"]["accel"]) * dt * 0.8
+			e["facing"] = 1 if dx > 0.0 else -1
+		var drag: float = exp(-5.5 * dt)
+		e["vx"] = float(e["vx"]) * drag
+		e["vz"] = float(e["vz"]) * drag
+		var spd: float = sqrt(float(e["vx"]) * float(e["vx"]) + float(e["vz"]) * float(e["vz"]))
+		var cap: float = maxf(0.0, sp)
+		if spd > cap and cap > 0.0:
+			e["vx"] = float(e["vx"]) * cap / spd
+			e["vz"] = float(e["vz"]) * cap / spd
+		e["x"] = float(e["x"]) + float(e["vx"]) * dt
+		e["z"] = float(e["z"]) + float(e["vz"]) * dt
+		e["z"] = clampf(float(e["z"]), Z_MIN, Z_MAX)
+		e["speed01"] = minf(1.0, spd / maxf(1.0, float(e["stats"]["speed"])))
+		e["gait"] = float(e["gait"]) + dt * (3.0 + float(e["speed01"]) * 9.0)
+
+		# eat bushes
+		if String(e["genome"]["diet"]) != "carnivore":
+			for b in bushes:
+				if float(b["food"]) > 0.0 \
+						and _vdist(float(b["x"]), float(b["z"]), float(e["x"]), float(e["z"])) < 26.0:
+					b["food"] = maxf(0.0, float(b["food"]) - dt)
+					b["regrow"] = 25.0
+					e["eatT"] = 1.0
+					e["hp"] = minf(float(e["maxHp"]), float(e["hp"]) + 3.0 * dt)
+
+		# eat corpses (carnivores)
+		if String(e["genome"]["diet"]) == "carnivore":
+			for o in ents:
+				if o.has("corpseT") \
+						and _vdist(float(o["x"]), float(o["z"]), float(e["x"]), float(e["z"])) < 28.0:
+					o["corpseT"] = float(o["corpseT"]) - dt * 2.0
+					e["eatT"] = 1.0
+					e["hp"] = minf(float(e["maxHp"]), float(e["hp"]) + 6.0 * dt)
+
+		# hazard damage
+		for hz in hazards:
+			if _vdist(float(hz["x"]), float(hz["z"]), float(e["x"]), float(e["z"])) < float(hz["r"]):
+				e["hp"] = float(e["hp"]) - float(hz["dps"]) * dt
+				e["hurtT"] = maxf(float(e["hurtT"]), 0.3)
+		if float(e["hp"]) <= 0.0 and not e.has("corpseT"):
+			kill_ent(e)
 
 
 # ---- charm (Task 4) -------------------------------------------------------------------

@@ -508,9 +508,9 @@ func test_player_bite_and_kill_path() -> void:
 	approx(float(e["hp"]), 70.0 - 13.0 * (1.0 - minf(0.6, 0.06)),
 			"bite dmg = damage * (1 - min(0.6, defense))")
 	eq(String(e["mood"]), "afraid", "bitten ent is afraid")
-	# ent-side anim/cooldown decay lives in update_ents (Task 3 stub) — the
-	# value sits at its set state after the tick
-	approx(float(e["hurtT"]), 0.7, "hurtT 0.7")
+	# ent-side anim/cooldown decay lives in update_ents (TS:858) — the bite
+	# sets 0.7 in update_player, the same tick's update_ents decays it
+	approx(float(e["hurtT"]), 0.7 - DT * 3.0, "hurtT 0.7 decayed by update_ents")
 	approx(float(ctx.karma), -0.008, "bite karma -0.008")
 	approx(float(sim.biteCd), 0.6 - DT, "biteCd 0.6")
 	approx(float(sim.attackT), 1.0 - DT * 2.2, "attackT anim timer 1")
@@ -523,7 +523,9 @@ func test_player_bite_and_kill_path() -> void:
 	sim.biteCd = 0.0
 	sim.update(DT, _inp({}))
 	eq(bool(e.has("corpseT")), true, "killed ent becomes a corpse")
-	approx(float(e["corpseT"]), 12.0, "corpseT 12")
+	# kill_ent arms corpseT 12 in update_player; the same tick's corpse branch
+	# (TS:842) already burns one dt
+	approx(float(e["corpseT"]), 12.0 - DT, "corpseT 12 decayed one tick")
 	approx(float(e["hp"]), 0.0, "corpse hp 0")
 	eq(sim.ents.size(), 1, "corpse is NOT removed")
 	ok(sim.ents.size() > 0 and sim.ents[0].has("corpseT"), "corpse still in ents")
@@ -613,9 +615,11 @@ func test_their_bite_and_bite_hint() -> void:
 	var expectDmg: float = 13.0 * (1.0 - 0.06) * 0.85
 	approx(float(sim.php), 70.0 - expectDmg,
 			"their bite: damage * (1 - defense) * 0.85")
-	approx(float(e["biteCd"]), 0.9, "their biteCd 0.9 (decay is Task 3)")
-	eq(String(e["mood"]), "angry", "biter is angry")
-	approx(float(e["attack"]), 1.0, "attack anim 1 (decay is Task 3)")
+	approx(float(e["biteCd"]), 0.9 - DT, "their biteCd 0.9 decayed by update_ents")
+	# the biter's mood rides the live AI: at zero distance the flee branch
+	# overwrites the bite's 'angry' before the tick ends (TS:936-941)
+	eq(String(e["mood"]), "afraid", "biter is afraid (flee AI overwrites post-bite mood)")
+	approx(float(e["attack"]), 1.0 - DT * 2.2, "attack anim 1 decayed by update_ents")
 	approx(float(sim.hurtT), 1.0 - DT * 3.0, "player hurtT 1")
 	var hintCount := 0
 	for t in m["rec"]["toasts"]:
