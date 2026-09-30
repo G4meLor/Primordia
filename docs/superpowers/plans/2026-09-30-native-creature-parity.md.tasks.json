@@ -44,7 +44,7 @@
     {
       "id": 6,
       "subject": "Task 6: Creature painter prototype (pixel-asserted per part)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         1
       ],
