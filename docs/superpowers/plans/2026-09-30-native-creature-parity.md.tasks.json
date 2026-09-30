@@ -53,7 +53,7 @@
     {
       "id": 7,
       "subject": "Task 7: Land backdrop + creature stage scene node",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         2,
         6
