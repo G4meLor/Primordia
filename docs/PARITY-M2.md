@@ -217,13 +217,20 @@ never reach the budget alone) area-uniform ≤320 px around the player from a
 fixed-seed LCG, then steps **600 ticks** under xvfb (llvmpipe, rendering ON).
 
 Asserts (both green):
-- **average wall-clock per sim tick ≤ 8 ms** — measured **7.41–7.76 ms avg** across 7 runs of the final code (max single tick 16.6–27.8 ms; identical world state every run of a given build — the probe is fully deterministic),
+- **average wall-clock per sim tick ≤ 8 ms** — the final code measured **7.41–7.47 ms avg** across 3 quiet-box runs (identical world state every run — ents 83, pellets 12, dna 88 — the probe is fully deterministic). The pre-fix-round builds measured 7.61–7.76 with a different world (ents 93 — the correctness fixes changed it; see the A-B section). Under the sustained external load of another process's soak run (~load 7.5–9.2) both inflate ~12% (base 8.3, HEAD 8.6 — the wave's attributable delta is ≈ +0.3 ms from the live-cell sync, see below),
 - **no NaN drift** — the bot's `assert_sane` invariants (dna ≥ 0 finite, chaos ∈ [0,1], karma ∈ [−1,1], position finite, php ≤ pmaxHp, ents < 300) every 60 ticks + final.
 
 Recorded informationally: full engine-frame wall-clock avg ≈ 129 ms under
 llvmpipe — the draw pass of ~200 on-screen procedural cells dominates, and no
 sim-side change moves it; the §6 "200 entities @ 60 fps" budget targets a mid
 machine's real GPU, not the software rasterizer the probe intentionally runs on.
+
+**Headless sim-tick cross-check** (contention-immune — no render path): the
+same 200-ent scenario timed through `update()` alone measures **3.80 ms/tick
+at HEAD vs 29.13 ms/tick at base `869e83b`** — a 7.7× sim-tick speedup,
+back-to-back under identical ambient load. The scene-probe number (sim + stage
++ game layer + render queueing) is dominated by the scene side; the sim itself
+runs at less than half the 8 ms budget.
 
 **Probe-driven fix (this task):** the first probe run measured **37.5 ms/tick** —
 the probe caught the sim's O(N²)/O(N·P) Dictionary-based inner loops far over
@@ -246,21 +253,24 @@ the suite could not see it — the bot-arc fingerprints are self-compares (run 1
 vs run 2 of the SAME build), not pre/post gates. The permanent instrument is now
 `tools/ab_state_dump.gd`: a full unquantized state dump (every ent/pellet/zone
 field at 17 decimals, eco species rows incl. grudge/harass, the three rng
-stream states, discovered set, tutorial counters) over three fixed crowded
+stream states, discovered set, tutorial counters) over four fixed crowded
 scenarios — s1 probe-shape (200 ents, 300 ticks), s2 crowded-panic (a 2.5 s
-warn window over the crowd), s3 kin-kill-same-tick (grudge 0→2 mid-sweep) —
-runnable at any commit. It found **three correctness bugs the 15293-check suite
-had passed** (a stale post-panic position feeding the separation/eat gathers;
-a missing grid-dirty on the lifespan-expiry sweep; the grudge cache not
-invalidated by kill_ent's mid-tick grudge bump) plus an eat loop reading the
-pre-integration position — all fixed.
+warn window over the crowd), s3 kin-kill-same-tick (grudge 0→2 mid-sweep), s4
+lifespan-crowd (20 ents with 2–4 s lifespans expiring inside a 100-ent crowd) —
+runnable at any commit (`tools/ab_test.sh` wraps the whole A-B: worktree at
+$BASE, same harness version both sides, sha-pinned verdict in
+`tests/fixtures/ab/evidence.txt`). It found **four correctness bugs the
+15293-check suite had passed** (a stale post-panic position feeding the
+separation/eat gathers; a missing grid-dirty on the lifespan-expiry sweep; the
+grudge cache not invalidated by kill_ent's mid-tick grudge bump; an eat loop
+reading the pre-integration position) — all fixed.
 
 The A-B evidence, on the final code:
 
 | Comparison | Diff | Meaning |
 |---|---|---|
-| base `869e83b` vs HEAD with the two distance sites reverted to `Vector2.distance_to` (f32, scratch build) | **0 lines** across 9843 dumped rows ×3 scenarios | the optimization + fixes are behavior-identical to the reviewed base |
-| base `869e83b` vs HEAD as committed | 14 440 differing lines, **0 structural** (identical row counts everywhere; no eat/kill timing shifts) | every delta traces to the sanctioned f64 class below |
+| base `869e83b` vs HEAD with the two distance sites reverted to `Vector2.distance_to` (f32, scratch build) | **0 lines** across 11 890 dumped rows ×4 scenarios | the optimization + fixes are behavior-identical to the reviewed base |
+| base `869e83b` vs HEAD as committed | 16 926 differing lines, **0 structural** (identical row counts everywhere; no eat/kill timing shifts) | every delta traces to the sanctioned f64 class below |
 
 **Sanctioned numeric divergence (controller I5, applied):** the two inlined
 distances (player-distance, ent-vs-zone) compute in f64 where the original
