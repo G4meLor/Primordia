@@ -8,6 +8,11 @@
 ## duck-typed Variants — the global class_name cache is absent in `-s` mode,
 ## so this file never references the Rng class name (GDScript has no
 ## generics, so the TS <S> stage param stays Variant too).
+## warn_fn (Ruling 13): a def may carry warn_fn (a Callable) instead of the
+## static warn String — the TS `get warn()` getter port. The scheduler
+## evaluates it AT SPAWN TIME: String -> warn phase, null -> the no-warn
+## immediate-apply branch (TS truthiness of the getter read). The static
+## `warn` key keeps its original truthiness semantics unchanged.
 class_name ChaosScheduler
 extends RefCounted
 
@@ -83,11 +88,22 @@ func trigger(id: String, stage: Variant, ctx: Variant = null) -> bool:
 	return true
 
 
+## The effective warn read for a def, TS `def.warn` semantics: the warn_fn
+## Callable's result when present (re-read at spawn time — String or null),
+## else the static `warn` value. The stage-side onWarn hook reads this too
+## (TS evaluates the getter once in spawn() and again in the hook).
+static func effective_warn(def: Dictionary) -> Variant:
+	var wfn: Variant = def.get("warn_fn")
+	if wfn is Callable:
+		return wfn.call()
+	return def.get("warn")
+
+
 func _spawn(def: Dictionary, stage: Variant, ctx: Dictionary, hooks: Dictionary = {}) -> void:
 	# drawn even for warned defs (discarded there) — the TS rng stream consumes
 	# this draw, and the conversion below draws AGAIN; parity keeps both
 	var dur: float = _rng.range(def["duration"][0], def["duration"][1])
-	if def.get("warn"):
+	if effective_warn(def):
 		# bio_tell: per-def window wins (clamped to the 0.8x factory floor),
 		# else the temperament bucket scales the base window (the ctx scale
 		# already respects the floor)
