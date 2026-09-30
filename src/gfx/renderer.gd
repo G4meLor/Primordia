@@ -249,8 +249,27 @@ static func gradient_rounded_rect(ci: CanvasItem, rect: Rect2, r: float, col_lef
 
 ## TS outlinedText(): weight-600 sans, align center, baseline middle, outline
 ## lineWidth max(2, size/6), fill #eaf2ff. See the header divergence note.
+## TS canvas weight '700' — a synthetic-bold FontVariation of the fallback
+## font. The M2 sites (TS hud.ts:294/325, editor.ts:310/311/366/430/440/478,
+## pause.ts:83, tutorial.ts:104): tutorial header, banner title, world-card
+## toast title, editor headers/part names/row labels, pause PAUSED.
+static var _font_bold: FontVariation = null
+
+static func _bold_font() -> Font:
+	if _font_bold == null:
+		var fv := FontVariation.new()
+		fv.base_font = ThemeDB.fallback_font
+		# 4.2 property name (`embolden` is 4.3+); strength in px-ish units —
+		# matches the TS canvas '700' stroke width at these sizes
+		fv.set("variation_embolden", 0.7)
+		_font_bold = fv
+	return _font_bold
+
+
 static func outlined_text(ci: CanvasItem, text: String, x: float, y: float, opts: Dictionary = {}) -> void:
 	var font: Font = ThemeDB.fallback_font
+	if String(opts.get("weight", "")) == "700":
+		font = _bold_font()
 	var size := float(opts.get("size", 14.0))
 	var max_w := float(opts.get("maxWidth", 0.0))
 	if max_w > 0.0:

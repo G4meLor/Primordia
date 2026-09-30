@@ -304,14 +304,17 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 				card_title = t2["text"]
 			RendererScript.outlined_text(ci, String(card_title), 62.0, y0 + 19.0,
 					{"size": 14.0, "fill": RendererScript.css_color(String(TOAST_COLORS.get("world", "#9fe8d8"))),
-							"align": "left", "maxWidth": cw2 - 62.0, "alpha": a})
+							"align": "left", "maxWidth": cw2 - 62.0, "alpha": a, "weight": "700"})
 			RendererScript.outlined_text(ci, String(t2["body"]), 62.0, y0 + 42.0,
 					{"size": 12.0, "fill": RendererScript.css_color("rgba(230,246,240,0.92)"),
 							"align": "left", "maxWidth": minf(260.0, cw2 - 62.0), "alpha": a})
 			ty -= 64.0
 		else:
 			var label := "%s %s" % [String(t2["icon"]), String(t2["text"])]
-			var tw := ThemeDB.fallback_font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 13).x
+			# TS hud.ts:300 measures the TEXT only (the icon overlaps the
+			# panel's left padding) — not the combined label
+			var tw := ThemeDB.fallback_font.get_string_size(String(t2["text"]),
+					HORIZONTAL_ALIGNMENT_LEFT, -1.0, 13).x
 			# clamp clear of the centered bottom docks (ability bar etc.)
 			var pw := minf(maxf(170.0, tw + 60.0), vw / 2.0 - 176.0)
 			RendererScript.panel(ci, 16.0, ty - 14.0, pw, 26.0, _faded({
@@ -339,7 +342,7 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 		}, ba))
 		# banner title/sub stay raw EN keys in the payload — translated HERE (T5)
 		RendererScript.outlined_text(ci, _game.i18n.tr_key(String(b["title"])), vw / 2.0, 98.0,
-				{"size": 22.0, "fill": col, "maxWidth": bw - 24.0, "alpha": ba})
+				{"size": 22.0, "fill": col, "maxWidth": bw - 24.0, "alpha": ba, "weight": "700"})
 		if String(b["sub"]) != "":
 			RendererScript.outlined_text(ci, _game.i18n.tr_key(String(b["sub"])), vw / 2.0, 124.0,
 					{"size": 13.0, "fill": RendererScript.css_color("rgba(255,255,255,0.85)"),

@@ -341,9 +341,10 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 		"shadow": RendererScript.css_color("rgba(40,120,255,0.2)"),
 	})
 	RendererScript.outlined_text(ci, _game.i18n.tr_key("SPECIES EDITOR"), left_x + left_w / 2.0, left_y + 26.0,
-			{"size": 15.0, "fill": Color("#8fd0ff")})
+			{"size": 15.0, "fill": Color("#8fd0ff"), "weight": "700"})
 	RendererScript.outlined_text(ci, NamesScript.self_name(g), left_x + left_w / 2.0, left_y + 52.0,
-			{"size": 22.0, "fill": RendererScript.hsl(float(g["hue"]), float(g["sat"]), 0.72)})
+			{"size": 22.0, "fill": RendererScript.hsl(float(g["hue"]), float(g["sat"]), 0.72),
+					"weight": "700"})
 	RendererScript.outlined_text(ci, "%s %d · %s" % [_game.i18n.tr_key("generation"),
 			int(g["generation"]), _game.i18n.tr_key(String(g["diet"]))],
 			left_x + left_w / 2.0, left_y + 76.0,
@@ -396,7 +397,8 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 	list_rect = {"x": right_x + 12.0, "y": left_y + 46.0, "w": right_w - 24.0, "h": left_h - 110.0}
 	RendererScript.outlined_text(ci,
 			_game.i18n.tr_key("CELL PARTS") if mode == "cell" else _game.i18n.tr_key("BODY PARTS"),
-			right_x + right_w / 2.0, left_y + 24.0, {"size": 13.0, "fill": Color("#8fd0ff")})
+			right_x + right_w / 2.0, left_y + 24.0,
+			{"size": 13.0, "fill": Color("#8fd0ff"), "weight": "700"})
 
 	# TS clips the rows to the right panel (ctx.rect+clip); Godot CanvasItem
 	# has no draw-time rect clip — the visibility gate below keeps rows inside
@@ -472,7 +474,7 @@ func render_row(ci: CanvasItem, row: Dictionary, x: float, y: float, w: float, h
 			"stroke": RendererScript.css_color("rgba(200,150,255,0.45)"),
 		})
 		RendererScript.outlined_text(ci, _game.i18n.tr_key("BORROWED FLESH"), x + 12.0, y + 14.0,
-				{"size": 12.0, "fill": Color("#dcc2ff"), "align": "left"})
+				{"size": 12.0, "fill": Color("#dcc2ff"), "align": "left", "weight": "700"})
 		RendererScript.outlined_text(ci, "%s → %d · %s" % [_game.i18n.tr_key(String(row["def"]["name"])),
 				int(row["level"]), String(row["species"])], x + 12.0, y + 31.0,
 				{"size": 10.0, "fill": RendererScript.css_color("rgba(210,190,245,0.7)"),
@@ -486,7 +488,7 @@ func render_row(ci: CanvasItem, row: Dictionary, x: float, y: float, w: float, h
 		var def: Dictionary = row["def"]
 		var level := int(g.get(def["gene"], 0))
 		RendererScript.outlined_text(ci, _game.i18n.tr_key(String(def["name"])), x + 12.0, y + 14.0,
-				{"size": 13.0, "fill": Color("#e8f2ff"), "align": "left"})
+				{"size": 13.0, "fill": Color("#e8f2ff"), "align": "left", "weight": "700"})
 		var d: String = _game.i18n.tr_key(String(def["desc"]))
 		RendererScript.outlined_text(ci, "%s · %s" % [_game.i18n.tr_key(String(def["effect"])),
 				d if d.length() <= 46 else d.substr(0, 46) + "…"], x + 12.0, y + 31.0,
@@ -606,7 +608,7 @@ func render_row(ci: CanvasItem, row: Dictionary, x: float, y: float, w: float, h
 func _row_label(ci: CanvasItem, x: float, y: float, w: float, h: float, name: String,
 		value: String, extra := "") -> void:
 	RendererScript.outlined_text(ci, name, x + 12.0, y + 14.0,
-			{"size": 12.0, "fill": Color("#e8f2ff"), "align": "left"})
+			{"size": 12.0, "fill": Color("#e8f2ff"), "align": "left", "weight": "700"})
 	RendererScript.outlined_text(ci, value + ("" if extra == "" else "  %s" % extra),
 			x + 12.0, y + 30.0,
 			{"size": 10.0, "fill": RendererScript.css_color("rgba(190,215,245,0.65)"),

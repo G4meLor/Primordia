@@ -264,7 +264,8 @@ func test_swift_world_swarm_species_survival() -> void:
 
 ## Pin provenance: tools/econ-probe-pin.test.ts "calm_veil", seed 0x1E0A,
 ## extracted 2026-09-30. predator 0.6 thins the carnivore pull (carnW 0.6 →
-## carnPull/herbPull 0.2): at this seed the pulls miss every template (the
+## herbPull 0.2 by the formula; carnPull is 0 — carnW < 1 and herbW = 1): at
+## this seed the pulls miss every template (the
 ## diets match baseline — the honest pinned outcome), the quiet-world mods and
 ## the pop drift show instead.
 func test_calm_veil_predator_thinning() -> void:

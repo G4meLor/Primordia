@@ -125,6 +125,7 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 	RendererScript.outlined_text(ci, "%s %d/%d" % [_game.i18n.tr_key("TUTORIAL"), idx + 1, _steps.size()],
 			x + 14.0, y + 16.0, {
 				"size": 10.0, "fill": Color("#ffd77a"), "align": "left",
+				"weight": "700",
 			})
 	# progress pips
 	for i in _steps.size():

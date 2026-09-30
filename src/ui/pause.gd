@@ -106,7 +106,7 @@ func update(dt: float) -> void:
 func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 	ci.draw_rect(Rect2(0.0, 0.0, vw, vh), RendererScript.css_color("rgba(2,4,12,0.72)"))
 	RendererScript.outlined_text(ci, _game.i18n.tr_key("PAUSED"), vw / 2.0, vh / 2.0 - 180.0,
-			{"size": 34.0, "fill": Color("#bfe6ff")})
+			{"size": 34.0, "fill": Color("#bfe6ff"), "weight": "700"})
 	if show_world:
 		_draw_world(ci, vw, vh)
 	elif not show_help:
