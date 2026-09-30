@@ -277,7 +277,6 @@ func test_zsort_chief_hidden_in_death_fade() -> void:
 	stage.on_enter()
 	m["sim"].deathFade = 0.5  # > 0.4 hides the pair entirely (TS:1359)
 	stage._sync_creature_items()
-	var chief: Variant = stage._body_pool[3]  # chief z ordering may vary — scan
 	var found := false
 	for i in stage._body_pool.size():
 		var b: Variant = stage._body_pool[i]

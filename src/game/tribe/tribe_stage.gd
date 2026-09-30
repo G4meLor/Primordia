@@ -377,13 +377,16 @@ func _draw_ground(ci: CanvasItem) -> void:
 		var door := RendererScript.hsl(28.0, 0.3, 0.2)
 		door.a *= alpha
 		ci.draw_rect(Rect2(hx - 7.0, hy - 14.0, 14.0, 14.0), door)
-		# damage cracks
+		# damage cracks — inside the TS save/globalAlpha context (TS:1250-1275),
+		# so an unbuilt hut's cracks stroke at 0.6·0.5
 		if float(h["hp"]) < float(h["maxHp"]) * 0.6:
+			var crack := RendererScript.css_color("rgba(20,10,5,0.6)")
+			crack.a *= alpha
 			ci.draw_polyline(
 					PackedVector2Array([
 						Vector2(hx - 12.0, hy - 20.0), Vector2(hx - 4.0, hy - 8.0),
 						Vector2(hx - 10.0, hy - 2.0)]),
-					RendererScript.css_color("rgba(20,10,5,0.6)"), 2.0, true)
+					crack, 2.0, true)
 		# TS draws the label AFTER restore — full alpha regardless of buildT
 		RendererScript.outlined_text(ci, "🏠%d" % roundi(float(h["hp"])), hx, hy + 12.0,
 				{"size": 9.0, "fill": RendererScript.css_color("rgba(255,255,255,0.5)")})
