@@ -834,7 +834,8 @@ func update_ents(dt: float) -> void:
 			e["y"] = float(e["y"]) + float(e["vy"]) * dt
 			_exs[i] = float(e["x"])
 			_eys[i] = float(e["y"])
-			_ent_cell_sync(i)
+			if floori(_exs[i] / _eg_cell) != int(_ecellx[i]) or floori(_eys[i] / _eg_cell) != int(_ecelly[i]):
+				_ent_cell_sync(i)
 			i -= 1
 			continue
 
@@ -917,7 +918,8 @@ func update_ents(dt: float) -> void:
 			e["y"] = float(e["y"]) + ((float(e["y"]) - py) / pd) * 48.0 * dt
 			_exs[i] = float(e["x"])
 			_eys[i] = float(e["y"])
-			_ent_cell_sync(i)
+			if floori(_exs[i] / _eg_cell) != int(_ecellx[i]) or floori(_eys[i] / _eg_cell) != int(_ecelly[i]):
+				_ent_cell_sync(i)
 			# the drift moved THIS ent — the downstream sections (separation,
 			# eat, toxin zones) must see the post-drift position the way the
 			# pre-optimization code did (it read e["x"]/e["y"] live)
@@ -1059,7 +1061,8 @@ func update_ents(dt: float) -> void:
 		e["vy"] = nvy
 		_exs[i] = nx
 		_eys[i] = ny
-		_ent_cell_sync(i)
+		if floori(nx / _eg_cell) != int(_ecellx[i]) or floori(ny / _eg_cell) != int(_ecelly[i]):
+			_ent_cell_sync(i)
 
 		# ents stay in world
 		var dO: float = sqrt(nx * nx + ny * ny)
