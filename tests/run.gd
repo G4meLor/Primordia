@@ -29,6 +29,13 @@ func _initialize() -> void:
 			var t: RefCounted = script.new()
 			t.call(method)
 			var f: int = t.failures.size()
+			# zero-check guard (M3 final review I-1): a body that aborts on a
+			# runtime script error mid-way reports 0 checks / 0 failures and
+			# would read as green — treat it as a failure instead (a healthy
+			# test asserts at least once).
+			if f == 0 and t.checks == 0:
+				f = 1
+				t.failures.append("zero checks recorded — the test body aborted before asserting (script error mid-way?)")
 			total_checks += t.checks
 			total_failures += f
 			var status := "ok" if f == 0 else "FAIL"

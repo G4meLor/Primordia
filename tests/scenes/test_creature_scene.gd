@@ -264,13 +264,15 @@ func _process(_dt: float) -> void:
 			# freeze once TWO lava hazards are alive AND both in view: the
 			# moment's asserts need exactly two anchored glows + the warm mass
 			# + the smoke — not the full strike set. (The stricter "all five
-			# landed" gates flaked two ways: a global timer-list drain that
-			# other live events kept busy, and — rarer — a strike timer that
-			# vanished without its hazard ever appearing (DIAG evidence in the
-			# task report's concerns; needs a follow-up probe). Any two of the
-			# five delays are ≤ 11 s apart inside the 14 s ttl, so a 2-alive
-			# window ≥ 3 s ALWAYS exists — freezing on it is race-free.
-			# Meteors are 'fire' kind — see _volcano_probes.)
+			# landed" gates flaked on engine-frame pacing, and an early DIAG
+			# read of "a strike timer vanished without firing" was an
+			# INTERPRETATION error — the final M3 review traced the state to
+			# the ttl-14 s hazard expiry landing while a hung gate kept
+			# simulating (timers drain → fn always runs; hazards expire at
+			# ttl exactly like TS CreatureStage.ts:504-506). No parity bug.
+			# Any two of the five delays are ≤ 11 s apart inside the 14 s ttl,
+			# so a 2-alive window ≥ 3 s ALWAYS exists — freezing on it is
+			# race-free. Meteors are 'fire' kind — see _volcano_probes.)
 			var lava_alive := 0
 			for hz in st.hazards:
 				if String(hz["kind"]) == "lava":
