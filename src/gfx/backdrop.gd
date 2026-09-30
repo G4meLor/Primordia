@@ -14,8 +14,11 @@
 ## Land (task 7): the sky gradient/stars/sun-moon/clouds/hills draw in SCREEN
 ## space (the stage's sky canvas cancels the viewport camera transform); the
 ## sun/moon radial gradients are piecewise-linear radial stops reproduced as
-## vertex-colored fans (canvas interpolates linearly between stops — a fan
-## with vertices at the stop radii is exact). drawGround is WORLD-space (TS
+## vertex-colored fans — canvas interpolates linearly between stops, so the
+## fan is stop-exact at the rim, with one recorded sub-pixel divergence: TS
+## createRadialGradient starts at inner radius 4 (backdrop.ts:137/144), which
+## holds the core stop solid inside r=4 and pushes the mid-stop ring ~3px
+## farther out than the fan's r=0 core. drawGround is WORLD-space (TS
 ## calls it inside cam.begin): its 3-stop vertical dirt gradient is two
 ## abutted vertex-colored quads (exact piecewise), the tuft quadratic strokes
 ## are sampled polylines (cell_painter divergence precedent).
@@ -142,9 +145,11 @@ static func land_cloud_pos(i: int, vw: float, vh: float, t: float, cam_x: float)
 
 
 ## Piecewise-linear radial gradient disc — vertices at the stop radii, so the
-## Gouraud fan reproduces canvas createRadialGradient stops exactly (canvas
-## interpolates linearly between stops; the fan interpolates linearly along
-## each radius). stops: Array of [radius, Color] with stops[0][0] == 0.
+## Gouraud fan is stop-exact at the rims (canvas interpolates linearly between
+## stops; the fan interpolates linearly along each radius). TS's inner radius
+## 4 (createRadialGradient r0) shifts its mid-stop ring ~3px outward vs this
+## fan's r=0 core — see the header divergence note. stops: Array of
+## [radius, Color] with stops[0][0] == 0.
 static func _radial_stops_disc(ci: CanvasItem, center: Vector2, stops: Array,
 		segments := 36) -> void:
 	for s in range(stops.size() - 1):

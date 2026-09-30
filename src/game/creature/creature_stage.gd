@@ -211,11 +211,13 @@ func _ready() -> void:
 
 ## Same overlay wiring as the cell stage (Task 8 ruling — the dict shapes and
 ## every existing call site stay identical; only the Callables become real).
-## Re-installed on enter so cell → creature → cell keeps the live dicts
-## pointing at the CURRENT stage's instances (cross-stage hud handoff note in
-## the task report — the cell stage still draws its own instance).
+## Called from _ready (first build) AND on_enter (rebind): the instances are
+## created once and reused, so hud state survives a stage round-trip while the
+## live dicts always point at the CURRENT stage's instances (task-7 review fix
+## — cell → creature keeps dict ownership; the cell stage mirrors this).
 func _install_overlays() -> void:
-	hud_inst = HudScript.new(game)
+	if hud_inst == null:
+		hud_inst = HudScript.new(game)
 	game.hud = {
 		"update": hud_inst.update,
 		"dismiss_banner": hud_inst.dismiss_banner,
@@ -225,14 +227,16 @@ func _install_overlays() -> void:
 		"pointer_down": hud_inst.pointer_down,
 		"set_abilities": hud_inst.set_abilities,
 	}
-	editor_inst = EditorUiScript.new(game)
+	if editor_inst == null:
+		editor_inst = EditorUiScript.new(game)
 	game.editor = {
 		"open": false,
 		"show": editor_inst.show,
 		"close": editor_inst.close,
 		"update": editor_inst.update,
 	}
-	pause_inst = PauseScript.new(game)
+	if pause_inst == null:
+		pause_inst = PauseScript.new(game)
 	pause_inst.actions = {
 		"close_pause": game.close_pause,
 		"save_all": game.save_all,
@@ -331,14 +335,15 @@ func _draw_ground(ci: CanvasItem) -> void:
 	_draw_decor(ci, lawn_h)
 
 	# hazards — TS:1374-1384 (radial gradient clipped to an ellipse: a
-	# vertex-colored elliptical fan reproduces the 2-stop radial exactly)
+	# vertex-colored elliptical fan reproduces the 2-stop radial; the outer
+	# stop is the TS-HARDCODED rgba(255,120,40,0) for BOTH kinds, TS:1379)
 	for hz in sim.hazards:
 		var hy: float = float(hz["z"]) * CreatureSimScript.Z_TO_Y
 		var col0: Color = RendererScript.css_color("rgba(255,120,40,0.85)") \
 				if String(hz["kind"]) == "lava" \
 				else RendererScript.css_color("rgba(255,170,60,0.75)")
 		_ellipse_radial(ci, Vector2(float(hz["x"]), hy), float(hz["r"]), float(hz["r"]) * 0.5,
-				col0, Color(col0, 0.0))
+				col0, RendererScript.css_color("rgba(255,120,40,0)"))
 
 	# bushes — TS:1386-1407
 	for b in sim.bushes:
@@ -769,6 +774,10 @@ func _feed_hud_abilities() -> void:
 ## OWNERSHIP (this is the first stage that consumes the Camera2D — the menu
 ## and cell draw in absolute screen space and need it off again on exit).
 func on_enter(from: Variant = null) -> void:
+	# overlay dict ownership rides the CURRENT stage (see _install_overlays) —
+	# re-install here so cell → creature keeps the live hud/editor/pause dicts
+	# pointing at this stage's instances (the cell stage mirrors this fix)
+	_install_overlays()
 	if sim == null:
 		return
 	var c2d: Variant = game.cam.cam2d

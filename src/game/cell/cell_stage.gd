@@ -148,9 +148,13 @@ func _ready() -> void:
 ## (game.ts:89-91); natively the stage installs the real instances into the
 ## game's stub dicts at tree entry — the duck-typed dict SHAPES (and every
 ## existing call site, game.gd and cell_sim hooks alike) stay identical, only
-## the Callables become real.
+## the Callables become real. Called from _ready (first build) AND on_enter
+## (rebind, task-7 review fix): the instances are created once and reused, so
+## hud state survives a stage round-trip while the live dicts always point at
+## the CURRENT stage's instances (the creature stage mirrors this).
 func _install_overlays() -> void:
-	hud_inst = HudScript.new(game)
+	if hud_inst == null:
+		hud_inst = HudScript.new(game)
 	game.hud = {
 		"update": hud_inst.update,
 		"dismiss_banner": hud_inst.dismiss_banner,
@@ -160,14 +164,16 @@ func _install_overlays() -> void:
 		"pointer_down": hud_inst.pointer_down,
 		"set_abilities": hud_inst.set_abilities,
 	}
-	editor_inst = EditorUiScript.new(game)
+	if editor_inst == null:
+		editor_inst = EditorUiScript.new(game)
 	game.editor = {
 		"open": false,
 		"show": editor_inst.show,
 		"close": editor_inst.close,
 		"update": editor_inst.update,
 	}
-	pause_inst = PauseScript.new(game)
+	if pause_inst == null:
+		pause_inst = PauseScript.new(game)
 	# the pause acts through the hooks dict (Task 8 ruling — T9 re-wires
 	# game-side); the stage wires the real game methods now
 	pause_inst.actions = {
@@ -486,6 +492,11 @@ func render() -> void:
 ## arrive healthy; the sim's rng branch is NOT re-drawn (the stage constructor
 ## owns it, as in TS).
 func on_enter(from: Variant = null) -> void:
+	# overlay dict ownership rides the CURRENT stage (see _install_overlays) —
+	# re-install here so creature → cell keeps the live hud/editor/pause dicts
+	# pointing at this stage's instances (task-7 review fix; the creature stage
+	# mirrors this in its own on_enter)
+	_install_overlays()
 	if sim == null:
 		return
 	sim.ensure_deck(game.context.world.seed)
