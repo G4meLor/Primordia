@@ -150,8 +150,21 @@ static func land_cloud_pos(i: int, vw: float, vh: float, t: float, cam_x: float)
 ## 4 (createRadialGradient r0) shifts its mid-stop ring ~3px outward vs this
 ## fan's r=0 core — see the header divergence note. stops: Array of
 ## [radius, Color] with stops[0][0] == 0.
+## Emitted as ONE indexed triangle list (RenderingServer
+## canvas_item_add_triangle_array): a single draw_polygon for the whole ring
+## trips Geometry2D's triangulator into sliver/missing triangles that render
+## position-dependently (under the creature stage's enabled Camera2D this left
+## the sun and moon invisible — the task-10 scene captures; see
+## creature_stage.gd _ellipse_radial), and one draw_polygon PER SEGMENT fixes
+## the geometry but multiplies draw calls ~36×, which measured 8.03 ms vs the
+## 8.0 ms perf-probe tick budget (the probe's timed window includes
+## _do_render — tests/scenes/test_perf.gd:147-150). The triangle array is the
+## exact primitive for a triangle list: no triangulator, one call.
 static func _radial_stops_disc(ci: CanvasItem, center: Vector2, stops: Array,
 		segments := 36) -> void:
+	var pts := PackedVector2Array()
+	var cols := PackedColorArray()
+	var idx := PackedInt32Array()
 	for s in range(stops.size() - 1):
 		var r0: float = stops[s][0]
 		var r1: float = stops[s + 1][0]
@@ -159,19 +172,40 @@ static func _radial_stops_disc(ci: CanvasItem, center: Vector2, stops: Array,
 		var c1: Color = stops[s + 1][1]
 		if r1 <= r0:
 			continue
-		var pts := PackedVector2Array()
-		var cols := PackedColorArray()
+		var base := pts.size()
 		if r0 <= 0.0:
+			# fan: center vertex (c0) + closed rim ring (c1)
 			pts.append(center)
 			cols.append(c0)
-		for i in segments + 1:
-			var a := (float(i) / float(segments)) * TAU
-			if r0 > 0.0:
+			for i in segments:
+				var a := (float(i) / float(segments)) * TAU
+				pts.append(center + Vector2(cos(a), sin(a)) * r1)
+				cols.append(c1)
+			for i in segments:
+				idx.append(base)
+				idx.append(base + 1 + i)
+				idx.append(base + 1 + ((i + 1) % segments))
+		else:
+			# ring: inner ring (c0) then outer ring (c1); quads split exactly
+			# as the band polygon [iA(c0), iB(c0), oB(c1), oA(c1)] tri split
+			for i in segments:
+				var a := (float(i) / float(segments)) * TAU
 				pts.append(center + Vector2(cos(a), sin(a)) * r0)
 				cols.append(c0)
-			pts.append(center + Vector2(cos(a), sin(a)) * r1)
-			cols.append(c1)
-		ci.draw_polygon(pts, cols)
+			for i in segments:
+				var a := (float(i) / float(segments)) * TAU
+				pts.append(center + Vector2(cos(a), sin(a)) * r1)
+				cols.append(c1)
+			for i in segments:
+				var j: int = (i + 1) % segments
+				idx.append(base + i)
+				idx.append(base + j)
+				idx.append(base + segments + j)
+				idx.append(base + i)
+				idx.append(base + segments + j)
+				idx.append(base + segments + i)
+	RenderingServer.canvas_item_add_triangle_array(ci.get_canvas_item(),
+			idx, pts, cols)
 
 
 ## drawLandBackdrop (backdrop.ts:100-193): sky gradient (day/night/dusk HSL

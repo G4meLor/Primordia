@@ -441,18 +441,33 @@ func _draw_decor(ci: CanvasItem, lawn_h: float) -> void:
 
 
 ## 2-stop radial gradient over an ellipse — vertex-colored fan (used by the
-## hazard blobs; TS createRadialGradient fills an ellipse path).
+## hazard blobs; TS createRadialGradient fills an ellipse path). Emitted as
+## ONE indexed triangle list (RenderingServer canvas_item_add_triangle_array):
+## a single draw_polygon for the whole fan (a 38-point ring with the duplicate
+## closing vertex) trips Geometry2D's triangulator into sliver/missing
+## triangles that render position-dependently — the task-10 volcano capture
+## showed vertical bars, flat strips, or nothing per hazard — and one
+## draw_polygon PER SEGMENT fixes the geometry but multiplies draw calls ~36×
+## against the perf-probe tick budget (its timed window includes _do_render;
+## see backdrop.gd _radial_stops_disc). The triangle array is the exact
+## primitive for a triangle list: no triangulator, one call.
 func _ellipse_radial(ci: CanvasItem, center: Vector2, rx: float, ry: float,
 		col0: Color, col1: Color, segments := 36) -> void:
 	var pts := PackedVector2Array()
 	var cols := PackedColorArray()
+	var idx := PackedInt32Array()
 	pts.append(center)
 	cols.append(col0)
-	for i in segments + 1:
+	for i in segments:
 		var a := (float(i) / float(segments)) * TAU
 		pts.append(center + Vector2(cos(a) * rx, sin(a) * ry))
 		cols.append(col1)
-	ci.draw_polygon(pts, cols)
+	for i in segments:
+		idx.append(0)
+		idx.append(1 + i)
+		idx.append(1 + ((i + 1) % segments))
+	RenderingServer.canvas_item_add_triangle_array(ci.get_canvas_item(),
+			idx, pts, cols)
 
 
 ## TS render() tail (CreatureStage.ts:1454-1456): the particle pools, in

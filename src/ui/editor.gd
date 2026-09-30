@@ -358,12 +358,16 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 			left_x + left_w / 2.0, left_y + 76.0,
 			{"size": 12.0, "fill": RendererScript.css_color("rgba(200,220,255,0.6)")})
 
-	# preview box (drop shadow ellipse)
+	# preview box (drop shadow ellipse) — compose with the caller's camera
+	# cancellation (see the note in _draw_preview; the creature stage's enabled
+	# Camera2D turns a bare draw_set_transform into an off-screen draw)
 	var pv_x := left_x + left_w / 2.0
 	var pv_y := left_y + 250.0
-	ci.draw_set_transform(Vector2(pv_x, pv_y + 10.0), 0.0, Vector2(1.0, 0.1))
+	var inv: Transform2D = _game.get_viewport().canvas_transform.affine_inverse()
+	ci.draw_set_transform_matrix(inv * Transform2D(0.0, Vector2(pv_x, pv_y + 10.0)) \
+			.scaled_local(Vector2(1.0, 0.1)))
 	ci.draw_circle(Vector2.ZERO, 120.0, RendererScript.css_color("rgba(4,8,20,0.7)"))
-	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	ci.draw_set_transform_matrix(inv)
 	if mode == "cell":
 		CellPainterScript.draw_cell(ci, g, {
 			"x": pv_x, "y": pv_y, "moveAngle": 0.0, "speed": 0.06, "scale": 3.2,
@@ -371,7 +375,7 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 			"seed": 3.7,
 		}, {"t": preview_t})
 	else:
-		_draw_preview(ci, pv_x, pv_y)
+		_draw_preview(ci, pv_x, pv_y, inv)
 
 	# stats readout
 	var stats: Dictionary = StatsScript.compute_stats(g, mode == "creature")
@@ -629,14 +633,25 @@ func _row_label(ci: CanvasItem, x: float, y: float, w: float, h: float, name: St
 ## top of every redraw, on close() and via free_preview_rids() on stage
 ## teardown. Extracted from draw() so headless tests can drive it on a bare
 ## CanvasItem (the draw_* helpers would guard outside _draw).
-func _draw_preview(ci: CanvasItem, pv_x: float, pv_y: float) -> void:
+func _draw_preview(ci: CanvasItem, pv_x: float, pv_y: float,
+		inv: Transform2D = Transform2D()) -> void:
 	free_preview_rids()
+	# The owning stage draws this canvas in TS screen space by cancelling the
+	# live viewport canvas_transform on its own draw calls — but the painter's
+	# RenderingServer sub-items compose the RAW canvas transform (the enabled
+	# Camera2D), and its main-item transform state does not inherit the
+	# CanvasItem draw transform either. Feed the cancellation through the
+	# painter's base_pos/base_zoom (screen_inv = Tr(origin)·Sc(scale) for the
+	# camera's translate+zoom) and restore the item's draw transform after —
+	# the painter leaves its last pose transform on it, which used to corrupt
+	# every later draw on this canvas (stats/rows/footer) in creature mode.
 	var res: Dictionary = CreaturePainter.draw_creature(ci, _g(), {
 		"x": pv_x, "y": pv_y, "facing": 1, "speed": 0.12, "gaitPhase": gait,
 		"attack": 0.0, "hurt": 0.0, "eat": 0.0, "airborne": 0.0,
 		"mood": "happy", "scale": 2.1,
-	}, {"t": preview_t})
+	}, {"t": preview_t}, inv.origin, absf(inv.get_scale().x))
 	_preview_rids = [res["clip_item"], res["pattern_item"], res["front_item"]]
+	ci.draw_set_transform_matrix(inv)
 
 
 func free_preview_rids() -> void:

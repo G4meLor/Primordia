@@ -177,9 +177,18 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 	var c: Variant = _game.context
 	var cam: Variant = _game.cam
 
+	# The caller cancels the live camera transform on its draw calls — but a
+	# CanvasItem's draw transform is WRITE-ONLY, and the DNA pulse block below
+	# clobbered it (and reset to identity), throwing the whole hud into raw
+	# camera space. Under the creature stage's enabled Camera2D that pushed
+	# every hud element off-screen (the cell stage's identity canvas masked
+	# it). Compose with the cancellation instead.
+	var inv: Transform2D = _game.get_viewport().canvas_transform.affine_inverse()
+
 	# ---- DNA (top-left) -----------------------------------------------------
 	var pulse := 1.0 + _dna_pulse * 0.18
-	ci.draw_set_transform(Vector2(18.0, 18.0), 0.0, Vector2(pulse, pulse))
+	ci.draw_set_transform_matrix(inv * Transform2D(0.0, Vector2(18.0, 18.0)) \
+			.scaled_local(Vector2(pulse, pulse)))
 	RendererScript.panel(ci, 0.0, 0.0, 150.0, 40.0, {
 		"fill": RendererScript.css_color("rgba(6,10,24,0.8)"),
 		"stroke": RendererScript.css_color("rgba(120,200,255,0.35)"),
@@ -196,7 +205,7 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 		ci.draw_polyline(pts, strand, 2.0, true)
 	RendererScript.outlined_text(ci, "%s DNA" % PMathScript.format_num(_dna_display),
 			34.0, 20.0, {"size": 16.0, "fill": Color("#bfe6ff"), "align": "left"})
-	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	ci.draw_set_transform_matrix(inv)
 
 	RendererScript.outlined_text(ci, String(c.stage).to_upper(), 24.0, 72.0,
 			{"size": 10.0, "fill": RendererScript.css_color("rgba(160,200,255,0.6)"), "align": "left"})
