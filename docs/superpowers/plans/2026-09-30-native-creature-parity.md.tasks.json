@@ -16,11 +16,11 @@
     {
       "id": 3,
       "subject": "Task 3: Creature NPC AI (z-band state machine)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         2
       ],
-      "description": "**Goal:** update_ents ported 1:1 — corpse/baby/stampede lifecycle + panic/charmed/pack/hunt/flee/graze chain. Full AC in plan Task 3.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/creature/creature_sim.gd\", \"tests/test_creature_ai.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"decision order exact\", \"grudgeHunt 1.4x wounded-player gate\", \"pack 60px band follow\", \"9 headless scenarios green\"]}\n```"
+      "description": "**Goal:** update_ents ported 1:1 — corpse/baby/stampede lifecycle + panic/charmed/pack/hunt/flee/graze chain.\n\nComplete — see ledger (commit 8d6180a, review clean)."
     },
     {
       "id": 4,
@@ -102,5 +102,5 @@
       "description": "**Goal:** Close M3: ab_test.sh fail-open fix, A-B run, perf, whole-branch review, tag creature-parity-m3. Full AC in plan Task 11.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"tools/ab_test.sh\", \"docs/PARITY-M3.md\", \"docs/ARCHITECTURE.md\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ./tools/test.sh\", \"acceptanceCriteria\": [\"ab_test failure-path test proves no laundering\", \"A-B 4 scenarios IDENTICAL or ruled\", \"sim tick <= 2ms @60 ents\", \"tag creature-parity-m3\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-09-30T08:35:00Z"
+  "lastUpdated": "2026-09-30T09:30:00Z"
 }
