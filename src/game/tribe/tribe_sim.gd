@@ -20,7 +20,10 @@
 ##              hud_toast_inset(px), hud_show_objective(text), cam_shake(m,d),
 ##              fx_burst(x, y, n, opts), fx_spawn(opts),
 ##              context_event(ev, from_stage), go_to(stage, data),
-##              save_all(). (Task 3 adds the storyteller getters via ctx.)
+##              save_all(). Task 3 adds: hud_float_world(x, y, text, color,
+##              size), get_gap_bias(), get_mood(), get_warn_scale(),
+##              storyteller_note_chaos_event(playtime) — the storyteller seam
+##              rides hooks like creature_sim (neutral defaults when absent).
 ## No Input singleton reads: update(dt, inp) takes an input SNAPSHOT
 ## Dictionary (mx/my/wx/wy/down/clicked/take_click/keys_held/keys_pressed —
 ## keys_pressed canonical) the scene layer builds and tests construct
@@ -41,9 +44,12 @@
 ## pauseRaids / launchRivalRaidNow chaos seam (TS:1023-1039 — landed with
 ## the raid machine it belongs to; task 3's event defs call it), and the
 ## fall/victory paths (TS:381-409) firing the go_to/save_all hooks.
-## Still deferred:
-##   task 3 — the chaos deck + scheduler wiring (TS:341-369; the scheduler
-##     instance + deckSeed already exist, deck empty until tribe_events.gd).
+## Task-3 scope (this revision): the chaos deck (tribe_events.gd — 5 baseline
+## + 4 gated defs, tribeEvents.ts:10-155) + the scheduler wiring
+## (TS:341-369, via update_chaos) + the festival / festivalMirror / starShower
+## bodies (TS:1041-1084, deferred by task 2).
+## Still deferred (tasks 4-6): the scene layer (render/camera/HUD abilities),
+## the stage-side hook bindings, bot + flow.
 ##
 ## Recorded divergences (parity-pin ledger):
 ##  - TS `this.tribe.indexOf(t) % 2` (wood quota, TribeStage.ts:763) —
@@ -69,9 +75,11 @@
 ##    (gfx/particles.ts:70-84) and embeds them under opts["parts"] — the
 ##    creature_sim M2 pattern, kept bit-identical here.
 ##  - The chaos scheduler is constructed at the TS stream position (the
-##    branch draw happens in _init/on_enter, TS:135/142) with an EMPTY deck
-##    until task 3 lands make_tribe_chaos_events; ChaosScheduler._init draws
-##    nothing, so the stream is already final.
+##    branch draw happens in _init/on_enter, TS:135/142); make_tribe_chaos_events
+##    draws nothing (weights are Callables; mirror_bucket owns a private
+##    stream), so the stage stream is final at construction. The storm's two
+##    former Math.random sites ride seeded streams — see the tribe_events.gd
+##    header DIVERGENCE note.
 ##  - lightning_strike's TS duck-type `'speciesId' in t || !('wood' in t)`
 ##    (TribeStage.ts:979): speciesId exists on neither tree nor hut dicts,
 ##    so the branch reduces to "no wood field" = hut — ported as the
@@ -88,6 +96,7 @@ const StatsScript := preload("res://src/evo/stats.gd")
 const GenomeScript := preload("res://src/evo/genome.gd")
 const ChaosScript := preload("res://src/game/chaos.gd")
 const WorldGenomeScript := preload("res://src/evo/world_genome.gd")
+const TribeEventsScript := preload("res://src/game/tribe/tribe_events.gd")
 
 const Z_TO_Y := 0.62    # pseudo-depth squash (TribeStage.ts:21)
 const Z_MIN := -200.0
@@ -212,9 +221,9 @@ func _init(ctx_v: Variant, rng_branch: Variant, hooks: Dictionary = {}) -> void:
 		})
 
 	# TS:135 — the chaos deck. The branch draw is at the TS stream position
-	# (after trees/bushes/rivals); the deck itself is task 3 (empty for now —
-	# ChaosScheduler._init draws nothing, so the stream is already final).
-	chaos = ChaosScript.new(rng.branch(), [])
+	# (after trees/bushes/rivals); the factory folds ctx.world in and draws
+	# nothing itself, so the stream is final here.
+	chaos = ChaosScript.new(rng.branch(), TribeEventsScript.make_tribe_chaos_events(ctx.world))
 	deckSeed = int(ctx.world["seed"])
 
 
@@ -226,7 +235,8 @@ func _init(ctx_v: Variant, rng_branch: Variant, hooks: Dictionary = {}) -> void:
 func on_enter() -> void:
 	# C1: a CONTINUE/NEW LIFE landing on a different world rebuilds the deck
 	if int(ctx.world["seed"]) != deckSeed:
-		chaos = ChaosScript.new(rng.branch(), [])  # deck: task 3
+		chaos = ChaosScript.new(rng.branch(),
+				TribeEventsScript.make_tribe_chaos_events(ctx.world))
 		deckSeed = int(ctx.world["seed"])
 	_fire("audio_set_mood", ["tribe"])  # TS:146
 	chiefStats = StatsScript.compute_creature_stats(ctx.genome)  # TS:147
@@ -445,8 +455,8 @@ func pop_cap() -> int:
 ## keys_pressed: Array[String]. The scene layer builds it; tests construct
 ## it literally. The sim never touches the Input singleton.
 ## TS update (TribeStage.ts:278-418) minus the scene surfaces — camera
-## follow, fx pool steps, hud.setAbilities (task 4) and the chaos.update
-## call (task 3; the timers drain already runs at the TS stream position).
+## follow, fx pool steps and hud.setAbilities (task 4). The timers drain and
+## the chaos.update call both run at their TS stream positions.
 func update(dt: float, inp: Dictionary) -> void:
 	time += dt
 	dayPhase = fmod(dayPhase + dt / 240.0, 1.0)  # TS:282 — 240 s day (tribe flavor)
@@ -507,7 +517,7 @@ func update(dt: float, inp: Dictionary) -> void:
 					"bad", "⚔️"])
 		launch_rival_raid()
 
-	# chaos.update (TS:342-369) — task 3 (scheduler wiring + the deck)
+	update_chaos(dt)  # TS:341-369
 
 	# the tribe has fallen: offer the walk back to the wilds instead of limbo
 	# (TS:381-398) — the transitions ride the go_to/save_all hooks (the sim
@@ -1342,6 +1352,109 @@ func launch_rival_raid_now() -> void:
 	if raids_blocked():
 		return
 	launch_rival_raid()
+
+
+# ---- chaos -----------------------------------------------------------------------------
+
+## TS TribeStage.ts:341-369 — chaos.update with the full ctx and hooks. The
+## storyteller reference arrives through hooks (get_gap_bias / get_mood /
+## get_warn_scale Callables — the sim stays decoupled from the object); when
+## absent they read the storyteller's neutral defaults (gap 1.0, mood "test",
+## warnScale 1.0). dominance = wealth_pressure() from sim state (TS:348).
+func update_chaos(dt: float) -> void:
+	var gap_bias := 1.0
+	var mood := "test"  # Storyteller.MOOD_TEST
+	var warn_scale := 1.0
+	var gb: Variant = _hooks.get("get_gap_bias")
+	if gb is Callable:
+		gap_bias = float(gb.call())
+	var gm: Variant = _hooks.get("get_mood")
+	if gm is Callable:
+		mood = String(gm.call())
+	var ws: Variant = _hooks.get("get_warn_scale")
+	if ws is Callable:
+		warn_scale = float(ws.call())
+	var on_warn := func(def) -> void:
+		# TS `if (def.warn)` — effective_warn keeps the static-key semantics
+		# (the tribe deck carries no warn_fn defs; the Ruling 13 seam stays
+		# uniform with the creature wiring)
+		if ChaosScript.effective_warn(def):
+			_fire("hud_banner", [{"title": ChaosScript.effective_warn(def),
+					"kind": "danger", "ttl": 2.4}])
+			_fire("audio_play", ["alarm", 0.5, 0.0])
+	var on_apply := func(def) -> void:
+		_fire("hud_banner", [{"title": def["name"], "kind": "chaos"}])
+		ctx.add_chaos(0.03)
+		# mirror_rule: a fired mirror face leaves the return queue
+		if def.get("mirrorOf") != null:
+			mirrorLedger.on_fired(String(def["mirrorOf"]))
+		# world_temperament pacing: warned events going live are the
+		# high-severity marker (cradle grace / lean cycles / wildcard streak)
+		_fire("storyteller_note_chaos_event", [float(ctx.playtime)])
+	var on_end := func(def) -> void:
+		# mirror_rule: an event that survived once may queue its mirror return
+		mirrorLedger.maybe_queue(rng, String(def["id"]), "festival")
+	chaos.update(dt, self, {
+		"chaos": float(ctx.chaos), "karma": float(ctx.karma), "stageTime": time,
+		"gapMult": ctx.chaos_gap_mult() * gap_bias,
+		"mood": mood,
+		"warnScale": warn_scale,  # bio_tell bucket
+		"mirrors": mirrorLedger.queued(),  # mirror_rule returns
+		"dominance": wealth_pressure(),  # siege_hoard input
+	}, {
+		"onWarn": on_warn,
+		"onApply": on_apply,
+		"onEnd": on_end,
+	})
+
+
+## siege_hoard (catalog III #8) input: the tribe's wealth pressure — the
+## richest hoard draws the biggest siege right when it is richest. (TS:1066-1070)
+func wealth_pressure() -> float:
+	return minf(1.0, (food + wood) / 500.0)
+
+
+## TS hasActiveChaos (TribeStage.ts:1075-1077) — the ACTIVE-phase set only —
+## a warn-phase event does not count.
+func has_active_chaos() -> bool:
+	return chaos.active_events().size() > 0
+
+
+## TS festival (TribeStage.ts:1041-1051).
+func festival() -> void:
+	ctx.add_karma(0.08)
+	food = maxf(0.0, food - 20.0)
+	for t in tribe:
+		t["mood"] = "happy"
+		t["hp"] = t["maxHp"]
+	_fire("hud_toast", [tr("Drums all night! The tribe is one."), "good", "🔥"])
+	var hx: float = float(huts[0]["x"]) if not huts.is_empty() else 0.0
+	var hz: float = float(huts[0]["z"]) if not huts.is_empty() else 80.0
+	for i in 3:
+		fires.append({"x": hx + rng.range(-80.0, 80.0),
+				"z": hz + rng.range(-40.0, 40.0), "ttl": 12.0, "spread": 999.0})
+
+
+## mirror_rule (festival's mirror face): exactly ONE rule inverted — the
+## feast sours; the mood rule flips, the food cost and fires stay. (TS:1053-1064)
+func festival_mirror() -> void:
+	food = maxf(0.0, food - 20.0)
+	for t in tribe:
+		t["mood"] = "afraid"
+	_fire("hud_toast", [tr("The feast sours — the tribe bickers all night."), "bad", "🔥"])
+	var hx: float = float(huts[0]["x"]) if not huts.is_empty() else 0.0
+	var hz: float = float(huts[0]["z"]) if not huts.is_empty() else 80.0
+	for i in 3:
+		fires.append({"x": hx + rng.range(-80.0, 80.0),
+				"z": hz + rng.range(-40.0, 40.0), "ttl": 12.0, "spread": 999.0})
+
+
+## TS starShower (TribeStage.ts:1079-1084).
+func star_shower() -> void:
+	var dna := 80
+	ctx.add_dna(float(dna))
+	_fire("hud_float_world", [px, pz * Z_TO_Y - 60.0, "+%d DNA" % dna, "#c9a4ff", 16.0])
+	_fire("hud_toast", [tr("Falling stars seed the sky with DNA."), "reward", "🌠"])
 
 
 # ---- economy ------------------------------------------------------------------------

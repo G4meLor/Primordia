@@ -1292,7 +1292,8 @@ func _village_snapshot(sim: Variant) -> Array:
 	for t in sim.tribe:
 		tribe_snap.append([snappedf(float(t["x"]), 1e-6), snappedf(float(t["z"]), 1e-6),
 				snappedf(float(t["hp"]), 1e-6), snappedf(float(t["gait"]), 1e-6),
-				String(t["role"]), String(t["carrying"])])
+				String(t["role"]),
+				String(t["carrying"]) if t["carrying"] != null else ""])
 	return [snappedf(float(sim.px), 1e-6), snappedf(float(sim.pz), 1e-6),
 			snappedf(float(sim.food), 1e-6), snappedf(float(sim.wood), 1e-6),
 			snappedf(float(sim.dayPhase), 1e-9), snappedf(float(sim.gait), 1e-6),
