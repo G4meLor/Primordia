@@ -28,6 +28,11 @@
 ## the body bottom). canvas_item_set_canvas_group_mode(CANVAS_GROUP_MODE_
 ## CLIP_AND_DRAW) is the shape-accurate mechanism (llvmpipe/GLES3 probe:
 ## set_clip leaks pattern pixels outside the body, the group mode does not).
+## Degenerate rings (T8 review minor 3): Geometry2D.merge_polygons can emit
+## zero-area rings (a disc fully containing another, two nearly-coincident
+## discs) — add_polygon then warns "Invalid polygon data, triangulation
+## failed" on them under llvmpipe. They carry no pixels; _disc_union drops
+## them before any consumer (the editor-preview warning is gone with it).
 ##
 ## Back/front split (task 6 part B, pixel-probed): RS child items composite
 ## after ALL of the parent item's own commands, so the body-fill child would
@@ -480,6 +485,8 @@ static func _arc_points(cx: float, cy: float, r: float, a0: float, a1: float, se
 ## (nonzero rule); chained Geometry2D.merge_polygons keeps a single alpha blend
 ## at any global alpha. The disc chain (spine → head/tail) is connected, so the
 ## union stays one ring; the fold keeps general multi-ring inputs correct anyway.
+## Zero-area merge output (header note, T8 review minor 3) is dropped before any
+## add_polygon consumer sees it.
 static func _disc_union(discs: Array) -> Array:
 	var acc: Array = []
 	for d in discs:
@@ -491,7 +498,26 @@ static func _disc_union(discs: Array) -> Array:
 		for ring in acc:
 			next_acc.append_array(Geometry2D.merge_polygons(ring, poly))
 		acc = next_acc
-	return acc
+	var out: Array = []
+	for ring in acc:
+		if absf(_ring_area(ring)) > 0.0001:
+			out.append(ring)
+	return out
+
+
+## Signed shoelace area of a ring (px²) — the degenerate filter only needs the
+## near-zero test; a real body ring is ≥ ~100 px², slivers under 1e-4 are
+## invisible and trip the triangulator.
+static func _ring_area(ring: PackedVector2Array) -> float:
+	var n := ring.size()
+	if n < 3:
+		return 0.0
+	var a := 0.0
+	for i in n:
+		var p := ring[i]
+		var q := ring[(i + 1) % n]
+		a += p.x * q.y - q.x * p.y
+	return a * 0.5
 
 
 ## Radial gradient disc (col0 at r0 → col1 at r1) on a bare RID — the twin of

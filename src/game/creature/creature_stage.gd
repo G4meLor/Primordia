@@ -448,7 +448,9 @@ func _draw_decor(ci: CanvasItem, lawn_h: float) -> void:
 ## triangles that render position-dependently — the task-10 volcano capture
 ## showed vertical bars, flat strips, or nothing per hazard — and one
 ## draw_polygon PER SEGMENT fixes the geometry but multiplies draw calls ~36×
-## against the perf-probe tick budget (its timed window includes _do_render;
+## into the perf-probe's recorded render/frame metrics (the probe's ASSERTED
+## window is the pure sim step since the T10 metric split — a draw-path cost
+## can only move the recorded render_avg/frame_avg, never fail the sim gate;
 ## see backdrop.gd _radial_stops_disc). The triangle array is the exact
 ## primitive for a triangle list: no triangulator, one call.
 func _ellipse_radial(ci: CanvasItem, center: Vector2, rx: float, ry: float,

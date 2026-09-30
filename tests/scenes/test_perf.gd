@@ -5,11 +5,15 @@
 # maintain_population's visible-per-species caps would never reach that budget
 # on its own. Then steps 600 ticks under xvfb (llvmpipe rendering ON — worst
 # case) and asserts:
-#   1. average wall-clock per sim tick ≤ 8 ms (the tick budget; the fixed-step
-#      60 Hz sim must leave render headroom inside the 16.6 ms frame),
+#   1. average wall-clock per PURE SIM STEP ≤ 8 ms (the tick budget) — the
+#      timed window is `step_for_testing` ONLY. T10 review minor 4: the
+#      window used to wrap `step_for_testing` AND `_do_render`, so a
+#      draw-path change could fail the "sim" gate; the metrics are split
+#      now and the render pass is RECORDED, never asserted,
 #   2. no NaN drift — the bot's assert_sane invariants every 60 ticks.
-# The full engine-frame wall-clock (sim + the real llvmpipe draw pass) is
-# RECORDED informationally — see the note in _report().
+# The stage render pass (_do_render) and the full engine-frame wall-clock
+# (sim + draw + the real llvmpipe rasterization) are RECORDED
+# informationally — see the note in _report().
 # Placement is a fixed-seed LCG (area-uniform ≤ 320 around the player, the
 # debug_spawn_near pattern) so every run spreads the ents identically.
 #
@@ -43,6 +47,8 @@ var _driver: Variant = null
 var _ticks_done := 0
 var _sim_us := 0.0
 var _sim_max_us := 0.0
+var _ren_us := 0.0
+var _ren_max_us := 0.0
 var _wall_us := 0.0
 var _wall_max_us := 0.0
 var _frame_end_us := 0
@@ -139,17 +145,24 @@ func _spawn_budget() -> void:
 	print("PERF_SPAWN ents=%d" % int(sim.ents.size()))
 
 
-## One sim tick per engine frame; the frame's WALL clock (previous frame end →
-## this frame end) carries the sim step + the real llvmpipe draw pass. The sim
-## step is also timed on its own for the 8 ms tick budget.
+## One sim tick per engine frame. The TIMED METRICS ARE SPLIT (T10 review
+## minor 4): the PURE sim step (step_for_testing — carries the asserted 8 ms
+## tick budget, render-free by construction) and the stage render pass
+## (_do_render — the draw-path cost, recorded only so a draw-path change can
+## never fail the sim gate). The frame's WALL window (previous frame end →
+## this frame end) still carries sim + draw + the real llvmpipe
+## rasterization, recorded informationally.
 func _measure() -> void:
 	var sim: Variant = _game.current.sim
 	var u0 := Time.get_ticks_usec()
 	_game.step_for_testing(1, DT)
-	_game._do_render(0.0)
 	var u1 := Time.get_ticks_usec()
+	_game._do_render(0.0)
+	var u2 := Time.get_ticks_usec()
 	_sim_us += float(u1 - u0)
 	_sim_max_us = maxf(_sim_max_us, float(u1 - u0))
+	_ren_us += float(u2 - u1)
+	_ren_max_us = maxf(_ren_max_us, float(u2 - u1))
 	_ticks_done += 1
 	if _ticks_done % 60 == 0:
 		var viol: PackedStringArray = _driver.assert_sane(_game)
@@ -174,27 +187,32 @@ func _report() -> void:
 	var sim: Variant = _game.current.sim
 	var avg_tick_ms := _sim_us / float(_ticks_done) / 1000.0
 	var max_tick_ms := _sim_max_us / 1000.0
+	var avg_ren_ms := _ren_us / float(_ticks_done) / 1000.0
+	var max_ren_ms := _ren_max_us / 1000.0
 	var avg_frame_ms := _wall_us / float(_ticks_done) / 1000.0
 	var max_frame_ms := _wall_max_us / 1000.0
 	var viol: PackedStringArray = _driver.assert_sane(_game)
 	if not viol.is_empty():
 		_fail("final assert_sane: %s" % str(viol))
 		return
-	print("PERF_NUM ticks=%d ents=%d pellets=%d dna=%d sim_avg_ms=%.3f sim_max_ms=%.3f frame_avg_ms=%.3f frame_max_ms=%.3f"
+	print("PERF_NUM ticks=%d ents=%d pellets=%d dna=%d sim_avg_ms=%.3f sim_max_ms=%.3f render_avg_ms=%.3f render_max_ms=%.3f frame_avg_ms=%.3f frame_max_ms=%.3f"
 			% [_ticks_done, int(sim.ents.size()), int(sim.pellets.size()),
-			int(_game.context.dna), avg_tick_ms, max_tick_ms, avg_frame_ms, max_frame_ms])
-	# frame_avg_ms is recorded informationally only: under llvmpipe the draw
-	# pass of ~200 on-screen procedural cells dominates the frame and no
-	# GDScript-side change moves it — the §6 "200 ents @ 60fps" budget targets
-	# a mid machine's real GPU, not the software rasterizer. The asserted
-	# budget is the sim tick (≤ 8 ms) plus the NaN-drift sweep.
+			int(_game.context.dna), avg_tick_ms, max_tick_ms, avg_ren_ms,
+			max_ren_ms, avg_frame_ms, max_frame_ms])
+	# render_avg_ms and frame_avg_ms are recorded informationally only: under
+	# llvmpipe the draw pass of ~200 on-screen procedural cells dominates the
+	# frame and no GDScript-side change moves it — the §6 "200 ents @ 60fps"
+	# budget targets a mid machine's real GPU, not the software rasterizer the
+	# probe intentionally runs on. The asserted budget is the PURE sim tick
+	# (≤ 8 ms, render-free window) plus the NaN-drift sweep.
 	if avg_tick_ms > TICK_BUDGET_MS:
 		_fail("tick budget: avg %.3f ms > %.1f ms over %d ticks (max %.3f)"
 				% [avg_tick_ms, TICK_BUDGET_MS, _ticks_done, max_tick_ms])
 		return
-	print("PERF_OK ticks=%d ents=%d pellets=%d dna=%d sim_avg_ms=%.3f sim_max_ms=%.3f frame_avg_ms=%.3f frame_max_ms=%.3f"
+	print("PERF_OK ticks=%d ents=%d pellets=%d dna=%d sim_avg_ms=%.3f sim_max_ms=%.3f render_avg_ms=%.3f render_max_ms=%.3f frame_avg_ms=%.3f frame_max_ms=%.3f"
 			% [_ticks_done, int(sim.ents.size()), int(sim.pellets.size()),
-			int(_game.context.dna), avg_tick_ms, max_tick_ms, avg_frame_ms, max_frame_ms])
+			int(_game.context.dna), avg_tick_ms, max_tick_ms, avg_ren_ms,
+			max_ren_ms, avg_frame_ms, max_frame_ms])
 	_phase = "done"
 	_done = true
 	get_tree().quit(0)

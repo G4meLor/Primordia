@@ -148,3 +148,36 @@ func test_dead_pose_and_optional_paths() -> void:
 	RenderingServer.free_rid(res["pattern_item"])
 	RenderingServer.free_rid(res["clip_item"])
 	ci.free()
+
+
+# T8 review minor 3: Geometry2D.merge_polygons can emit zero-area rings (a disc
+# fully containing another, two nearly-coincident discs) — add_polygon then
+# warns "Invalid polygon data, triangulation failed" under llvmpipe (seen once
+# in the editor preview). The _disc_union guard drops them; real rings survive.
+func test_disc_union_drops_degenerate_rings() -> void:
+	# coincident discs (the full-containment degenerate): one valid ring out
+	var coin: Array = Painter._disc_union([
+		{"c": Vector2(0.0, 0.0), "r": 10.0},
+		{"c": Vector2(0.0, 0.0), "r": 10.0},
+	])
+	eq(coin.size(), 1, "coincident discs merge to one ring")
+	ok((coin[0] as PackedVector2Array).size() >= 3, "the surviving ring is a polygon")
+	# a disc fully containing another folds into the outer ring only
+	var cont: Array = Painter._disc_union([
+		{"c": Vector2(0.0, 0.0), "r": 20.0},
+		{"c": Vector2(3.0, 1.0), "r": 5.0},
+	])
+	eq(cont.size(), 1, "contained disc merges into the outer ring")
+	# a zero-radius disc must not leave a sliver ring behind
+	var zero: Array = Painter._disc_union([
+		{"c": Vector2(5.0, 0.0), "r": 10.0},
+		{"c": Vector2(50.0, 0.0), "r": 0.0},
+	])
+	for ring in zero:
+		ok(absf(Painter._ring_area(ring)) > 0.0001, "no degenerate ring survives the guard")
+	# disjoint discs stay two rings (the general fold is untouched)
+	var disj: Array = Painter._disc_union([
+		{"c": Vector2(0.0, 0.0), "r": 5.0},
+		{"c": Vector2(100.0, 0.0), "r": 5.0},
+	])
+	eq(disj.size(), 2, "disjoint discs stay two rings")
