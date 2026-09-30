@@ -1,0 +1,81 @@
+{
+  "planPath": "docs/superpowers/plans/2026-09-30-native-creature-parity.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Creature rig math (IK solver + spine + gait, headless)",
+      "status": "pending",
+      "description": "**Goal:** Analytic rig math as pure static functions, TS-exact, headless-green before any pixels. Full AC/Verify/Steps in plan docs/superpowers/plans/2026-09-30-native-creature-parity.md Task 1 (task-brief script extracts).\n\n```json:metadata\n{\"modelTier\": \"mechanical\", \"files\": [\"src/gfx/creature_rig.gd\", \"tests/test_creature_rig.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"solve_ik TS-exact incl. reach clamps\", \"spine/leg/tail TS-exact\", \"pinned TS values at eps 1e-9\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Creature sim core (state/spawn/ecology/player/world objects)",
+      "status": "pending",
+      "description": "**Goal:** creature_sim.gd per the M2 CellSim pattern (hooks-Dictionary, input snapshot). Full AC in plan Task 2.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/creature/creature_sim.gd\", \"tests/test_creature_sim.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"constants exact (Z_TO_Y 0.62, WORLD_HALF 2700, bushes 46, bones 8, packLimit formula)\", \"seed_land_ecology 6 archetypes + titan/swarm + nests\", \"player physics + jump + interactions\", \"600-tick determinism\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Creature NPC AI (z-band state machine)",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** update_ents ported 1:1 — corpse/baby/stampede lifecycle + panic/charmed/pack/hunt/flee/graze chain. Full AC in plan Task 3.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/creature/creature_sim.gd\", \"tests/test_creature_ai.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"decision order exact\", \"grudgeHunt 1.4x wounded-player gate\", \"pack 60px band follow\", \"9 headless scenarios green\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Charm minigame + pack + founding",
+      "status": "pending",
+      "blockedBy": [2, 3],
+      "description": "**Goal:** try_charm/update_charm (marker 0.75 start, mustExit anti-mash), pack persistence, found_tribe → tribe PLACEHOLDER. Full AC in plan Task 4.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/creature/creature_sim.gd\", \"tests/test_charm.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"3-beat charm sequence befriends\", \"mash-in-zone does nothing\", \"pack-full + size gates\", \"found_tribe snapshot + placeholder transition\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Creature chaos events + chaos.gd warn_fn extension",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** 8 baseline + 4 gated creature event defs; chaos.gd warn_fn extension (TS warn-getter parity); Math.random→rng divergence documented. Full AC in plan Task 5.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/creature/creature_events.gd\", \"src/game/chaos.gd\", \"tests/test_creature_events.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"12 defs verbatim weights/durations\", \"warn_fn: high packChaos → null\", \"M1 chaos tests unchanged-green\", \"dominance threshold gate\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Creature painter prototype (pixel-asserted per part)",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** creature_painter.gd — the heaviest visual port; clip via sub-canvas-item; pixel-asserted part-by-part under xvfb. Full AC in plan Task 6.\n\n```json:metadata\n{\"modelTier\": \"frontier\", \"files\": [\"src/gfx/creature_painter.gd\", \"tests/scenes/test_visual_creature.tscn\", \"tools/visual_assert.py\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && tools/test_visual_creature.sh\", \"acceptanceCriteria\": [\"draw order TS-exact\", \"clip mechanism documented\", \"9 pixel-assert families\", \"gait phase moves feet\", \"llvmpipe deterministic\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Land backdrop + creature stage scene node",
+      "status": "pending",
+      "blockedBy": [2, 6],
+      "description": "**Goal:** Land backdrop extension + creature_stage.gd (input snapshot, z-sorted draw with player inserted by z, day/night, Cam reuse). Full AC in plan Task 7.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/gfx/backdrop.gd\", \"src/game/creature/creature_stage.gd\", \"tests/scenes/test_creature_scene.tscn\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"lawn/ground hsl formulas exact\", \"z-sort with player inserted\", \"night overlay + 20 fireflies\", \"render-order pixel assert\", \"Cam reuse\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: HUD/editor/tutorial creature wiring",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Goal:** Tab editor creature rows, charm/toast/banner routing, storyteller creature beats, i18n double-quote keys. Full AC in plan Task 8.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/ui/hud.gd\", \"src/ui/editor.gd\", \"src/ui/tutorial.gd\", \"tests/test_hud_creature.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"editor creature genome rows\", \"hud literals tr_key-wrapped\", \"storyteller creature beats exact triggers\", \"editor xvfb toggle test\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Creature bot + flow integration",
+      "status": "pending",
+      "blockedBy": [4, 7, 8],
+      "description": "**Goal:** Real-input bot (shore arrival → 2-min chaos → founding → tribe placeholder) + save/continue flow. Full AC in plan Task 9.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"tests/bots/bot_creature.gd\", \"src/game/game.gd\", \"src/game/menu.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && tools/test_bot_creature.sh\", \"acceptanceCriteria\": [\"bot through real input pipeline only (2 documented debug cheats)\", \"2-min chaos survival + founding\", \"determinism x2 identical\", \"shore transition + save round-trip\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Land econ probes + visual suite creature moments",
+      "status": "pending",
+      "blockedBy": [4, 5, 7],
+      "description": "**Goal:** Creature econ probes (TS-verbatim formulas) + visual moments + PARITY-M3.md feature list. Full AC in plan Task 10.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"tests/test_probe_creature.gd\", \"tools/probe_creature.sh\", \"docs/PARITY-M3.md\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && tools/probe_creature.sh\", \"acceptanceCriteria\": [\"7 econ probe families pinned\", \"8 visual moments x3 asserts\", \"PARITY-M3.md rows with test pointers\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: M3 wrap (ab_test hardening + perf + review + tag)",
+      "status": "pending",
+      "blockedBy": [9, 10],
+      "description": "**Goal:** Close M3: ab_test.sh fail-open fix, A-B run, perf, whole-branch review, tag creature-parity-m3. Full AC in plan Task 11.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"tools/ab_test.sh\", \"docs/PARITY-M3.md\", \"docs/ARCHITECTURE.md\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ./tools/test.sh\", \"acceptanceCriteria\": [\"ab_test failure-path test proves no laundering\", \"A-B 4 scenarios IDENTICAL or ruled\", \"sim tick <= 2ms @60 ents\", \"tag creature-parity-m3\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-09-30T09:30:00Z"
+}

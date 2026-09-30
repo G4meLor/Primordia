@@ -93,12 +93,12 @@
     {
       "id": 11,
       "subject": "Task 11: M2 wrap (parity table + perf + tag)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         10
       ],
-      "description": "**Goal:** See plan docs/superpowers/plans/2026-09-29-native-cell-parity.md Task 11 — full AC/Verify/Steps in plan (task-brief script extracts).\n\n```json:metadata\n{\"modelTier\": \"mechanical\", \"files\": [], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s tests/run.gd\", \"acceptanceCriteria\": [\"see plan task 11\"]}\n```"
+      "description": "**Goal:** M2 wrap — see ledger: complete (4 fix rounds on the hot-loop optimization, A-B harness built).\n\nComplete — see ledger."
     }
   ],
-  "lastUpdated": "2026-09-30T02:00:00Z"
+  "lastUpdated": "2026-09-30T03:00:00Z"
 }
