@@ -46,7 +46,7 @@
     {
       "id": 6,
       "subject": "Task 6: Tribe bot + flow integration",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         5
       ],
