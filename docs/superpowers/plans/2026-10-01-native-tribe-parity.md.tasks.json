@@ -37,7 +37,7 @@
     {
       "id": 5,
       "subject": "Task 5: HUD wiring, founding handoff, save/continue",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         4
       ],
