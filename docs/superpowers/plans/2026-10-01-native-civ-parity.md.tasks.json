@@ -1,0 +1,65 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Civ sim core (state, sliders, armadas, tickSecond, persist/restore)",
+      "status": "pending",
+      "blockedBy": [],
+      "description": "**Goal:** Civ sim core (state, sliders, armadas, tickSecond, persist/restore). Full AC in plan Task 1.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/civ/civ_sim.gd\", \"tests/test_civ_sim.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"constructor pins (capital, 3 rivals, city jitter)\", \"on_enter C1/toast_inset 150/objective/brick-hardening\", \"sliders raise/transfer/regen\", \"armada launch gates + snapshot + resolve\", \"tickSecond personalities/hearts/karma/flip/revolt\", \"persist/restore guards + victory go_to hook\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Civ chaos events deck",
+      "status": "pending",
+      "blockedBy": [
+        1
+      ],
+      "description": "**Goal:** Civ chaos events deck. Full AC in plan Task 2.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/civ/civ_events.gd\", \"src/game/civ/civ_sim.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"4 baseline defs verbatim\", \"2 gated variants (swift_world/calm_veil, bless x1.3)\", \"NO-onEnd chaos ctx tolerated\", \"tick wiring moves sim state\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Civ stage scene node (planet render, portrait, sliders panel)",
+      "status": "pending",
+      "blockedBy": [
+        2
+      ],
+      "description": "**Goal:** Civ stage scene node (planet render, portrait, sliders panel). Full AC in plan Task 3.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/civ/civ_stage.gd\", \"tests/scenes/test_civ_scene.tscn\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"render order TS-verbatim (backdrop 42, planet, cities, portrait)\", \"3-RID painter contract for the portrait\", \"set_abilities 6 entries per frame\", \"no-Cam drift camera\", \"xvfb scene test\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Wiring — registration, tribe→civ landing, civState save/continue, space placeholder",
+      "status": "pending",
+      "blockedBy": [
+        3
+      ],
+      "description": "**Goal:** Wiring (registration, tribe→civ landing, civState save/continue, space placeholder). Full AC in plan Task 4.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/main.gd\", \"tests/test_hud_civ.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"registration boot + resetStagesForNewRun\", \"tribe victory lands REAL civ\", \"civState save/continue E2E + guards\", \"victory→space placeholder with title/sub\", \"brick-hardening E2E\", \"i18n 1:1\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Civ bot + flow integration",
+      "status": "pending",
+      "blockedBy": [
+        4
+      ],
+      "description": "**Goal:** Civ bot + flow integration. Full AC in plan Task 5.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"tests/bots/bot_civ.gd\", \"tools/test_bot_civ.sh\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"arrival via REAL tribe victory leg\", \"honest slider/armada key arc (2+ launches)\", \"victory leg via documented debug_set_influence\", \"determinism x2\", \"bot law audit clean\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Civ probes + visual moments + PARITY-M5",
+      "status": "pending",
+      "blockedBy": [
+        5
+      ],
+      "description": "**Goal:** Civ probes + visual moments + PARITY-M5. Full AC in plan Task 6.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"tests/test_probe_civ.gd\", \"docs/PARITY-M5.md\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"probes TS-verbatim with independent derivations\", \"visual moments >=3 asserts each\", \"PARITY-M5 rows + checklist + M6 deferred list\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: M5 wrap — A-B, perf, review, tag",
+      "status": "pending",
+      "blockedBy": [
+        6
+      ],
+      "description": "**Goal:** M5 wrap (A-B, perf, review, tag). Full AC in plan Task 7.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"docs/PARITY-M5.md\", \"docs/ARCHITECTURE.md\", \"README.md\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"A-B base tribe-parity-m4 IDENTICAL\", \"perf split metrics recorded\", \"final whole-branch review\", \"tag civ-parity-m5\"]}\n```"
+    }
+  ]
+}
