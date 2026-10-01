@@ -388,13 +388,19 @@ func test_tribe_save_continue_restores_village() -> void:
 			"CONTINUE with a tribe save boots the tribe stage (%d steps)" % steps)
 	var sim2: Variant = g2.current.sim
 	eq(sim2.huts.size(), 2, "village restored as it stood (2 huts — restore, not re-found)")
+	# the band, not an exact pin: two +8 deliveries can land in 70..95 during
+	# the boot steps. The assert still proves RESTORE-not-refound — a fresh
+	# founding reads exactly 60, outside the band.
 	var food_v := float(sim2.food)
 	ok(food_v >= 70.0 and food_v <= 95.0,
-			"food restored at the saved 75 (+ at most one delivery drift, got %s)" % str(food_v))
+			"food restored in the 70..95 band (saved 75 + up to two +8 deliveries, got %s)" % str(food_v))
 	eq(sim2.tribe.size(), 3, "roster restored (REPLACE — no founding minimum on top)")
 	eq(float(sim2.totem["progress"]), 0.0, "totem progress restored")
 	var bt := float(sim2.huts[1]["buildT"])
 	ok(bt > 0.0 and bt <= 6.0, "mid-build hut preserved (buildT %s)" % str(bt))
+	eq(String(g2.current.hud_inst.show_objective),
+			"GATHER · BUILD · SURVIVE — raise the Great Totem",
+			"objective line re-armed on the restored village (TS:164)")
 	_wipe_saves()
 	_drop(g2)
 

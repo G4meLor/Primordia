@@ -463,7 +463,7 @@ func founding_tick(game: Variant) -> String:
 				var tsim: Variant = game.current.sim
 				if tsim == null:
 					return "founding: the tribe stage landed without a sim"
-				if tsim.tribe.is_empty() or tsim.tribe.size() < 3:
+				if tsim.tribe.size() < 3:
 					return "founding: pack conversion minimum not met (%s)" % str(tsim.tribe.size())
 				var raw: Variant = game.context.flags.get("packGenomes", "")
 				if String(raw) != "[]":

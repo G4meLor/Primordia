@@ -31,6 +31,9 @@
 ## owns the rects (hudRects, the stage re-positions them each frame) and
 ## consumes a click by setting inp["take_click"] = true (TS inp.takeClick();
 ## the snapshot is by-reference, the scene reads the flag back).
+## Documented debug seam surface (bot parity law's exception list):
+## debug_state() (read) + debug_grant(food, wood) (the task-6 bot's
+## stockpile cheat for the REAL hut/totem button clicks — see below).
 ## World/entity dicts keep the TS camelCase field names verbatim; the
 ## `stats` dicts carry the M1 stats.gd shape (snake_case keys — the
 ## established compute_creature_stats port surface).
@@ -1561,6 +1564,19 @@ func debug_state() -> Dictionary:
 		"beast": beast, "totem": totem, "dayPhase": dayPhase, "time": time,
 		"popCap": pop_cap(), "raidTimer": raidTimer,
 	}
+
+
+## Debug/test: the tribe bot's stockpile cheat — the ONE sim mutator the
+## M4 task-6 bot adds to this sim (bot parity law's exception list, alongside
+## creature_sim's debug_grant/debug_spawn_pack family). The bot's REAL drawn
+## R · HUT / TOTEM button clicks gate on wood ≥ 40 and food ≥ 100 + wood ≥ 80
+## (TribeStage.ts:530/547); the gather economy would otherwise hold the click
+## legs hostage to bush round-trip timing. SET semantics (absolute, like
+## creature_sim.debug_grant's `ctx.dna = dna_amount`) keep a re-armed retry
+## idempotent; the bot passes its current food when only wood must move.
+func debug_grant(food_amount: float, wood_amount: float) -> void:
+	food = food_amount
+	wood = wood_amount
 
 
 # ---- internals ----------------------------------------------------------------------
