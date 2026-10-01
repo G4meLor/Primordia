@@ -245,8 +245,11 @@ func tribe_tick(game: Variant) -> String:
 			# the pinned 0xBEEF world the gate's RESULT is verified sound:
 			# the delivery latch fires at tribe-frame 1119 while the first
 			# rival warriors of any kind appear at frame 4461 (the task-6
-			# reviewer's instrumented probe), so no rival-kill +8 can precede
-			# the latch. A seed change must re-derive this frame ordering.
+			# reviewer's instrumented probe — provenance OUT-OF-TREE, the
+			# frames are not re-derivable from the repo without
+			# re-instrumenting; task-7 review Minor 3), so no rival-kill +8
+			# can precede the latch. A seed change must re-derive this frame
+			# ordering.
 			var d := float(sim.food) - _food_prev
 			_food_prev = float(sim.food)
 			if d > 0.001 and absf(fmod(d, 8.0)) < 0.001:

@@ -298,6 +298,21 @@ func test_is_night_window() -> void:
 	ok(not stage._is_night(), "0.96 past the window")
 
 
+## The TS:1292 round-of-fraction quirk pinned at the renderer seam (the
+## task-7 review Minor 2): the label composes from the 0..1 FRACTION
+## (progress/100), so the round reads 0% until the pole is half-built and 1%
+## after — never the true percent. The draw site consumes the static
+## totem_progress_label directly (no copy), so this string assert pins the
+## live production path; the visual moments pin label PRESENCE at 45%/75%,
+## this pins the NUMBER.
+func test_totem_progress_label_round_of_fraction_quirk() -> void:
+	eq(TribeStage.totem_progress_label(0.45), "TOTEM 0%", "45% built reads 0% (the quirk)")
+	eq(TribeStage.totem_progress_label(0.5), "TOTEM 1%", "the half boundary rounds up like Math.round")
+	eq(TribeStage.totem_progress_label(0.75), "TOTEM 1%", "75% built still reads 1% (the quirk)")
+	eq(TribeStage.totem_progress_label(0.999), "TOTEM 1%",
+			"a hair under done still reads 1% (the label hides at p ≥ 1)")
+
+
 func test_render_guards() -> void:
 	var m := _mk_stage()
 	var stage: Variant = m["stage"]

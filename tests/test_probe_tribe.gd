@@ -318,6 +318,13 @@ func test_bush_regrow_30s_cycle() -> void:
 	var refilled: float = float(bush["food"])
 	ok(refilled >= 3.0 and refilled <= 7.0,
 			"the refill landed in the TS rng 3..7 band (%.3f)" % refilled)
+	# the task-7 review Minor 1 literal: the refill draw (rng.range(3, 7)) at
+	# THIS stream position — seed 0x7E11 + the probe's fixed fixture history —
+	# is deterministic; pinned beside the band so a native drift (range(3, 8),
+	# an extra upstream draw) cannot hide inside the band. Re-instrument on any
+	# draw-history change.
+	approx(refilled, 5.082817288,
+			"refill literal at 0x7E11 — rng.range(3, 7) at this stream position", 1e-6)
 	var stable: float = float(bush["food"])
 	_ticks(sim, 120)
 	eq(float(bush["food"]), stable, "the refill holds (no consumers, regrow done)")
@@ -416,6 +423,15 @@ func test_raid_cadence_reset_value_and_first_hint_once() -> void:
 	var reset1: float = float(sim.raidTimer)
 	ok(reset1 >= 65.0 and reset1 <= 105.0,
 			"reset = 80 + rng(−15, 25) inside the band (%.3f)" % reset1)
+	# the task-7 review Minor 1 literal (closes the band-vs-literal note): the
+	# reset draw's stream position at 0x7E14 is deterministic given the probe's
+	# fixed boot history — pin the literal beside the band. Any native drift
+	# (base 85, an extra upstream draw, range(−15, 26)) moves it off (1e-6 eps
+	# is generous: a real drift is a macroscopic jump, never sub-µ). A legit
+	# draw-history change must re-instrument (same rule as the bot's
+	# out-of-tree frames).
+	approx(reset1, 91.268423758,
+			"reset literal at 0x7E14 — 80 + rng(−15, 25) at this stream position", 1e-6)
 	eq(bool(sim.raidActive), true, "raidActive latched on the launch (TS:583)")
 	eq(_toast_count(g, "Raiders rally beyond the ridge"), 1, "the first-raid hint fired")
 	# fight the party off (kill the field — the war_graves block closes the

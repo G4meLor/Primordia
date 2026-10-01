@@ -408,7 +408,8 @@ func _draw_ground(ci: CanvasItem) -> void:
 		if bool(sim.totem["active"]) and p < 1.0:
 			# TS:1292 quirk — `TOTEM ${Math.round(p)}%` with p the 0..1
 			# fraction: the label reads 0% until half-built, then 1%. Verbatim.
-			RendererScript.outlined_text(ci, "TOTEM %d%%" % roundi(p), 0.0, ty - 90.0 * p - 16.0,
+			# (string via the totem_progress_label seam — pinned headless)
+			RendererScript.outlined_text(ci, totem_progress_label(p), 0.0, ty - 90.0 * p - 16.0,
 					{"size": 11.0, "fill": Color("#ffe08a")})
 
 	# trees (after totem for layering, TS:1296-1300; drawTree TS:1211-1228)
@@ -528,6 +529,17 @@ func _render_hud(ci: CanvasItem, vh: float) -> void:
 
 func _lawn_h() -> float:
 	return (TribeSimScript.Z_MAX + 120.0) * TribeSimScript.Z_TO_Y
+
+
+## The TS:1292 progress-label seam — `TOTEM ${Math.round(p)}%` with p the
+## 0..1 fraction (progress/100), NOT the percent: Math.round(0.75) is 1, so
+## the label literally reads 0% until the pole is half-built and 1% after
+## (the TS quirk; the totem BUTTON label at TS:1422 rounds the percent and
+## reads sensibly). Static so the renderer-seam assert
+## (tests/test_tribe_scene.gd) pins the live production string — the draw
+## site below consumes this, never a copy.
+static func totem_progress_label(p: float) -> String:
+	return "TOTEM %d%%" % roundi(p)
 
 
 ## TS isNight (TribeStage.ts:1396-1398) — stage-side in TS too.
