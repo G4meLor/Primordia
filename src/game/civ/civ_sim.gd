@@ -27,12 +27,10 @@
 ##              task` per the standing deferral.)
 ## No Input singleton reads: update(dt, inp) takes the M2 input SNAPSHOT and
 ## reads keys_pressed ONLY — Q/A/W/S/E/D sliders, Digit1/2/3 launches.
-## The chaos scheduler rides a SECOND branch of the stage rng (TS:109). RULED
-## (task 1): the civ deck fn does not exist until task 2 — the scheduler is
-## constructed with an EMPTY defs array and the C1 rebuild gate (world.seed !=
-## deckSeed) is already fully wired. The deck lands in Task 2 (civ_events.gd);
-## its factory must draw nothing from the stage rng (weights as Callables) to
-## keep the stream TS-aligned.
+## The chaos scheduler rides a SECOND branch of the stage rng (TS:109) holding
+## the world-parameterized civ deck (civ_events.gd, task 2): the factory draws
+## NOTHING from any stage stream — the weights are Callables folding the world
+## genome's gold/calm gates in at build time — so the stream stays TS-aligned.
 ## i18n: the sim emits the raw keys through plain tr() — the M1 convention
 ## (context.gd): the VI dictionary is registered into the TranslationServer at
 ## Game boot, so the t()-wrapped TS strings resolve (and degrade to EN
@@ -84,6 +82,7 @@ class_name CivSim
 extends RefCounted
 
 const ChaosScript := preload("res://src/game/chaos.gd")
+const CivEventsScript := preload("res://src/game/civ/civ_events.gd")
 
 ## TS hud.showObjective on onEnter (CivStage.ts:121).
 const OBJECTIVE_LINE := "UNIFY THE PLANET — slider keys Q/W/E · launch armadas with 1/2/3"
@@ -170,10 +169,9 @@ func _init(ctx_v: Variant, rng_branch: Variant, hooks: Dictionary = {}) -> void:
 			"burning": 0.0,
 		})
 
-	# TS:109 — the scheduler rides a SECOND branch of the stage rng. RULED
-	# (task 1): the deck is EMPTY until task 2 (civ_events.gd); the C1 gate
-	# below is already wired for it.
-	chaos = ChaosScript.new(rng.branch(), [])
+	# TS:109 — the scheduler rides a SECOND branch of the stage rng, holding
+	# the world-parameterized civ deck (the factory draw is stream-free)
+	chaos = ChaosScript.new(rng.branch(), _make_deck())
 	deckSeed = int(ctx.world["seed"])  # TS:110
 
 
@@ -206,11 +204,11 @@ func on_exit() -> void:
 	persist_state()  # TS:130
 
 
-## RULED (task 1): the deck factory seam — task 2 replaces the empty array
-## with make_civ_chaos_events(ctx.world) (which must draw nothing from the
-## stage rng — see the header note).
+## The deck factory seam (civEvents.ts:47) — the world-parameterized civ deck.
+## Draws nothing from any stage rng (see the header note); the C1 rebuild in
+## on_enter reuses it on a fresh branch.
 func _make_deck() -> Array:
-	return []
+	return CivEventsScript.make_civ_chaos_events(ctx.world)
 
 
 func _all_owned() -> bool:

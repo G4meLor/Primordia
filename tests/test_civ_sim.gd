@@ -14,6 +14,7 @@ extends "res://tests/test_base.gd"
 const Ctx := preload("res://src/game/context.gd")
 const RngLib := preload("res://src/core/rng.gd")
 const CivSim := preload("res://src/game/civ/civ_sim.gd")
+const CivEvents := preload("res://src/game/civ/civ_events.gd")
 
 const SEED := 0xC1F1E5
 const OBJECTIVE := "UNIFY THE PLANET — slider keys Q/W/E · launch armadas with 1/2/3"
@@ -191,10 +192,19 @@ func test_constructor_seeding_pins() -> void:
 	# boot-order branch pins (TS:81/109): 6 city draws, then the chaos branch
 	eq(int(sim.rng.state()), int(exp_v["stage_state"]), "stage rng state after construction (branch draw order)")
 	eq(int(sim.chaos._rng.state()), int(exp_v["chaos_state"]), "chaos scheduler on a SECOND rng.branch() (TS:109)")
-	ok(sim.chaos.defs.is_empty(), "deck EMPTY until task 2 (civ_events.gd — task-1 ruling)")
+	# the deck landed in task 2 (civ_events.gd): the constructor holds the
+	# world-parameterized deck — exactly the factory's defs for ctx.world
+	var want_ids: Array = []
+	for d in CivEvents.make_civ_chaos_events(ctx.world):
+		want_ids.append(d["id"])
+	var deck_ids: Array = []
+	for d in sim.chaos.defs:
+		deck_ids.append(d["id"])
+	eq(deck_ids, want_ids, "constructor deck = the factory deck for ctx.world")
+	ok(not deck_ids.is_empty(), "the derived ctx.world yields a non-empty deck")
 	eq(int(sim.deckSeed), int(ctx.world["seed"]), "deckSeed = world seed (TS:110)")
 	ok(is_same(sim.rulerGenome, ctx.genome), "rulerGenome is the context genome REFERENCE (TS:82)")
-	eq(bool(sim.has_active_chaos()), false, "hasActiveChaos false with an empty deck (TS:70-72)")
+	eq(bool(sim.has_active_chaos()), false, "hasActiveChaos false at boot (TS:70-72)")
 
 
 # ---- sliders (TS:182-222) --------------------------------------------------------
@@ -988,7 +998,9 @@ func test_on_enter_semantics() -> void:
 	sim.on_enter()
 	ok(not is_same(sim.chaos, old), "world seed changed → deck rebuilt (C1, TS:115-117)")
 	eq(int(sim.deckSeed), SEED + 1, "deckSeed updated (TS:117)")
-	ok(sim.chaos.defs.is_empty(), "rebuilt deck still empty until task 2")
+	# the deck landed in task 2: the rebuild folds the CURRENT world in
+	eq(sim.chaos.defs.size(), CivEvents.make_civ_chaos_events(m["ctx"].world).size(),
+			"rebuilt deck = the factory deck for the current world")
 
 
 func test_brick_hardening() -> void:
@@ -1056,11 +1068,12 @@ func test_chaos_scheduler_wiring() -> void:
 	var sim: Variant = m["sim"]
 	var rec: Dictionary = m["rec"]
 	var ctx: Variant = m["ctx"]
-	# inject a probe deck def (task 2 ships the real civ deck) exercising the
-	# TS:258-277 wiring end to end: warn → banner+alarm; apply → earthquake +
+	# the scheduler holds ONLY the probe def (task 2 shipped the real deck —
+	# swapping it out keeps these pins hermetic) exercising the TS:258-277
+	# wiring end to end: warn → banner+alarm; apply → earthquake +
 	# chaos-kind banner + addChaos(0.03) + noteChaosEvent
 	rec["gap_bias_out"] = 0.001  # effective gap ≈ 26·0.001·(1−0.45·0.15) ≈ 0.024 s
-	sim.chaos.defs.append({
+	sim.chaos.defs = [{
 		"id": "tq", "name": "TestQuake", "warn": "the ground grumbles",
 		"weight": func(_c): return 10.0, "duration": [1.0, 1.0],
 		"apply": func(stage_v, _rng_v): stage_v.earthquake(),
@@ -1097,7 +1110,7 @@ func test_chaos_scheduler_wiring() -> void:
 	# the warnScale hook read scales the warn window: 2.5 × 1.6 = 4.0 s
 	rec["warn_scale_out"] = 1.6
 	rec["gap_bias_out"] = 0.001
-	sim.chaos.defs.append({
+	sim.chaos.defs = [{  # probe-only again (the real deck waits on the bench)
 		"id": "tq2", "name": "TQ2", "warn": "hum",
 		"weight": func(_c): return 10.0, "duration": [1.0, 1.0],
 		"apply": func(_stage_v, _rng_v): pass,
@@ -1183,7 +1196,7 @@ func test_debug_seams() -> void:
 		"debug_state exposes the core fields")
 	# debug_clear_chaos — determinism legs
 	rec["gap_bias_out"] = 0.001
-	sim.chaos.defs.append({
+	sim.chaos.defs = [{  # probe-only scheduler (the real deck waits on the bench)
 		"id": "tq", "name": "TQ", "warn": "",
 		"weight": func(_c): return 10.0, "duration": [9.0, 9.0],
 		"apply": func(_stage_v, _rng_v): pass,
