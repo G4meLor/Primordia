@@ -234,7 +234,7 @@ the standing open item (M3 §16 carry-forward, §10).
 |---|---|---|
 | (a) Every TS tribe feature present | §1–§6 — every row pinned or explicitly deferred with a spec citation (audio synth + civ landing only, both spec-sanctioned: §9) | ✅ |
 | (b) Bot headless full tribe arc through the real UI, ×determinism | `tools/test_bot_tribe.sh` → **BOT_TRIBE_ALL_OK ×2 passes** (LCG 777 / world 0xBEEF): the real founding → roles → delivery → REAL hut button → recruit → the first raid survived on the REAL clock (hint + banner + war_graves closure + real hut damage) → REAL totem button → the victory card → the unregistered-civ no-op; fingerprints field-identical across passes (§6) | ✅ |
-| (c) Econ probes TS-verbatim | `tools/probe_tribe.sh` → **9 tests / 87 checks / 0 failures** (§8; formulas cited to the frozen TS lines in each probe's provenance comment; exact-identity + same-seed-twin pins); also inside the full headless suite | ✅ |
+| (c) Econ probes TS-verbatim | `tools/probe_tribe.sh` → **9 tests / 89 checks / 0 failures** (§8; formulas cited to the frozen TS lines in each probe's provenance comment; exact-identity + same-seed-twin pins); also inside the full headless suite | ✅ |
 | (d) Pixel-assert suite, tribe moments | the tribe scene suite under xvfb (**43 structural asserts** over 10 moments + the toast twin, `tools/visual_check_tribe_scene.py`, §7) — every moment ≥ 3 PIL-checked structural asserts over a live viewport capture | ✅ |
 | Full suite green | headless `./tools/test.sh` → **43 files / 641 tests / 18589 checks / 0 failures** (task-8 state); all xvfb scene suites exit 0 (bot, bot creature, bot tribe, editor click, menu, visual ×2, creature scene, tribe scene, perf ×3, boot, visual suite) | ✅ |
 | A-B behavior-identity + perf budgets | **§11**: `tools/ab_test.sh creature-parity-m3` → IDENTICAL, 0 diff lines (the standing cell+creature dump unmoved — the tribe stage is additive); **§12**: tribe sim tick 2 ms target MET (0.71–1.00 ms headless @ 60+6), stage render-prep ≤ 4 ms MET (~1.5 ms, asserted in the scene probe), frame window recorded with the rig caveat | ✅ |
@@ -249,3 +249,8 @@ entry). The task-7 review riders landed at the wrap (the two probe literals,
 the totem-label seam assert, the out-of-tree provenance clause). Remaining:
 the controller's final whole-branch review, then the `tribe-parity-m4` tag
 per the binding scope split.
+
+
+## Completion note (spec §5.4)
+
+M4 is complete per spec §5.4: the four criteria gates pass ((a)–(d) above), the A-B behavior-identity gate is IDENTICAL across the whole milestone window (dump sha unmoved since the M2 gate), all perf budgets met (tribe sim tick 0.709–0.996 ms vs the ≤ 2 ms target — measured, tripwire standing), and the full suite is green (43 files / 641 tests / 18589 checks / 0 failures; all 14 xvfb entries exit 0). The final whole-branch review (final-review-m4.md — independent; tribe sim seams re-derived from a full TS read, cross-stage seams verified, A-B re-run LIVE at the tag head) returned **TAG-READY**: 0 Critical / 0 Important / 2 Minor (the probe-count doc row fixed in this commit; the perf-tripwire shape informational, consistent with M2/M3 practice). Tagged `tribe-parity-m4`. Next milestone: M5 = Civ (CivStage.ts + civEvents.ts, the §5.4 gates at civ flavor), then M6 = Space, then M7 = CI/release + repo overwrite.
