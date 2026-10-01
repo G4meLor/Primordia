@@ -55,7 +55,7 @@
     {
       "id": 7,
       "subject": "Task 7: Tribe econ probes + visual moments + PARITY-M4",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         6
       ],
