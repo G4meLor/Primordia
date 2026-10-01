@@ -19,6 +19,12 @@
 # war_graves raid pins (worldStage.test.ts:451) drive the TRIBE stage's
 # launchRivalRaidNow/rivalWarriors — M4 scope, noted in the task report.
 #
+# M4 task 5 additions: the TRIBE save/continue + fall-path pins (the
+# game-level surface the task wires). `with_tribe` boots register the
+# TribeStage like main.gd now does; the flows ride REAL transitions
+# (found_tribe's go_to / the fall's go_to hook), not switch_stage shortcuts,
+# except where a leg's entry point IS the direct switch (documented inline).
+#
 # Headless -s boot: test_hud_creature's out-of-tree pattern (run.gd drives
 # tests synchronously inside _initialize; stage _ready is invoked ONCE
 # manually). The cell→creature shore transition's REAL-input proof lives in
@@ -30,6 +36,7 @@ const GameScript := preload("res://src/game/game.gd")
 const ContextScript := preload("res://src/game/context.gd")
 const MenuStageScript := preload("res://src/game/menu.gd")
 const CreatureStageScript := preload("res://src/game/creature/creature_stage.gd")
+const TribeStageScript := preload("res://src/game/tribe/tribe_stage.gd")
 const CreatureSim := preload("res://src/game/creature/creature_sim.gd")
 
 const DT := 1.0 / 60.0
@@ -43,7 +50,9 @@ const SCRATCH_CFG := "user://test_wcp_settings.cfg"
 ## Out-of-tree boot (test_hud_creature pattern): the menu + creature stage,
 ## stage _ready invoked once manually. Nothing in the boot path needs the
 ## viewport (vw/vh keep 800×600; cam.cam2d stays null and the stage guards it).
-func _boot(seed_v: int = SEED) -> Variant:
+## with_tribe registers the TribeStage too (main.gd parity) — the tribe
+## flows below need a REAL landing target for go_to('tribe').
+func _boot(seed_v: int = SEED, with_tribe := false) -> Variant:
 	var ctx: Variant = ContextScript.new(seed_v)
 	var g: Variant = GameScript.new(ctx)
 	g.set_process(false)
@@ -58,7 +67,11 @@ func _boot(seed_v: int = SEED) -> Variant:
 	g.muted = g.i18n.get_muted()
 	g.register(MenuStageScript.new(g))
 	g.register(CreatureStageScript.new(g))
+	if with_tribe:
+		g.register(TribeStageScript.new(g))
 	g.stages["creature"]._ready()
+	if with_tribe:
+		g.stages["tribe"]._ready()
 	g.start()
 	return g
 
@@ -279,3 +292,166 @@ func test_bio_tell_vacate_band_creature() -> void:
 	ok(float(gone) >= 0.4 * 9.0 and float(gone) <= 0.6 * 9.0,
 			"vacate lands in the 40-60%% band (%d/9)" % gone)
 	ok(inside >= 1, "close-in ents stay (a real vacate gradient, not a teleport)")
+
+
+# ---- M4 task 5: tribe save/continue + fall path (REAL transitions) --------------
+
+## A creature-stage save_all CONTINUEs into the creature stage (the saved
+## stage id — found_tribe's ctx.save rides BEFORE the landing, TS
+## CreatureStage.ts:1647), the pack restores, and the founding path re-runs
+## into the REGISTERED tribe stage with the pack conversion consuming the
+## snapshot again (TribeStage.ts:176-189). The task-9 placeholder assert's
+## real-flow upgrade, headless.
+func test_continue_creature_save_refounds_into_tribe() -> void:
+	_wipe_saves()
+	# run 1: creature save → found → land tribe (pack consumed in memory)
+	var g1: Variant = _boot(SEED, true)
+	_to_creature(g1)
+	var sim1: Variant = g1.current.sim
+	sim1.debug_spawn_pack(2)
+	ok(g1.save_all(), "creature-stage save_all wrote the slot")
+	sim1.found_tribe()  # the TS bot cheat — fires the REAL go_to hook
+	var steps := 0
+	while not (String(g1.context.stage) == "tribe" and g1.transition == null) \
+			and steps < TRANSITION_POLL:
+		g1.step_for_testing(1, DT)
+		steps += 1
+	eq(String(g1.context.stage), "tribe", "run 1 landed the registered tribe stage")
+	eq(String(g1.context.flags.get("packGenomes", "")), "[]", "run 1 consumed the pack")
+	_drop(g1)
+	# run 2: CONTINUE boots the SAVED stage (creature) with the pack, and the
+	# re-found lands tribe with the conversion re-run
+	var g2: Variant = _boot(SEED, true)
+	g2.current.continue_slot(0)
+	var steps2 := 0
+	while not (String(g2.context.stage) == "creature" and g2.transition == null) \
+			and steps2 < TRANSITION_POLL:
+		g2.step_for_testing(1, DT)
+		steps2 += 1
+	eq(String(g2.context.stage), "creature", "CONTINUE booted the saved creature stage")
+	var sim2: Variant = g2.current.sim
+	var pack_n := 0
+	for e in sim2.ents:
+		if bool(e["pack"]):
+			pack_n += 1
+	ok(pack_n >= 2, "pack restored from the founding save (got %d)" % pack_n)
+	sim2.found_tribe()
+	var steps3 := 0
+	while not (String(g2.context.stage) == "tribe" and g2.transition == null) \
+			and steps3 < TRANSITION_POLL:
+		g2.step_for_testing(1, DT)
+		steps3 += 1
+	eq(String(g2.context.stage), "tribe", "the re-found landed the registered tribe stage")
+	eq(g2.current.sim.tribe.size(), 3, "pack conversion re-ran (min 3)")
+	eq(String(g2.context.flags.get("packGenomes", "")), "[]", "packGenomes consumed again")
+	_wipe_saves()
+	_drop(g2)
+
+
+## A TRIBE-stage save mid-progress CONTINUEs back into the village AS IT
+## STOOD: game.save_all routes current.persist_state (game.gd:706 — the
+## creature precedent) → the tribeState blob rides the slot → the arrival's
+## restoreState() returns true and REPLACEs the roster (TribeStage.ts:212-244,
+## never appending to a fresh founding).
+func test_tribe_save_continue_restores_village() -> void:
+	_wipe_saves()
+	# run 1: direct tribe entry (headless pattern — the founding legs cover
+	# the real transition; this pin is about the SAVE side), grow the village,
+	# save through the real game.save_all seam
+	var g1: Variant = _boot(SEED, true)
+	g1.switch_stage("tribe")
+	g1.step_for_testing(5, DT)
+	var sim1: Variant = g1.current.sim
+	eq(sim1.huts.size(), 1, "fresh village: starting hut")
+	sim1.wood = 120.0
+	sim1.try_build_hut()  # the real build path (wood ≥ 40 → hut, buildT 6)
+	eq(sim1.huts.size(), 2, "second hut started")
+	sim1.food = 75.0
+	ok(g1.save_all(), "tribe-stage save_all (the persist_state seam)")
+	var parsed: Variant = JSON.parse_string(
+			FileAccess.get_file_as_string("user://saves/slot0.json"))
+	ok(parsed is Dictionary, "slot parses")
+	eq(String(parsed["stage"]), "tribe", "slot stage is tribe")
+	var blob: Variant = JSON.parse_string(String(parsed["flags"]["tribeState"]))
+	ok(blob is Dictionary, "tribeState blob present in the slot")
+	eq((blob["huts"] as Array).size(), 2, "blob carries both huts")
+	_drop(g1)
+	# run 2: CONTINUE lands tribe; the village comes back as it stood
+	var g2: Variant = _boot(SEED, true)
+	g2.current.continue_slot(0)
+	var steps := 0
+	while not (String(g2.context.stage) == "tribe" and g2.transition == null) \
+			and steps < TRANSITION_POLL:
+		g2.step_for_testing(1, DT)
+		steps += 1
+	eq(String(g2.context.stage), "tribe",
+			"CONTINUE with a tribe save boots the tribe stage (%d steps)" % steps)
+	var sim2: Variant = g2.current.sim
+	eq(sim2.huts.size(), 2, "village restored as it stood (2 huts — restore, not re-found)")
+	var food_v := float(sim2.food)
+	ok(food_v >= 70.0 and food_v <= 95.0,
+			"food restored at the saved 75 (+ at most one delivery drift, got %s)" % str(food_v))
+	eq(sim2.tribe.size(), 3, "roster restored (REPLACE — no founding minimum on top)")
+	eq(float(sim2.totem["progress"]), 0.0, "totem progress restored")
+	var bt := float(sim2.huts[1]["buildT"])
+	ok(bt > 0.0 and bt <= 6.0, "mid-build hut preserved (buildT %s)" % str(bt))
+	_wipe_saves()
+	_drop(g2)
+
+
+## The fall path E2E: a dead village walks back to the wilds through the REAL
+## go_to transition, the tribeState blob is deleted BEFORE the fall's own
+## save_all (TS:393-395) and persist_state's corpse guard never re-writes it
+## — so a re-found builds FRESH (the 3-bounce resurrection bug's pin).
+func test_fall_path_lands_creature_with_blob_deleted() -> void:
+	_wipe_saves()
+	var g: Variant = _boot(SEED, true)
+	g.switch_stage("tribe")  # direct entry — the fall itself is the real flow
+	g.step_for_testing(5, DT)
+	var sim: Variant = g.current.sim
+	eq(sim.tribe.size(), 3, "village founded for the fall leg")
+	# kill the village (test-fixture state write — the TS I-bal family drives
+	# the sim surface directly, worldStage.test.ts:451)
+	sim.tribe.clear()
+	sim.huts.clear()
+	# the fall: the next tick arms fallenT; > 4 s later the go_to hook fires
+	# 'BACK TO THE WILDS' (the sim cannot see the game — the hook is the wire)
+	var card_seen := false
+	var steps := 0
+	while steps < 1200:
+		g.step_for_testing(1, DT)
+		steps += 1
+		if g.transition != null and not card_seen:
+			card_seen = true
+			eq(String(g.transition["next"]), "creature", "fall go_to targets creature")
+			eq(String(g.transition["title"]), "BACK TO THE WILDS", "fall card title (TS:396)")
+		if String(g.context.stage) == "creature" and g.transition == null:
+			break
+	ok(card_seen, "the fall transition fired (%d steps)" % steps)
+	eq(String(g.context.stage), "creature", "BACK TO THE WILDS landed creature")
+	# the blob is dead in memory AND on disk: the fall deleted flags.tribeState
+	# before save_all, and the corpse guard kept persist_state silent
+	ok(not g.context.flags.has("tribeState"), "flags.tribeState deleted (TS:393)")
+	var parsed: Variant = JSON.parse_string(
+			FileAccess.get_file_as_string("user://saves/slot0.json"))
+	ok(parsed is Dictionary, "the fall's own save_all wrote the slot")
+	eq(String(parsed["stage"]), "tribe", "the fall's save ran while tribe was current (TS:395 order)")
+	var flags: Dictionary = parsed["flags"]
+	ok(not flags.has("tribeState"), "the disk save carries NO tribe blob")
+	_drop(g)
+	# re-found: restoreState finds no blob → the fresh founding — no
+	# resurrection, and the old fall timer does not ride (the 3-bounce bug)
+	var g2: Variant = _boot(SEED, true)
+	g2.switch_stage("creature")
+	g2.step_for_testing(5, DT)
+	g2.switch_stage("tribe")
+	g2.step_for_testing(5, DT)
+	var sim2: Variant = g2.current.sim
+	eq(sim2.huts.size(), 1, "re-found built the fresh starting hut")
+	eq(float(sim2.food), 60.0, "fresh-start economy (no blob resurrection)")
+	eq(float(sim2.fallenT), 0.0, "the old fall timer did not ride")
+	g2.step_for_testing(360, DT)  # 6 s — well past the old 4 s fall trigger
+	eq(sim2.huts.size(), 1, "no bounce: the fresh village still stands")
+	eq(sim2.tribe.size(), 3, "fresh roster intact")
+	_wipe_saves()
+	_drop(g2)

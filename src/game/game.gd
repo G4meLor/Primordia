@@ -109,6 +109,7 @@ func _init(context_v: Variant = null) -> void:
 		"float_world": func(_x: float, _y: float, _text: String, _color: Variant,
 				_size: float) -> void: pass,
 		"pointer_down": func(_x: float, _y: float) -> bool: return false,
+		"set_toast_inset": func(_px: float) -> void: pass,
 	}
 	editor["update"] = func(_dt: float) -> void: pass
 	editor["close"] = func() -> void: pass
@@ -256,6 +257,9 @@ func switch_stage(id: String) -> void:
 		return
 	fx["clear"].call()
 	hud["dismiss_banner"].call()
+	# TS:213 — a new stage starts with the inset the TS game zeroes; stages
+	# with bottom-left UI re-arm their own inset in on_enter (tribe 190)
+	hud["set_toast_inset"].call(0.0)
 	if current != null:
 		current.on_exit()
 		# native tree-model note (TS immediate-mode redraws only the live

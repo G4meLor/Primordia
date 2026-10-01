@@ -163,6 +163,8 @@ func _install_overlays() -> void:
 		"float_world": hud_inst.float_world,
 		"pointer_down": hud_inst.pointer_down,
 		"set_abilities": hud_inst.set_abilities,
+		# TS game.ts:213 — the game-level switch reset routes through this key
+		"set_toast_inset": hud_inst.set_toast_inset,
 	}
 	if editor_inst == null:
 		editor_inst = EditorUiScript.new(game)

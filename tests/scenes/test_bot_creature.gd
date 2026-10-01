@@ -6,7 +6,9 @@
 # menu start → the cell stage PLAYED to landfall (real editor leg buy + real
 # shore click — the TS toCreature goTo cheat has no native analog) → the
 # 2-minute chaos survival loop → the founding (debug_* cheats + a real F-hold
-# charm + a real tribe-button click → the tribe-placeholder transition).
+# charm + a real tribe-button click → the REAL tribe landing; M4 task 5
+# upgraded the M3 placeholder assert — the registered TribeStage receives
+# the founding, pack conversion consumed).
 #
 # Phases: per pass in [1, 2]: test-1 game (arrival ticks → chaos → asserts →
 # fingerprint) → test-2 game (arrival ticks → founding ticks → asserts →
@@ -32,12 +34,12 @@ const GameScript := preload("res://src/game/game.gd")
 const ContextScript := preload("res://src/game/context.gd")
 const CellStageScript := preload("res://src/game/cell/cell_stage.gd")
 const CreatureStageScript := preload("res://src/game/creature/creature_stage.gd")
+const TribeStageScript := preload("res://src/game/tribe/tribe_stage.gd")
 const BotCreatureScript := preload("res://tests/bots/bot_creature.gd")
 
-# NO tribe stage registered (M4): the founding go_to('tribe') no-ops in
-# switch_stage and the card + fade complete on the creature stage — that IS
-# the tribe placeholder (the task-4 report ruling). Registering a stub here
-# would fake the landing the real boot will see.
+# M4 task 5: the tribe stage IS registered (main.gd parity) — the founding
+# go_to('tribe') LANDS and the bot's landing leg asserts the real arrival
+# (upgraded from the M3 placeholder: stage 'tribe', pack conversion consumed).
 
 const TIMEOUT_FRAMES := 7200  # real-frame guard for the WHOLE run
 const SLOTS := 3              # the save slots the flow writes — wiped after
@@ -153,8 +155,8 @@ func _first_trace_divergence(test_i: int) -> String:
 
 ## The REAL composition the bot flows through (main.gd's boot minus the
 ## factory — the bot never starts a NEW LIFE mid-run): menu + cell + creature
-## registered at boot, manual stepping ONLY (see test_bot_arc.gd — the real
-## _process would add wall-clock-clamped phantom steps).
+## + tribe registered at boot, manual stepping ONLY (see test_bot_arc.gd — the
+## real _process would add wall-clock-clamped phantom steps).
 func _build_game() -> Variant:
 	var ctx: Variant = ContextScript.new(BotCreatureScript.WORLD_SEED)
 	var game: Variant = GameScript.new(ctx)
@@ -164,6 +166,7 @@ func _build_game() -> Variant:
 	game.register(MenuStageScript.new(game))
 	game.register(CellStageScript.new(game))
 	game.register(CreatureStageScript.new(game))
+	game.register(TribeStageScript.new(game))
 	game.start()
 	return game
 

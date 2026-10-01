@@ -109,7 +109,11 @@ func pack_count(sim: Variant) -> int:
 ## fields): ents/pack counts + floor(pos·100) + floor(dna·100) +
 ## floor(chaos·1000) + floor(dayPhase·1000) + floor(php·100).
 func creature_fingerprint(game: Variant) -> Dictionary:
-	var sim: Variant = game.current.sim
+	# the CREATURE stage's sim explicitly — the founding leg lands the tribe
+	# stage (M4 task 5), so game.current is the tribe stage at read time and
+	# reading game.current.sim here script-errored into an empty fingerprint
+	# (a vacuous determinism gate)
+	var sim: Variant = game.stages["creature"].sim
 	var c: Variant = game.context
 	return {
 		"ents": sim.ents.size(),
@@ -448,20 +452,22 @@ func founding_tick(game: Variant) -> String:
 			_arr_steps = 0
 			_fnd = "landing"
 		"landing":
-			# the tribe stage is M4 — with no registered 'tribe' stage the
-			# switch no-ops (game.ts:251 shape) and the card + fade complete
-			# on the creature stage: that IS the placeholder landing (the
-			# task-4 report ruling)
+			# M4 task 5: the tribe stage IS registered (main.gd parity) — the
+			# founding transition LANDS on tribe (the M3 placeholder assert is
+			# upgraded, not kept) and the pack conversion consumed the snapshot
 			step(game, 1)
 			_arr_steps += 1
 			if game.transition == null:
-				if String(game.context.stage) != "creature":
-					return "founding: landed off the tribe placeholder (%s)" % game.context.stage
-				# the pack snapshot rode the founding (flags.packGenomes ≥ 1)
+				if String(game.context.stage) != "tribe":
+					return "founding: the registered tribe stage did not land (%s)" % game.context.stage
+				var tsim: Variant = game.current.sim
+				if tsim == null:
+					return "founding: the tribe stage landed without a sim"
+				if tsim.tribe.is_empty() or tsim.tribe.size() < 3:
+					return "founding: pack conversion minimum not met (%s)" % str(tsim.tribe.size())
 				var raw: Variant = game.context.flags.get("packGenomes", "")
-				var pack: Variant = JSON.parse_string(String(raw)) if String(raw) != "" else null
-				if not (pack is Array) or (pack as Array).is_empty():
-					return "founding: packGenomes snapshot missing/empty (%s)" % str(raw)
+				if String(raw) != "[]":
+					return "founding: packGenomes not consumed (%s)" % str(raw)
 				_fnd = "done"
 				return "OK"
 			if _arr_steps >= TRANSITION_POLL:

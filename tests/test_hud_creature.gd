@@ -81,6 +81,7 @@ func _install_recorder_hud(g: Variant) -> void:
 		"float_world": _rec_float,
 		"pointer_down": _rec_pointer,
 		"set_abilities": _rec_set_abilities,
+		"set_toast_inset": func(_px: float) -> void: pass,  # TS:213 reset routes here
 	}
 
 

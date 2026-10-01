@@ -36,6 +36,14 @@ var show_objective: Variant = null
 ## build buttons, civ portrait). Stages set it in on_enter; cell leaves it 0.
 var toast_inset := 0.0
 
+
+## TS game.ts:213 — the game resets the inset to 0 on every stage switch
+## ("stages with bottom-left UI re-arm their own inset": tribe re-arms 190 in
+## on_enter, TS:154). Rides the hud dict as a key so the game-level reset
+## reaches whichever stage instance owns the live dict.
+func set_toast_inset(px: float) -> void:
+	toast_inset = px
+
 var _floaters: Array = []
 var _toasts: Array = []
 var _cur_banner: Variant = null     # Banner dict | null
