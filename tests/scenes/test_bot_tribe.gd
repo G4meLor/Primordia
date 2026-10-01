@@ -113,6 +113,10 @@ func _test_post() -> void:
 	if not _bot.totem_banner_seen:
 		_fail("pass %d: the totem banner assert did not latch" % (_pass_i + 1))
 		return
+	if not _bot.hut_damaged:
+		_fail("pass %d: no hut siege damage was observed (the raid never touched a hut — "
+				+ "the task-6 rider latch upgraded to an assert)" % (_pass_i + 1))
+		return
 	if _pass_i == 0:
 		_fps[_pass_i] = {"fp": fp, "trace": _bot.trace}
 	else:

@@ -234,10 +234,19 @@ func tribe_tick(game: Variant) -> String:
 		"deliver":
 			# watch a tribesman DELIVER (+8 food — the arrivals block's
 			# tribe_arrive, TS:1088-1102). Δfood must be a clean multiple of
-			# 8: rival kills also pay +8 but cannot fire before the raid
-			# clock (75 s), while the beast's +60 and the festival's −5 fail
-			# the modulo — a delivery is the only pre-raid food source of
-			# that shape.
+			# 8: rival kills also pay +8 but cannot fire before the first
+			# raid reaches the village, while the beast's +60 and the
+			# festival's −5 fail the modulo — a delivery is the only food
+			# source of that shape here. Full soundness argument (the task-6
+			# review's Minor 2): the raid CLOCK first fires at 75 s, but chaos
+			# events launch PRE-clock raids via launch_rival_raid_now
+			# (rivalsurprise, bold_raid) whose warrior deaths also pay +8 —
+			# so "before the raid clock" alone is not sound in general. At
+			# the pinned 0xBEEF world the gate's RESULT is verified sound:
+			# the delivery latch fires at tribe-frame 1119 while the first
+			# rival warriors of any kind appear at frame 4461 (the task-6
+			# reviewer's instrumented probe), so no rival-kill +8 can precede
+			# the latch. A seed change must re-derive this frame ordering.
 			var d := float(sim.food) - _food_prev
 			_food_prev = float(sim.food)
 			if d > 0.001 and absf(fmod(d, 8.0)) < 0.001:
