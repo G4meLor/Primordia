@@ -1077,7 +1077,7 @@ func test_chaos_scheduler_wiring() -> void:
 		"id": "tq", "name": "TestQuake", "warn": "the ground grumbles",
 		"weight": func(_c): return 10.0, "duration": [1.0, 1.0],
 		"apply": func(stage_v, _rng_v): stage_v.earthquake(),
-	})
+	}]
 	sim.update_chaos(1.0)
 	# warn phase: hasActiveChaos counts ACTIVE only (TS:70-72)
 	eq(bool(sim.has_active_chaos()), false, "warn phase is not active (TS:70-72)")
@@ -1114,7 +1114,7 @@ func test_chaos_scheduler_wiring() -> void:
 		"id": "tq2", "name": "TQ2", "warn": "hum",
 		"weight": func(_c): return 10.0, "duration": [1.0, 1.0],
 		"apply": func(_stage_v, _rng_v): pass,
-	})
+	}]
 	sim.update_chaos(1.0)  # spawn (warn 4.0)
 	sim.update_chaos(1.0)
 	sim.update_chaos(1.0)
@@ -1200,7 +1200,7 @@ func test_debug_seams() -> void:
 		"id": "tq", "name": "TQ", "warn": "",
 		"weight": func(_c): return 10.0, "duration": [9.0, 9.0],
 		"apply": func(_stage_v, _rng_v): pass,
-	})
+	}]
 	sim.update_chaos(1.0)  # warn "" → falsy → immediate active
 	eq(bool(sim.has_active_chaos()), true, "probe event live")
 	sim.debug_clear_chaos()
