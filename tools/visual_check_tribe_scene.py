@@ -26,13 +26,28 @@ Moments and their assert families (TS TribeStage.ts refs by family):
              green chief at z 60 — red at the tribesman's anchor, green at
              the chief's, and red wins the overlap scan down the tribesman's
              column across the chief's torso zone
+  TOTEM    — the totem raising at progress 75 (TS:1281-1294): the warm pole
+             mass mid-build, the red milestone disc (p > 0.3), the blue
+             milestone disc (p > 0.6), the #ffe08a TOTEM label (the TS:1292
+             round-of-fraction quirk reads 1%)
+  BEAST    — the great beast (TS:1338-1354): the hue-300 plates body at
+             scale 2.6 (purple-dominant mass + a wide purple run), the red
+             48×4 hp bar band
+  CAMP     — a rival camp (TS:1196-1208): the translucent rgba(120,60,40,.25)
+             disc warms the lawn vs the outside twin, the middle totem pole
+             mass + its red cap disc, the warm camp-name text
+  HUTCON   — hut construction (TS:1246-1278): the buildT > 0 hut at
+             globalAlpha 0.5 — a dimmer, less-warm wall and a warm roof vs
+             the built twin over the SAME lawn band, and the hp label at
+             FULL alpha (the TS after-restore quirk)
   TOAST    — the toast-inset pair (hud toast_inset 190, TS:154): the toast
              panel appears in the band vh−30−190±, light text pixels, and
              the gap band between the toast and the stockpile panel stays
              twin-identical (the inset keeps the bottom-left UI clear)
 
 Usage: visual_check_tribe_scene.py PROBES_JSON PNG... ; exit 0 = all held.
-PNG order: village_day raid night death zsort toast_before toast.
+PNG order: village_day raid night death zsort totem beast camp hutcon
+toast_before toast.
 """
 import json
 import sys
@@ -90,8 +105,9 @@ def grid_mean(im, side=6):
 def main():
     with open(sys.argv[1]) as f:
         P = json.load(f)
-    (village, raid, night, death, zsort, toast_before, toast) = [
-        Image.open(p).convert("RGB") for p in sys.argv[2:9]]
+    (village, raid, night, death, zsort, totem, beast, camp, hutcon,
+     toast_before, toast) = [
+        Image.open(p).convert("RGB") for p in sys.argv[2:13]]
     W, H = village.size
     failures = []
 
@@ -226,6 +242,86 @@ def main():
                 green += 1
     check("zsort-overlap", red >= 20 and red > green,
           "red %d vs green %d in the overlap box" % (red, green))
+
+    # ---- TOTEM — the raising pole + discs + label -------------------------------
+    t = P["totem"]
+    c = patch_mean(totem, t["pole_mid"][0], t["pole_mid"][1], 5)
+    check("totem-pole", c[0] - c[2] >= 40 and c[0] >= 110, str(c))
+    c = patch_mean(totem, t["disc_red"][0], t["disc_red"][1], 3)
+    check("totem-disc-red", c[0] - c[1] >= 60 and c[0] >= 140, str(c))
+    c = patch_mean(totem, t["disc_blue"][0], t["disc_blue"][1], 3)
+    check("totem-disc-blue", c[2] - c[0] >= 40 and c[2] >= 110, str(c))
+    n = 0
+    for yy in range(int(t["label"][1]) - 14, int(t["label"][1]) + 15):
+        for xx in range(int(t["label"][0]) - 70, int(t["label"][0]) + 71, 2):
+            p2 = px(totem, xx, yy)
+            if p2[0] >= 200 and p2[1] >= 180 and p2[2] <= 180:
+                n += 1
+    check("totem-label", n >= 4, "%d yellow label px" % n)
+
+    # ---- BEAST — the purple body + the red hp bar -------------------------------
+    bs = P["beast"]
+    c = patch_mean(beast, bs["body"][0], bs["body"][1], 5)
+    check("beast-body", c[0] - c[1] >= 35 and c[2] - c[1] >= 25 and c[0] >= 100, str(c))
+    n = 0
+    for yy in range(int(bs["bar_y"]) - 4, int(bs["bar_y"]) + 5):
+        for xx in range(int(bs["bar_x0"]), int(bs["bar_x1"]) + 1):
+            p2 = px(beast, xx, yy)
+            if p2[0] >= 190 and p2[1] <= 130:
+                n += 1
+    check("beast-bar", n >= 20, "%d red bar px" % n)
+    # the scale-2.6 bulk: a wide horizontal purple run across the body row
+    row = int(bs["body"][1])
+    run = best = 0
+    for xx in range(int(bs["body"][0]) - 80, int(bs["body"][0]) + 81):
+        p2 = px(beast, xx, row)
+        if p2[0] - p2[1] >= 40 and p2[2] - p2[1] >= 20:
+            run += 1
+            best = max(best, run)
+        else:
+            run = 0
+    check("beast-bulk", best >= 24, "widest purple run %d px" % best)
+
+    # ---- CAMP — the disc tint + poles + name ------------------------------------
+    cp = P["camp"]
+    c = patch_mean(camp, cp["pole_mid"][0], cp["pole_mid"][1], 2)
+    check("camp-pole", c[0] - c[2] >= 30 and c[0] >= 85, str(c))
+    c = patch_mean(camp, cp["pole_cap"][0], cp["pole_cap"][1], 2)
+    check("camp-cap", c[0] - c[1] >= 45 and c[0] >= 120, str(c))
+    n = 0
+    for yy in range(int(cp["name"][1]) - 10, int(cp["name"][1]) + 11):
+        for xx in range(int(cp["name"][0]) - 45, int(cp["name"][0]) + 46):
+            p2 = px(camp, xx, yy)
+            if p2[0] >= 180 and p2[1] >= 130:
+                n += 1
+    check("camp-name", n >= 4, "%d warm name px" % n)
+    cin = patch_mean(camp, cp["tint_in"][0], cp["tint_in"][1], 4)
+    cout = patch_mean(camp, cp["tint_out"][0], cp["tint_out"][1], 4)
+    check("camp-disc-tint",
+          (cin[0] - cin[2]) - (cout[0] - cout[2]) >= 6 and cin[0] > cout[0],
+          "in %s vs out %s" % (str(cin), str(cout)))
+
+    # ---- HUTCON — the 0.5-alpha build vs the built twin -------------------------
+    hc = P["hutcon"]
+    bw = patch_mean(hutcon, hc["built_wall"][0], hc["built_wall"][1], 4)
+    cw = patch_mean(hutcon, hc["con_wall"][0], hc["con_wall"][1], 4)
+    check("hutcon-wall-dim",
+          (bw[0] - bw[2]) - (cw[0] - cw[2]) >= 12
+          and lum(bw) - lum(cw) >= 8,
+          "built %s vs building %s" % (str(bw), str(cw)))
+    c = patch_mean(hutcon, hc["con_roof"][0], hc["con_roof"][1], 3)
+    check("hutcon-roof", c[0] - c[2] >= 30 and c[0] >= 80, str(c))
+    def light_count(cx, cy):
+        k = 0
+        for yy in range(int(cy) - 12, int(cy) + 13):
+            for xx in range(int(cx) - 45, int(cx) + 46):
+                if lum(px(hutcon, xx, yy)) >= 140:
+                    k += 1
+        return k
+    n_con = light_count(hc["con_label"][0], hc["con_label"][1])
+    n_ctrl = light_count(hc["label_ctrl"][0], hc["label_ctrl"][1])
+    check("hutcon-label-full-alpha", n_con >= 2 and n_con >= n_ctrl + 2,
+          "%d light label px on the 0.5-alpha hut vs %d on empty lawn" % (n_con, n_ctrl))
 
     # ---- TOAST — the inset pair ------------------------------------------------
     t = P["toast"]

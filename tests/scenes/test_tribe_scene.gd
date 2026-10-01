@@ -21,6 +21,21 @@
 #                              FALLEN, the chief body gone at fade > 0.4)
 #   tribe_zsort.png          — Ruling 14 class: the red tribesman at z 100
 #                              draws OVER the green chief at z 60
+#   tribe_totem.png          — totem raising at progress 75 (task 7): the
+#                              progress-scaled pole, BOTH milestone discs
+#                              (p > 0.3 red / p > 0.6 blue), the TOTEM label
+#                              (the TS:1292 quirk — round(p) of the 0..1
+#                              fraction reads 1%)
+#   tribe_beast.png          — the great beast (task 7): the hue-300
+#                              plates-coat body at scale 2.6, the 48×4 hp
+#                              bar, the wide purple run
+#   tribe_camp.png           — a rival camp (task 7): the translucent disc
+#                              tint over the lawn, the 3 totem poles + caps,
+#                              the camp name
+#   tribe_hutcon.png         — hut construction (task 7): the buildT > 0 hut
+#                              at globalAlpha 0.5 (dimmer wall + roof vs the
+#                              built twin), its label at FULL alpha (the TS
+#                              after-restore quirk)
 #   tribe_toast_before/.png  — the toast-inset pair: a hud toast fired with
 #                              toast_inset 190 draws at vh−30−190, clear of
 #                              the stockpile panel + build buttons
@@ -253,6 +268,106 @@ func _process(_dt: float) -> void:
 			_phase = "zsort_shot"
 		"zsort_shot":
 			_capture("tribe_zsort.png")
+			_phase = "totem_setup"
+		"totem_setup":
+			# the totem-raising moment (task 7): progress 75 → p 0.75 — the
+			# pole mid-build plus BOTH milestone discs (p > 0.3, p > 0.6) and
+			# the TOTEM label (the TS:1292 quirk: round(p) of the 0..1
+			# fraction reads 1%). The chief + founders park out of the column.
+			stage.hud_inst._toasts.clear()
+			game.hud["dismiss_banner"].call()
+			st.totem = {"progress": 75.0, "active": true}
+			st.deathFade = 0.0
+			st.dayPhase = 0.2
+			st.time = _day_time
+			st.px = 600.0
+			st.pz = 60.0
+			for i in st.tribe.size():
+				st.tribe[i]["x"] = -600.0 + float(i) * 80.0
+				st.tribe[i]["z"] = 60.0
+			game.cam.snap(st.px, st.pz * Z_TO_Y)  # the follow target keeps the snap
+			game.cam.x = 0.0
+			game.cam.y = 5.0
+			_totem_probes()
+			_phase = "totem_arm"
+		"totem_arm":
+			_phase = "totem_shot"
+		"totem_shot":
+			_capture("tribe_totem.png")
+			_phase = "beast_setup"
+		"beast_setup":
+			# the beast-attack moment (task 7): the REAL spawnBeast genome
+			# (ctx clone, size 2.1 / hue 300 / plates / eyes 4) repositioned
+			# beside the hut, hp 420 → the full 48×4 bar. The chief parks
+			# clear of the body anchors.
+			st.beast = null
+			st.spawn_beast()
+			st.beast["x"] = 60.0
+			st.beast["z"] = 60.0
+			st.beast["hp"] = 420.0
+			st.px = -200.0
+			st.pz = 60.0
+			game.cam.snap(st.px, st.pz * Z_TO_Y)
+			game.cam.x = 0.0
+			game.cam.y = 60.0 * Z_TO_Y
+			_beast_probes()
+			_phase = "beast_arm"
+		"beast_arm":
+			_phase = "beast_shot"
+		"beast_shot":
+			_capture("tribe_beast.png")
+			_phase = "camp_setup"
+		"camp_setup":
+			# the rival-camp moment (task 7): the camp at (200, 60) — the
+			# translucent disc, 3 totem poles + caps, the camp name. Resources
+			# parked so the lawn band is clean around the tint pair.
+			st.beast = null
+			_park_camp_world(st)
+			st.rivals[0]["x"] = 200.0
+			st.rivals[0]["z"] = 60.0
+			st.rivals[0]["hp"] = 100.0
+			st.rivals[1]["x"] = 9999.0
+			st.px = 700.0
+			st.pz = 60.0
+			game.cam.snap(st.px, st.pz * Z_TO_Y)
+			game.cam.x = 200.0
+			game.cam.y = 60.0 * Z_TO_Y
+			_camp_probes(st)
+			_phase = "camp_arm"
+		"camp_arm":
+			_phase = "camp_shot"
+		"camp_shot":
+			_capture("tribe_camp.png")
+			_phase = "hutcon_setup"
+		"hutcon_setup":
+			# the hut-construction moment (task 7): the built starting hut at
+			# (0, 80) beside a buildT-3 twin at (150, 80) — the unbuilt hut
+			# draws at globalAlpha 0.5 (dim wall + roof over the SAME lawn
+			# band) while its hp label stays at FULL alpha (the TS
+			# after-restore quirk). The totem drops out (its column would
+			# cross the built hut's wall probe).
+			st.totem = {"progress": 0.0, "active": false}
+			st.huts[0]["x"] = 0.0
+			st.huts[0]["z"] = 80.0
+			if st.huts.size() < 2:
+				st.huts.append({"x": 150.0, "z": 80.0, "hp": 100.0, "maxHp": 100.0,
+						"pop": 0.0, "buildT": 0.0})
+			st.huts[1]["x"] = 150.0
+			st.huts[1]["z"] = 80.0
+			st.huts[1]["hp"] = 100.0
+			st.huts[1]["maxHp"] = 100.0
+			st.huts[1]["buildT"] = 3.0
+			st.px = 700.0
+			st.pz = 60.0
+			game.cam.snap(st.px, st.pz * Z_TO_Y)
+			game.cam.x = 75.0
+			game.cam.y = 80.0 * Z_TO_Y
+			_hutcon_probes()
+			_phase = "hutcon_arm"
+		"hutcon_arm":
+			_phase = "hutcon_shot"
+		"hutcon_shot":
+			_capture("tribe_hutcon.png")
 			_phase = "toast_before_arm"  # clears the hud toasts, then the twin
 		"toast_before_arm":
 			# isolate the pair: drop any live toasts (the raid hint can still
@@ -421,6 +536,96 @@ func _zsort_probes(st: Variant) -> void:
 	}
 
 
+## The totem-raising anchors (tribe_stage.gd great-totem block, TS:1281-1294):
+## the pole mid-mass, both milestone discs (r 10 at y = top + 8), the label.
+func _totem_probes() -> void:
+	var ty := 60.0 * Z_TO_Y
+	var p: float = float(_st().totem["progress"]) / 100.0
+	var top_y: float = ty - 90.0 * p
+	_probe["totem"] = {
+		"pole_mid": [_world_to_screen(0.0, top_y + 90.0 * p * 0.5).x,
+				_world_to_screen(0.0, top_y + 90.0 * p * 0.5).y],
+		"disc_red": [_world_to_screen(-10.0, top_y + 8.0).x,
+				_world_to_screen(-10.0, top_y + 8.0).y],
+		"disc_blue": [_world_to_screen(10.0, top_y + 8.0).x,
+				_world_to_screen(10.0, top_y + 8.0).y],
+		"label": [_world_to_screen(0.0, top_y - 16.0).x,
+				_world_to_screen(0.0, top_y - 16.0).y],
+	}
+
+
+## The beast-attack anchors (TS:1338-1354): the body center (scale 2.6), the
+## 48×4 hp bar band at y − 68.
+func _beast_probes() -> void:
+	var b: Dictionary = _st().beast
+	var feet: Vector2 = _world_to_screen(float(b["x"]), float(b["z"]) * Z_TO_Y)
+	var body := _body_center(b["genome"], feet, 2.6)
+	var bar_y: float = _world_to_screen(float(b["x"]), float(b["z"]) * Z_TO_Y - 68.0).y
+	_probe["beast"] = {
+		"body": [body.x, body.y],
+		"bar_y": bar_y,
+		"bar_x0": _world_to_screen(float(b["x"]) - 24.0, 0.0).x,
+		"bar_x1": _world_to_screen(float(b["x"]) + 24.0, 0.0).x,
+	}
+
+
+## The rival-camp anchors (TS:1196-1208): the middle pole, its cap disc,
+## the name row, and the tint pair (inside the 60 disc vs the same-lawn
+## patch outside it).
+func _camp_probes(st: Variant) -> void:
+	var rx: float = float(st.rivals[0]["x"])
+	var ry: float = float(st.rivals[0]["z"]) * Z_TO_Y
+	_probe["camp"] = {
+		"pole_mid": [_world_to_screen(rx, ry - 17.0).x, _world_to_screen(rx, ry - 17.0).y],
+		"pole_cap": [_world_to_screen(rx, ry - 38.0).x, _world_to_screen(rx, ry - 38.0).y],
+		"name": [_world_to_screen(rx, ry - 56.0).x, _world_to_screen(rx, ry - 56.0).y],
+		"tint_in": [_world_to_screen(rx - 20.0, ry + 8.0).x,
+				_world_to_screen(rx - 20.0, ry + 8.0).y],
+		"tint_out": [_world_to_screen(rx + 80.0, ry + 8.0).x,
+				_world_to_screen(rx + 80.0, ry + 8.0).y],
+	}
+
+
+## Park every resource clear of the camp moment's lawn band.
+func _park_camp_world(st: Variant) -> void:
+	for b in st.bushes:
+		b["x"] = 99999.0
+		b["z"] = 99999.0
+	for t in st.trees:
+		t["x"] = 99999.0
+		t["z"] = 99999.0
+	for i in st.tribe.size():
+		st.tribe[i]["x"] = -600.0 + float(i) * 80.0
+		st.tribe[i]["z"] = 60.0
+
+
+## The hut-construction anchors: both huts share z 80 so the lawn band is
+## identical — wall (left of the door), roof apex mass, the FULL-alpha label.
+func _hutcon_probes() -> void:
+	var built := {
+		"wall": _world_to_screen(-15.0, 80.0 * Z_TO_Y - 13.0),
+		"roof": _world_to_screen(0.0, 80.0 * Z_TO_Y - 40.0),
+		"label": _world_to_screen(0.0, 80.0 * Z_TO_Y + 12.0),
+	}
+	var con := {
+		"wall": _world_to_screen(135.0, 80.0 * Z_TO_Y - 13.0),
+		"roof": _world_to_screen(150.0, 80.0 * Z_TO_Y - 40.0),
+		"label": _world_to_screen(150.0, 80.0 * Z_TO_Y + 12.0),
+	}
+	# an empty-lawn control band at the same row (the resources are parked) —
+	# the size-9 label glyphs are AA-thin under llvmpipe, so the label assert
+	# reads presence AGAINST this control rather than an absolute count
+	var ctrl := _world_to_screen(300.0, 80.0 * Z_TO_Y + 12.0)
+	_probe["hutcon"] = {
+		"built_wall": [built["wall"].x, built["wall"].y],
+		"con_wall": [con["wall"].x, con["wall"].y],
+		"con_roof": [con["roof"].x, con["roof"].y],
+		"con_label": [con["label"].x, con["label"].y],
+		"built_label": [built["label"].x, built["label"].y],
+		"label_ctrl": [ctrl.x, ctrl.y],
+	}
+
+
 ## The toast-inset band (hud.gd draw: toasts at ty = vh − 30 − toast_inset,
 ## panel ty−14..ty+12, x 16..16+pw) + the panel-top gap band below it.
 func _toast_probes() -> void:
@@ -458,7 +663,8 @@ func _run_checker() -> void:
 	var checker := ProjectSettings.globalize_path("res://tools/visual_check_tribe_scene.py")
 	var args: Array = [checker, ProjectSettings.globalize_path(OUT_DIR + "/probes.json")]
 	for name in ["tribe_village_day", "tribe_raid", "tribe_night", "tribe_death",
-			"tribe_zsort", "tribe_toast_before", "tribe_toast"]:
+			"tribe_zsort", "tribe_totem", "tribe_beast", "tribe_camp",
+			"tribe_hutcon", "tribe_toast_before", "tribe_toast"]:
 		args.append(ProjectSettings.globalize_path(OUT_DIR + "/" + name + ".png"))
 	var output: Array = []
 	var code := OS.execute("python3", args, output, true)
