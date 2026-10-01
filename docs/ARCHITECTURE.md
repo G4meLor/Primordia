@@ -1,6 +1,6 @@
-# PRIMORDIA Native — Kiến trúc (Milestone 1–3: sim core + cell + creature stage)
+# PRIMORDIA Native — Kiến trúc (Milestone 1–4: sim core + cell + creature + tribe stage)
 
-Ngày: 2026-10-01 · Trạng thái: M1 (sim core) + M2 (cell stage parity) + M3 (creature stage parity) hoàn tất, mọi test xanh — tag `cell-parity-m2`, M3 wrap chờ tag `creature-parity-m3`. Spec tổng: `docs/specs/2026-09-29-native-migration-design.md`. Parity checklist M2: `docs/PARITY-M2.md`; M3: `docs/PARITY-M3.md`.
+Ngày: 2026-10-01 · Trạng thái: M1 (sim core) + M2 (cell stage parity) + M3 (creature stage parity) + M4 (tribe stage parity) hoàn tất, mọi test xanh — tags `cell-parity-m2`, `creature-parity-m3`, M4 wrap chờ tag `tribe-parity-m4`. Spec tổng: `docs/specs/2026-09-29-native-migration-design.md`. Parity checklist M2: `docs/PARITY-M2.md`; M3: `docs/PARITY-M3.md`; M4: `docs/PARITY-M4.md`.
 
 ## 1. Tách layer — sim không biết Godot scene tồn tại
 
@@ -31,13 +31,16 @@ Fixtures JSON trong `tests/fixtures/` được sinh **một lần** từ repo TS
 
 ```bash
 cd ~/Desktop/RD/primordia-native
-./tools/test.sh              # headless suite (38 files / 525 tests)
-./tools/ab_test.sh [BASE]    # A-B behavior-identity gate (xem §2; M3: base cell-parity-m2 → IDENTICAL)
+./tools/test.sh              # headless suite (43 files / 641 tests)
+./tools/ab_test.sh [BASE]    # A-B behavior-identity gate (xem §2; M3: base cell-parity-m2 → IDENTICAL; M4: base creature-parity-m3 → IDENTICAL)
 ./tools/test_ab.sh           # A-B fail-open hardening — failure-path test (shell-only)
 ./tools/test_bot.sh          # bot arc cell ×3 seeds ×2 determinism (xvfb)
 ./tools/test_bot_creature.sh # bot creature: landfall + chaos + founding ×2 determinism (xvfb)
+./tools/test_bot_tribe.sh    # bot tribe: founding → roles → delivery → hut → raid → totem → victory ×2 determinism (xvfb)
+./tools/probe_tribe.sh       # 9 econ probes tribe TS-verbatim (headless; cũng nằm trong test.sh)
 ./tools/test_perf.sh         # perf probe cell 200 ents ≤ 8 ms/tick pure-sim (xvfb)
 ./tools/test_perf_creature.sh # perf probe creature 60 ents: sim tripwire headless + painter draw ≤ 4 ms (xvfb)
+./tools/test_perf_tribe.sh   # perf probe tribe 60 tribesmen + 6 warriors: sim tripwire headless + render-prep ≤ 4 ms (xvfb)
 ./tools/test_menu.sh         # menu real-click (xvfb)
 ./tools/test_editor_click.sh # editor purchase real-click (xvfb)
 ./tools/test_visual.sh       # pixel-assert cell stage (xvfb)
@@ -90,6 +93,9 @@ Ràng buộc `-s` mode (không có editor script class cache — fresh clone/CI)
 | `src/gfx/creature_rig.gd` | `src/gfx/creature.ts` (rig math) | 2-bone IK solver + spine/profile/head-lunge + leg draws + tail — f64 core, TS-printed pins 1e-9; headless-green trước painter (prototype-first) |
 | `src/gfx/creature_painter.gd` | `src/gfx/creature.ts` (drawCreature) | Procedural creature painter: 3 sub-item clip (Ruling 11), coats/patterns, gait — three-RID contract (§6) |
 | `src/game/creature/creature_stage.gd` | `src/game/creature/CreatureStage.ts` (scene) | Scene node: Camera2D rig ownership, screen-space canvases, z-sorted CreatureItem pool, hud/editor/pause wiring, debug cheats |
+| `src/game/tribe/tribe_sim.gd` | `src/game/tribe/TribeStage.ts` (sim, :101-1171) | Tribe sim thuần: constructor world-seed (30 trees/26 bushes/1 hut/2 rivals), on_enter (restore/re-found/pack conversion), chief (click-move + WASD, role hotkeys, hut/totem, raid-touch death + respawn safest-of-8), tribesman AI (fight/job/arrive — wood quota even-shift), economy (delivery +8, regrow, sapling, hut build/repair/recruit, totem, festival passive), raid machine (clock, launch, siege, war_graves), beast, fires/lightning, fall/victory go_to — headless-testable |
+| `src/game/tribe/tribe_events.gd` | `src/game/tribe/tribeEvents.ts` | Tribe chaos deck: 5 baseline + 4 gated defs (bold_raid ×1.5 remap, rival_festival bless ×1.3, siege_hoard two-wave, festival mirror face); storm's 2 ex-`Math.random` sites seeded in-stream (header divergence) |
+| `src/game/tribe/tribe_stage.gd` | `src/game/tribe/TribeStage.ts` (:1176-1423 scene) | Scene node: Camera2D rig (rate 4 / zoom 0.95 — tribe numbers), z-sorted painter pool (3-RID contract tái sử dụng), hudRects update-dispatch, toastInset 190, fall/victory cards |
 
 i18n: `tr()`/`tr_key()` (TranslationServer, key = câu EN) cho mọi user-facing string từ M2; CSV VI/EN (`assets/i18n/vi.csv`) đã land ở M2 (454+ key, structural audit trong `tests/test_i18n.gd`). Save: JSON `FileAccess` + `JSON.stringify` full precision tại `user://saves/`, shape-validate chặt (corrupt → start fresh), không migrate save TS. Lưu ý wire-key: **mọi bề mặt save-wire giữ key TS-verbatim camelCase** (`totalDnaEarned`, `killsByPlayer`, `comboFired`…) **trừ eco-species blob** — nó ride key native snake_case (`kills_by_player`, `grudge_t`, `harass_t` — seam naming từ Task 8, xem `ecosystem.gd` `from_json`), vì save native không bao giờ gặp save TS; công cụ save sau này đừng assum uniform camelCase.
 
@@ -154,3 +160,67 @@ stats nên đi qua mutator); founding/click vẫn real-input.
 - Cell probe `tests/scenes/test_perf.gd` cũng split metric từ M3 wrap
   (T10 minor 4): sim_avg là cửa sổ `step_for_testing` thuần, render pass
   recorded riêng, không bao giờ assert.
+
+## 7. Tribe stage — kiến trúc riêng (M4)
+
+### Sim/scene tách + hằng số per-stage
+
+`tribe_sim.gd` (RefCounted, hooks-Dictionary, `update(dt, inp)` M2 snapshot)
+mirror creature_sim 1:1 — cùng patterns (lazy rng, fx_burst replay in-stream,
+`_fire` no-op khi thiếu key, storyteller seam qua hooks với neutral defaults).
+**Hằng số KHÔNG chia sẻ với creature** (plan Global Constraint: port
+per-stage): WORLD_HALF **2400** (creature 2700), cam follow rate **4** zoom
+**0.95** (creature 5/1.15), day cycle **240 s** (creature 180), night overlay
+flat `rgba(10,10,40,0.4)` (creature depth·0.42), lawn 2-stop **không dim
+isNight**. Chief CHÍNH là player creature — painter vẽ `ctx.genome` scale 2.1
+mood 'happy'; creature painter phục vụ tribe nguyên trạng (3-RID contract §6
+không đổi).
+
+### hudRects — update-dispatch pattern
+
+Sim SỞ HỮU rects (`sim.hudRects` — `{action: "hut"|"totem", r: {x,y,w,h}}`) và
+hit-test + dispatch **trong update** (TS:284-303 — UI dispatch qua update như
+mọi UI khác); scene re-position rects **mỗi render** (`_sync_hud_rects` —
+TS renderHud filter+push). Click consume → snapshot's `take_click` flag
+(by-reference snapshot — TS `inp.takeClick()`); stage mirror việc clear
+one-shot của shared wrapper. Hover `setCursor` là scene-side. Hệ quả: một
+`_do_render(0.0)` thủ công làm rects đọc được cùng tick (bot/tests dùng
+cấu trúc này — xem bot_tribe header).
+
+### Fall/victory go_to hooks
+
+Sim không thấy game: fall path (TS:381-398 — village rỗng → banner 'THE TRIBE
+HAS FALLEN' → 4 s latch → DELETE `flags.tribeState` + `save_all` hook +
+`go_to('creature', 'BACK TO THE WILDS')`) và victory path (TS:400-409 — totem
+100 → 2.5 s latch → `save_all` + ascend + `go_to('civ', 'THE FIRST CITY')`)
+đều bắn qua hooks `go_to`/`save_all`. Latch `fallFired`/`victoryFired` chống
+double-fire (~33 saves nếu không latch). Persist corpse-guard: không bao giờ
+ghi blob làng chết (fall delete bị save_all viết đè — 3-bounce bug, pin ở
+`test_world_creature_pins.gd`).
+
+### Debug cheats surface (bot parity law exception, TS-true)
+
+- `debug_state()` — read-only internal state (shape creature debugState).
+- `debug_grant(food, wood)` — mutator DUY NHẤT của tribe (bot dùng để vượt
+  gather round-trip cho gate thật: R · HUT cần wood ≥ 40, TOTEM cần 100
+  food + 80 wood — TS bot-creature.test.ts mutate thẳng field; native đi
+  mutator để recompute derived). Founding/click vẫn real-input.
+
+### toast_inset reset rule
+
+`hud.toastInset = 190` — tribe là native setter ĐẦU TIÊN (M3 ruling: civ 150
+sau, tribe 190). on_enter bắn `hud_toast_inset(190)` (TS:154); **game-level
+reset rule** (game.ts:213 — stage có UI góc dưới tự re-arm inset; game reset
+về 0 ở MỌI stage switch, TRƯỚC on_exit/on_enter — port tại `game.gd`
+`switch_stage`, pin `test_hud_tribe.gd::test_switch_stage_resets_toast_inset`).
+
+### Perf instrument (M4 wrap)
+
+- `tools/perf_tribe_sim.gd` — **headless** (contention-immune, primary):
+  60 tribesmen + 6 rival warriors × 300 ticks, timed window = `sim.update`
+  thuần; §5.4 target 2 ms **ĐẠT** (~0.71–1.00 ms avg @ 60+6, 5 runs); tripwire
+  đứng 4 ms (2× target).
+- `tests/scenes/test_perf_tribe.gd` — xvfb: real game, metrics SPLIT:
+  sim tick recorded (llvmpipe contention), stage render-prep pass ≤ **4 ms**
+  assert (pooled-item sync + hudRects + queues), frame window recorded
+  (rasterization llvmpipe — rig caveat như §6).

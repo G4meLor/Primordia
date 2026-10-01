@@ -2,11 +2,11 @@
 
 Datum: 2026-10-01 · Tag: `tribe-parity-m4` (task-8 wrap) · Spec: [`docs/specs/2026-09-29-native-migration-design.md`](specs/2026-09-29-native-migration-design.md) §5.4 (the §5.3 gate shape, tribe flavor)
 
-**Status: feature-complete through task 7; task-8 wrap owns the A-B run, the
-perf budget row and the final review before the tag.** Every tribe-stage
-feature of the frozen TS build has a native pin. Two items are explicit,
-spec-sanctioned deferrals (audio synth — the M1 ruling carries; the civ-stage
-landing — M5 scope); neither is a tribe-stage behavior gap.
+**Status: feature-complete through task 8 (the wrap — A-B, perf, docs);
+final whole-branch review + the `tribe-parity-m4` tag are controller scope.**
+Every tribe-stage feature of the frozen TS build has a native pin. Two items
+are explicit, spec-sanctioned deferrals (audio synth — the M1 ruling carries;
+the civ-stage landing — M5 scope); neither is a tribe-stage behavior gap.
 
 **Source of truth:** the TS contract (the feature surface of
 `Spore/src/game/tribe/TribeStage.ts` 1431 lines + `tribeEvents.ts` 156 lines,
@@ -14,15 +14,16 @@ both frozen 2026-10-01 incl. the war_graves/rival_festival wiring). Native
 pins reference `tests/` test methods (`file::test_name`), scene suites under
 `tests/scenes/`, and the task-7 probes.
 
-**Headline numbers:** headless `./tools/test.sh` → **43 files, 640 tests,
-18583 checks, 0 failures** (task-7 state). Scene suites under xvfb (all exit
-0): bot arc, bot creature, **bot tribe** (full arc ×2 determinism —
+**Headline numbers:** headless `./tools/test.sh` → **43 files, 641 tests,
+18589 checks, 0 failures** (task-8 state — the task-7 rider pins add the
+totem-label seam test + the two probe literals). Scene suites under xvfb
+(all exit 0): bot arc, bot creature, **bot tribe** (full arc ×2 determinism —
 BOT_TRIBE_ALL_OK; the task-7 hut-damage rider assert rides it), menu
 real-click, editor real-click, tribe scene + tribe moments (one suite,
 **43 structural asserts** — the 29 task-4 asserts verbatim-green inside it
-plus the 14 task-7 moment asserts), perf probes, boot, visual suite.
-Probes: `tools/probe_tribe.sh` → **9 tests / 87 checks / 0 failures** (also
-inside the full suite).
+plus the 14 task-7 moment asserts), **3 perf probes** (cell, creature,
+tribe), boot, visual suite. Probes: `tools/probe_tribe.sh` → **9 tests /
+89 checks / 0 failures** (also inside the full suite).
 
 Legend: ✅ pinned · ⏸ spec-sanctioned deferral.
 
@@ -93,7 +94,7 @@ Legend: ✅ pinned · ⏸ spec-sanctioned deferral.
 | Render order: backdrop → lawn (2-stop hsl, NO night dim — tribe flavor) → dirt 500 → rival camps → bushes → huts → totem → trees → z-sorted ents → fire glows → fx → night overlay → vignette → HUD → death card | TS:1176-1394 | `tribe_stage.gd` canvas split (header) | scene moments exercising every band (§8); headless `test_tribe_scene.gd::test_render_guards` |
 | Rival camp draw: disc 60 rgba(120,60,40,0.25), 3 poles 8×34 + cap discs, name outlinedText | TS:1196-1208 | `tribe_stage.gd::_draw_ground` | scene moment `tribe_camp` (4 asserts) |
 | Bushes (ellipse + berries ceil(food/2) cap 4), huts (alpha built 1 : 0.5, walls/roof/door, cracks < 60%, '🏠{hp}' label FULL alpha — the after-restore quirk) | TS:1231-1278 | `tribe_stage.gd::_draw_ground` | scene moments `tribe_village_day`, `tribe_hutcon` (dim-wall pair + label presence vs control) |
-| Great totem: progress-scaled 20×90·p pole, discs at p 0.3/0.6, glow at 1, 'TOTEM {round(p)}%' label (the round-of-fraction quirk reads 1%) | TS:1281-1294 | `tribe_stage.gd::_draw_ground` | scene moments `tribe_village_day` (45%), `tribe_totem` (75%: pole + both discs + label) |
+| Great totem: progress-scaled 20×90·p pole, discs at p 0.3/0.6, glow at 1, 'TOTEM {round(p)}%' label (the round-of-fraction quirk reads 1%) | TS:1281-1294 | `tribe_stage.gd::_draw_ground` via the `totem_progress_label` seam | scene moments `tribe_village_day` (45%), `tribe_totem` (75%: pole + both discs + label); the NUMBER pinned headless `test_tribe_scene.gd::test_totem_progress_label_round_of_fraction_quirk` (0%/1% strings) |
 | Trees: sway sin(time·0.6 + seed)·2.5, quadratic trunk lw 8, crown/burn glow | TS:1296-1300 | `tribe_stage.gd::_draw_ground` | village moment band + night fires |
 | Z-sorted drawables (stable ties by insertion): tribesmen 1.7 + role/cargo icon + hp bar 28×3 when damaged; warriors 1.7 angry + ⚔️; beast 2.6 + 🦁 + hp bar 48×4 #ff5a5a; chief 2.1 happy + 👑 hidden at fade > 0.4; pooled RID pairs | TS:1303-1368 | `tribe_stage.gd::_sync_creature_items` + CreatureItem/TribeExtraItem | `test_zsort_pool_order_tribesman_over_chief`, `test_zsort_chief_hidden_in_death_fade`; scene moments `tribe_raid` (hue-5 bodies), `tribe_zsort`, `tribe_beast` |
 | Night overlay FLAT rgba(10,10,40,0.4) at isNight (0.55, 0.95) + vignette 0.4 | TS:1380-1384, 1396-1398 | `tribe_stage.gd::_draw_ui` | `test_is_night_window`; scene moments `tribe_night` (dim vs day + campfire glows + stars), `tribe_death` |
@@ -147,7 +148,8 @@ clock.
 
 ## 8. Econ probes (§5.4(c) — task 7)
 
-`tests/test_probe_tribe.gd` (9 tests / 87 checks) + the one-command headless
+`tests/test_probe_tribe.gd` (9 tests / 89 checks — the two task-8 literal
+pins included) + the one-command headless
 entry `tools/probe_tribe.sh` (the targeted `tests/probe_runner.gd` runner; the
 file also joins the full suite). Each probe boots the full Game + the REAL
 TribeStage out-of-tree and drives the sim through its documented
@@ -157,9 +159,9 @@ probe's provenance comment:
 | Probe | Pins |
 |---|---|
 | wood-quota income | the TS:757-768 shift: even-indexed gatherers chop while wood < 80 (bush within 600 ignored), quota-off stops the chop; per-tick Δ attribution + the conservation identity pickups = deliveries + in-flight carries at +8/leg BOTH currencies (TS:815-843/1088-1102); every pickup arms regrow 30 |
-| bush regrow | no refill under the 30 s clock, the rng 3..7 band, the clock only runs while food ≤ 0 |
+| bush regrow | no refill under the 30 s clock, the rng 3..7 band + the task-8 stream-position literal at 0x7E11 (5.082817288), the clock only runs while food ≤ 0 |
 | hut recruit | the exact 45 s crossing (clock reads 0.0 on the birth tick), mid-siege hold past 45 without reset, the siege-lift birth next tick, popCap 7 fill + the silent gated reset (TS:1149 before 1150) |
-| raid cadence | reset ∈ 80 + rng(−15,25) band, the same-seed peaceful twin: reset exactly +40 and wave exactly −1, the hint exactly once across two raids, the flag latched |
+| raid cadence | reset ∈ 80 + rng(−15,25) band + the task-8 stream-position literal at 0x7E14 (91.268423758), the same-seed peaceful twin: reset exactly +40 and wave exactly −1, the hint exactly once across two raids, the flag latched |
 | peaceful-hutless | the floor lifts an overdue clock to 30 every tick, no launch while hutless, one standing hut re-arms wave-1 raids |
 | war_graves | +15 DNA once per raid instance (two instances, no double pay, one toast each), the combo-off twin pays nothing |
 | totem rate | 3 workers × 10 s × 1.6 = 48.0 exact, the 100 clamp, the workers-0 freeze |
@@ -184,6 +186,48 @@ probe's provenance comment:
 | Founding-charm timing watch (~2 s at 0xBEEF) | M3 §17 carry-forward — bounded, ×2-proven deterministic |
 | The pre-existing 'Invalid polygon data' xvfb render warning | task-6 review observation — fires before the tribe legs (cell/creature render path), pre-existing; grep someday |
 
+## 11. A-B behavior-identity across the window (the M3 §15-analog — task 8)
+
+`tools/ab_test.sh creature-parity-m3` (base tag → HEAD) → **IDENTICAL, 0 diff
+lines** (exit 0). Both sides dump sha256 `ea35920b…` — the SAME sha the M2
+gate first recorded and the M3 wrap re-verified: the standing cell+creature
+dump did not move one bit from `cell-parity-m2` across the whole creature AND
+tribe windows (the tribe stage is additive, as the M3 wrap predicted). Ruled
+lines: none needed. Evidence committed (`evidence.txt`, `last_diff.txt`
+0 bytes, verdict=IDENTICAL, base_commit=creature-parity-m3,
+head_commit=3de7f29 — the wrap's commits are riders/instruments/tests/docs
+only, no sim file).
+
+## 12. Perf (the M3 §16-analog — task 8, split metrics from day one)
+
+**Metric integrity (the T10 lesson carried):** both tribe probes were born
+SPLIT — the pure sim tick carries the asserted budget (headless,
+contention-immune), the stage render pass carries the painter-side budget
+(scene-side), the full frame wall-window is recorded, never asserted.
+
+**Tribe sim tick @ 60 tribesmen + 6 rival warriors + 6 huts (the §5.4 budget:
+≤ 2 ms — the M3 target shape, tribe's own row) — MET:**
+
+| Measurement | Number |
+|---|---|
+| `tools/perf_tribe_sim.gd` (headless, contention-immune — the primary instrument; fixed world via documented seams: 60 via `add_tribesman`, 6 sieging warriors, invuln pin, chaos silenced; 300 ticks) | **0.709–0.996 ms avg over 5 runs** (max spikes 2.6–20 ms under ambient load ~3 with a sustained soak process on one core) |
+| Cost shape | the tribe job-AI hot path is far cheaper per-agent than the creature `update_ents` loop (no eco tick, no IK) — the M3 2 ms lesson's target carries unchanged and holds |
+| Scene-side cross-check (`tests/scenes/test_perf_tribe.gd`, xvfb) | sim avg ~3.39–3.50 ms over 2 runs — inflated by llvmpipe contention (the recorded number, not the asserted one) |
+
+**Stage render pass @ 66 creatures + the ground pass (the M3 painter-side
+budget shape: ≤ 4 ms) — MET, asserted in the scene probe:**
+
+| Measurement | Number |
+|---|---|
+| Stage `render()` pass (`_sync_creature_items` pooled-item sync + `_sync_hud_rects` re-registration + canvas queues — the GDScript-side render-prep cost the game controls; the deferred canvas `_draw` lands in the frame window) | **~1.51–1.52 ms avg over 2 runs** (maxes 7.1/9.7 under ambient load) — asserted ≤ 4 ms |
+| Full frame wall-window under llvmpipe (sim + render prep + deferred `_draw` + real rasterization) | **~272–278 ms avg** (maxes ~364/372) — rasterization-dominated; no GDScript-side change moves it |
+
+The rig caveat (M2/M3 precedent, restated): llvmpipe is the WORST-case
+rasterizer the probe intentionally runs on — the frame budget targets a real
+GPU, which is faster by orders of magnitude on this draw set; llvmpipe's
+frame window is recorded informationally. The creature 2 ms target remains
+the standing open item (M3 §16 carry-forward, §10).
+
 ## §5.4 criteria checklist
 
 | Criterion | Evidence pointer | Verdict |
@@ -192,12 +236,16 @@ probe's provenance comment:
 | (b) Bot headless full tribe arc through the real UI, ×determinism | `tools/test_bot_tribe.sh` → **BOT_TRIBE_ALL_OK ×2 passes** (LCG 777 / world 0xBEEF): the real founding → roles → delivery → REAL hut button → recruit → the first raid survived on the REAL clock (hint + banner + war_graves closure + real hut damage) → REAL totem button → the victory card → the unregistered-civ no-op; fingerprints field-identical across passes (§6) | ✅ |
 | (c) Econ probes TS-verbatim | `tools/probe_tribe.sh` → **9 tests / 87 checks / 0 failures** (§8; formulas cited to the frozen TS lines in each probe's provenance comment; exact-identity + same-seed-twin pins); also inside the full headless suite | ✅ |
 | (d) Pixel-assert suite, tribe moments | the tribe scene suite under xvfb (**43 structural asserts** over 10 moments + the toast twin, `tools/visual_check_tribe_scene.py`, §7) — every moment ≥ 3 PIL-checked structural asserts over a live viewport capture | ✅ |
-| Full suite green | headless `./tools/test.sh` → **43 files / 640 tests / 18583 checks / 0 failures** (task-7 state); all xvfb scene suites exit 0 | ✅ |
-| A-B behavior-identity + perf budgets | task-8 wrap: the cell+creature standing dump must not move (the tribe stage is additive), the tribe sim/render perf row, ARCHITECTURE + README — recorded at the wrap | ⏳ task 8 |
+| Full suite green | headless `./tools/test.sh` → **43 files / 641 tests / 18589 checks / 0 failures** (task-8 state); all xvfb scene suites exit 0 (bot, bot creature, bot tribe, editor click, menu, visual ×2, creature scene, tribe scene, perf ×3, boot, visual suite) | ✅ |
+| A-B behavior-identity + perf budgets | **§11**: `tools/ab_test.sh creature-parity-m3` → IDENTICAL, 0 diff lines (the standing cell+creature dump unmoved — the tribe stage is additive); **§12**: tribe sim tick 2 ms target MET (0.71–1.00 ms headless @ 60+6), stage render-prep ≤ 4 ms MET (~1.5 ms, asserted in the scene probe), frame window recorded with the rig caveat | ✅ |
 
-## Completion note (placeholder — finalized at task 8)
+## Completion note (spec §5.4)
 
-Tasks 1–7 are complete: the four §5.4 feature gates (a)–(d) hold with the
-evidence above. The task-8 wrap runs the A-B gate + perf budgets, lands the
-ARCHITECTURE/README rows, and (after the whole-branch review) appends the
-final verdict + tag note here.
+Tasks 1–8 are complete: the four §5.4 feature gates (a)–(d) hold with the
+evidence above, the A-B behavior-identity gate is IDENTICAL across the whole
+milestone window (§11), the §5.4 tribe perf budgets are measured and MET with
+the split metrics (§12), and the full suite is green (headless + every xvfb
+entry). The task-7 review riders landed at the wrap (the two probe literals,
+the totem-label seam assert, the out-of-tree provenance clause). Remaining:
+the controller's final whole-branch review, then the `tribe-parity-m4` tag
+per the binding scope split.
