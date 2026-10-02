@@ -9,9 +9,9 @@
 ## survived on the REAL raid clock (pinned seed — the hint toast + the
 ## '{NAME} RAIDS!' banner + raidActive true→false lifecycle, the war party
 ## fought off with a real Digit3 arm) → the Great Totem raised through the
-## REAL drawn TOTEM button → the victory transition fires and 'civ' —
-## unregistered in the bot scene — makes switch_stage no-op so the tribe
-## stage remains (the M3 placeholder ruling pattern).
+## REAL drawn TOTEM button → the victory transition fires and LANDS the
+## registered civ stage (M5 task 4 upgraded the M4 unregistered-'civ'
+## placeholder assert — main.gd parity).
 ##
 ## TS AUTHORITY: no tribe bot test exists in the frozen repo (Spore/tests/
 ## holds bot/bot-arc/bot-creature only — bot-creature.test.ts ENDS at the
@@ -210,7 +210,7 @@ func _roles_of(sim: Variant) -> String:
 # ---- the tribe arc (one tick per scene frame) --------------------------------------
 
 ## Returns "OK" when the full arc completed (the victory transition landed
-## its civ no-op), "" while still walking, else the failure reason.
+## the REGISTERED civ stage), "" while still walking, else the failure reason.
 func tribe_tick(game: Variant) -> String:
 	var sim: Variant = tribe_sim(game)
 	match _leg:
@@ -398,8 +398,8 @@ func tribe_tick(game: Variant) -> String:
 				return "totem_wait: totem never reached 100 (%s after %d frames, tribe %d)" % [
 						str(sim.totem["progress"]), _frames, sim.tribe.size()]
 		"victory":
-			# victoryT > 2.5 → go_to('civ') (TS:400-409) — the civ card
-			# fires even though 'civ' is unregistered (the hook fires first)
+			# victoryT > 2.5 → go_to('civ') (TS:400-409) — the card fires and
+			# LANDS now that the civ stage is registered (M5 task 4)
 			_wait_step(game)
 			_frames += 1
 			if game.transition != null:
@@ -414,20 +414,26 @@ func tribe_tick(game: Variant) -> String:
 				return "victory: the victory transition never fired (progress %s, victoryT %s)" % [
 						str(sim.totem["progress"]), str(sim.victoryT)]
 		"victory_land":
-			# 'civ' is unregistered in the bot scene → switch_stage no-ops
-			# (game.gd, TS game.ts:208-210) — the tribe stage REMAINS (the
-			# M3 placeholder ruling pattern)
+			# the civ stage IS registered (main.gd parity since M5) — the
+			# victory transition LANDS on civ (the M4 placeholder assert is
+			# upgraded, not kept): the live stage is the civ stage with the
+			# constructor-seeded 4-city board and the civ on_enter hud hooks
 			_wait_step(game)
 			_frames += 1
 			if game.transition == null:
-				if String(game.context.stage) != "tribe":
-					return "victory_land: the unregistered civ switch did not no-op (%s)" % game.context.stage
-				if game.current.id != "tribe":
-					return "victory_land: the live stage is not the tribe stage (%s)" % game.current.id
+				if String(game.context.stage) != "civ":
+					return "victory_land: the registered civ stage did not land (%s)" % game.context.stage
+				if game.current.id != "civ":
+					return "victory_land: the live stage is not the civ stage (%s)" % game.current.id
 				if not bool(sim.victoryFired):
 					return "victory_land: victoryFired never latched"
-				if game.stages.has("civ"):
-					return "victory_land: civ is registered — the placeholder premise is broken"
+				var csim: Variant = game.current.sim
+				if csim == null:
+					return "victory_land: the civ stage landed without a sim"
+				if csim.cities.size() != 4:
+					return "victory_land: the constructor board did not stand (%s)" % str(csim.cities.size())
+				if float(game.current.hud_inst.toast_inset) != 150.0:
+					return "victory_land: the civ inset did not arm (got %s)" % str(game.current.hud_inst.toast_inset)
 				_leg = "done"
 				return "OK"
 			elif _frames > VICTORY_BUDGET:

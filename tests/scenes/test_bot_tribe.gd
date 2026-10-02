@@ -7,8 +7,8 @@
 # +8 delivery, a hut built through the REAL drawn R · HUT button, the recruit
 # gate, the first raid survived on the REAL clock (banner + raidActive
 # lifecycle), the Great Totem raised through the REAL drawn TOTEM button, and
-# the victory transition firing its unregistered-'civ' no-op so the tribe
-# stage remains.
+# the victory transition LANDING THE REGISTERED CIV STAGE (M5 task 4 upgraded
+# the M4 placeholder assert — the M3 unregistered-'civ' no-op is gone).
 #
 # Phases: per pass in [1, 2]: one game — arrival ticks → founding ticks →
 # tribe ticks → asserts + fingerprint → next pass. Both passes run at bot LCG
@@ -33,6 +33,7 @@ const ContextScript := preload("res://src/game/context.gd")
 const CellStageScript := preload("res://src/game/cell/cell_stage.gd")
 const CreatureStageScript := preload("res://src/game/creature/creature_stage.gd")
 const TribeStageScript := preload("res://src/game/tribe/tribe_stage.gd")
+const CivStageScript := preload("res://src/game/civ/civ_stage.gd")
 const BotTribeScript := preload("res://tests/bots/bot_tribe.gd")
 const BotCreatureScript := preload("res://tests/bots/bot_creature.gd")  # the WORLD_SEED pin lives on the arrival/founding legs
 
@@ -155,10 +156,10 @@ func _first_trace_divergence() -> String:
 
 
 ## The REAL composition the bot flows through (main.gd's boot minus the
-## factory): menu + cell + creature + tribe registered at boot — 'civ' is
-## deliberately UNREGISTERED so the victory go_to no-ops (the M3 placeholder
-## ruling pattern) — manual stepping ONLY (the real _process would add
-## wall-clock-clamped phantom steps).
+## factory): menu + cell + creature + tribe + civ registered at boot —
+## main.gd parity since M5 (the victory lands the REGISTERED civ stage;
+## 'space' stays unregistered until its milestone) — manual stepping ONLY
+## (the real _process would add wall-clock-clamped phantom steps).
 func _build_game() -> Variant:
 	var ctx: Variant = ContextScript.new(BotCreatureScript.WORLD_SEED)
 	var game: Variant = GameScript.new(ctx)
@@ -169,6 +170,7 @@ func _build_game() -> Variant:
 	game.register(CellStageScript.new(game))
 	game.register(CreatureStageScript.new(game))
 	game.register(TribeStageScript.new(game))
+	game.register(CivStageScript.new(game))
 	game.start()
 	return game
 

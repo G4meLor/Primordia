@@ -333,5 +333,7 @@ func test_main_registers_tribe_stage() -> void:
 	ok(src.find("res://src/game/tribe/tribe_stage.gd") >= 0, "main preloads the tribe stage")
 	ok(src.find("game.register(TribeStageScript.new(game))") >= 0,
 			"main registers TribeStage at boot")
-	ok(src.find("TribeStageScript.new(game)]") >= 0,
+	# M5: the factory list grew a civ tail — the tribe entry now trails into
+	# CivStageScript (the M4 shape 'TribeStageScript.new(game)]' ended the list)
+	ok(src.find("TribeStageScript.new(game), CivStageScript.new(game)]") >= 0,
 			"the NEW LIFE factory rebuilds the tribe stage too")

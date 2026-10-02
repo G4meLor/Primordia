@@ -25,6 +25,14 @@
 # (found_tribe's go_to / the fall's go_to hook), not switch_stage shortcuts,
 # except where a leg's entry point IS the direct switch (documented inline).
 #
+# M5 task 4 additions: the CIV save/continue pins — a civ-stage save_all
+# CONTINUEs into the civ stage with the board AS IT STOOD (the TS:132-134
+# doctrine: CONTINUE mid-civ used to reset sliders, conquests and rival
+# influence), and the stale-blob guard E2E (a length-mismatch blob → false →
+# the fresh constructor board). `with_civ` boots register the CivStage like
+# main.gd now does. The landing/placeholder/brick/i18n flows live in
+# tests/test_hud_civ.gd (the task-4 file split, the M4 task-5 precedent).
+#
 # Headless -s boot: test_hud_creature's out-of-tree pattern (run.gd drives
 # tests synchronously inside _initialize; stage _ready is invoked ONCE
 # manually). The cell→creature shore transition's REAL-input proof lives in
@@ -37,6 +45,7 @@ const ContextScript := preload("res://src/game/context.gd")
 const MenuStageScript := preload("res://src/game/menu.gd")
 const CreatureStageScript := preload("res://src/game/creature/creature_stage.gd")
 const TribeStageScript := preload("res://src/game/tribe/tribe_stage.gd")
+const CivStageScript := preload("res://src/game/civ/civ_stage.gd")
 const CreatureSim := preload("res://src/game/creature/creature_sim.gd")
 
 const DT := 1.0 / 60.0
@@ -51,8 +60,10 @@ const SCRATCH_CFG := "user://test_wcp_settings.cfg"
 ## stage _ready invoked once manually. Nothing in the boot path needs the
 ## viewport (vw/vh keep 800×600; cam.cam2d stays null and the stage guards it).
 ## with_tribe registers the TribeStage too (main.gd parity) — the tribe
-## flows below need a REAL landing target for go_to('tribe').
-func _boot(seed_v: int = SEED, with_tribe := false) -> Variant:
+## flows below need a REAL landing target for go_to('tribe'). with_civ
+## registers the CivStage too (M5: main.gd parity) — the civ flows need the
+## REAL landing target for the saved stage id.
+func _boot(seed_v: int = SEED, with_tribe := false, with_civ := false) -> Variant:
 	var ctx: Variant = ContextScript.new(seed_v)
 	var g: Variant = GameScript.new(ctx)
 	g.set_process(false)
@@ -69,9 +80,13 @@ func _boot(seed_v: int = SEED, with_tribe := false) -> Variant:
 	g.register(CreatureStageScript.new(g))
 	if with_tribe:
 		g.register(TribeStageScript.new(g))
+	if with_civ:
+		g.register(CivStageScript.new(g))
 	g.stages["creature"]._ready()
 	if with_tribe:
 		g.stages["tribe"]._ready()
+	if with_civ:
+		g.stages["civ"]._ready()
 	g.start()
 	return g
 
@@ -459,5 +474,133 @@ func test_fall_path_lands_creature_with_blob_deleted() -> void:
 	g2.step_for_testing(360, DT)  # 6 s — well past the old 4 s fall trigger
 	eq(sim2.huts.size(), 1, "no bounce: the fresh village still stands")
 	eq(sim2.tribe.size(), 3, "fresh roster intact")
+	_wipe_saves()
+	_drop(g2)
+
+
+# ---- M5 task 4: civ save/continue + the stale-blob guard (REAL transitions) ------
+
+## A CIV-stage save mid-progress CONTINUEs back into the planet AS IT STOOD:
+## game.save_all routes current.persist_state (game.gd:708 — the creature/
+## tribe precedent) → the civState blob rides the slot → the arrival's
+## restoreState() returns true and restores influences, owners, sliders,
+## lastRaised and the victoryFired latch (CivStage.ts:132-134 — CONTINUE
+## mid-civ used to reset sliders, conquests and rival influence; the menu row
+## said 'CIV · 15 min' but you got a fresh cold war).
+func test_civ_save_continue_restores_board() -> void:
+	_wipe_saves()
+	# run 1: direct civ entry (headless pattern — the save side is the pin;
+	# the landing legs cover the real transition), conquer through the honest
+	# grant+tick path (the sim header's documented bot leg), fixture slider
+	# writes, save through the REAL game.save_all seam
+	var g1: Variant = _boot(SEED, true, true)
+	g1.switch_stage("civ")
+	g1.step_for_testing(2, DT)
+	var sim1: Variant = g1.current.sim
+	sim1.debug_set_influence(1, 100.0)
+	var flip_steps := 0
+	while String(sim1.cities[1]["owner"]) != "you" and flip_steps < 240:
+		g1.step_for_testing(1, DT)  # the tick_second flip at the next floor-cross
+		flip_steps += 1
+	eq(String(sim1.cities[1]["owner"]), "you",
+			"the grant drove the real flip (%d steps)" % flip_steps)
+	# the flip leg crossed the 1 s tick floor once — the untouched rivals
+	# drifted one hearts-step off the constructor −60; capture what stood
+	var inf3 := float(sim1.cities[3]["influence"])
+	sim1.cities[2]["influence"] = 55.0  # fixture write: a half-won rival stays rival
+	sim1.mil = 9.0
+	sim1.culture = 2.0
+	sim1.econ = 1.0
+	sim1.lastRaised = "econ"
+	ok(g1.save_all(), "civ-stage save_all (the persist_state seam)")
+	var parsed: Variant = JSON.parse_string(
+			FileAccess.get_file_as_string("user://saves/slot0.json"))
+	ok(parsed is Dictionary, "slot parses")
+	eq(String(parsed["stage"]), "civ", "slot stage is civ")
+	var blob: Variant = JSON.parse_string(String(parsed["flags"]["civState"]))
+	ok(blob is Dictionary, "civState blob present in the slot")
+	eq((blob["cities"] as Array).size(), 4, "blob carries the 4-city board")
+	eq(String(blob["cities"][1]["owner"]), "you", "blob carries the conquest")
+	eq(float(blob["cities"][2]["influence"]), 55.0, "blob carries the half-won influence")
+	eq(float(blob["mil"]), 9.0, "blob carries the sliders")
+	eq(String(blob["lastRaised"]), "econ", "blob carries lastRaised")
+	eq(bool(blob["victoryFired"]), false, "blob victoryFired false")
+	# on_exit persists too (TS:130): leaving the stage rewrites the flags blob
+	sim1.mil = 5.0
+	g1.switch_stage("creature")
+	eq(float(JSON.parse_string(String(g1.context.flags["civState"]))["mil"]), 5.0,
+			"on_exit → persist_state (TS:130)")
+	_drop(g1)
+	# run 2: CONTINUE lands the SAVED stage (civ); the board comes back as it
+	# stood — the sim runs < 1 s of in-fade before the asserts (no tick_second
+	# before time 1.0), so the restored values hold exactly
+	var g2: Variant = _boot(SEED, true, true)
+	g2.current.continue_slot(0)
+	var steps := 0
+	while not (String(g2.context.stage) == "civ" and g2.transition == null) \
+			and steps < TRANSITION_POLL:
+		g2.step_for_testing(1, DT)
+		steps += 1
+	eq(String(g2.context.stage), "civ",
+			"CONTINUE with a civ save boots the civ stage (%d steps)" % steps)
+	var sim2: Variant = g2.current.sim
+	ok(sim2.restore_state(), "restore_state true re-read (the blob still rides)")
+	eq(String(sim2.cities[1]["owner"]), "you", "conquest restored")
+	eq(float(sim2.cities[1]["influence"]), 100.0, "conquered influence restored")
+	eq(String(sim2.cities[2]["owner"]), "r2", "the half-won city STAYS rival")
+	eq(float(sim2.cities[2]["influence"]), 55.0, "half-won influence restored")
+	eq(float(sim2.cities[3]["influence"]), inf3,
+			"the untouched rival restored as it stood (one drift tick off −60)")
+	eq(float(sim2.mil), 9.0, "sliders restored — CONTINUE mid-civ no longer resets them")
+	eq(float(sim2.culture), 2.0, "culture restored")
+	eq(float(sim2.econ), 1.0, "econ restored")
+	eq(String(sim2.lastRaised), "econ", "lastRaised restored (the TS:169-170 first-drip pin)")
+	eq(bool(sim2.victoryFired), false, "victoryFired false restored")
+	eq(String(g2.current.hud_inst.show_objective),
+			"UNIFY THE PLANET — slider keys Q/W/E · launch armadas with 1/2/3",
+			"objective re-armed on the restored board (TS:121)")
+	eq(float(g2.current.hud_inst.toast_inset), 150.0, "inset re-armed (TS:120)")
+	_wipe_saves()
+	_drop(g2)
+
+
+## The guards E2E: a STALE save whose civState predates the current board
+## shape (3 cities vs the constructor's 4) → restore_state false (the
+## TS:154 length gate) → the FRESH constructor board stands — no blob values
+## ride, no brick fires, no crash.
+func test_civ_stale_blob_guards_e2e() -> void:
+	_wipe_saves()
+	var g1: Variant = _boot(SEED, true, true)
+	g1.switch_stage("civ")
+	g1.step_for_testing(2, DT)
+	# the stale blob: a 3-city board from an older save shape (hand-authored —
+	# the corruption scenario the guard exists for cannot come from the sim)
+	g1.context.flags["civState"] = JSON.stringify({
+		"cities": [
+			{"id": "you", "owner": "you", "influence": 100.0, "hp": 100.0, "pop": 8.0},
+			{"id": "r1", "owner": "you", "influence": 99.0, "hp": 100.0, "pop": 6.0},
+			{"id": "r2", "owner": "you", "influence": 99.0, "hp": 100.0, "pop": 6.0},
+		],
+		"mil": 8.0, "culture": 1.0, "econ": 1.0,
+		"victoryFired": false, "lastRaised": "mil",
+	})
+	ok(g1.context.save(), "the stale-blob slot wrote (stage civ)")
+	_drop(g1)
+	var g2: Variant = _boot(SEED, true, true)
+	g2.current.continue_slot(0)
+	var steps := 0
+	while not (String(g2.context.stage) == "civ" and g2.transition == null) \
+			and steps < TRANSITION_POLL:
+		g2.step_for_testing(1, DT)
+		steps += 1
+	eq(String(g2.context.stage), "civ", "CONTINUE booted the civ stage (%d steps)" % steps)
+	var sim2: Variant = g2.current.sim
+	ok(not sim2.restore_state(), "the stale blob rejects (TS:154 — direct guard re-read)")
+	# the FRESH constructor board: no stale value rode
+	eq(String(sim2.cities[1]["owner"]), "r1", "fresh board — the stale conquest did not ride")
+	eq(float(sim2.cities[1]["influence"]), -60.0, "fresh rival influence")
+	eq(float(sim2.mil), 4.0, "fresh sliders (4/3/3)")
+	eq(bool(sim2.victoryFired), false, "no latch on the fresh board")
+	eq(g2.pending_go_to, null, "no brick go_to (victoryFired false + rivals hold)")
 	_wipe_saves()
 	_drop(g2)
