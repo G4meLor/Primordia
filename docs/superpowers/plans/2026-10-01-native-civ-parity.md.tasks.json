@@ -3,14 +3,14 @@
     {
       "id": 1,
       "subject": "Task 1: Civ sim core (state, sliders, armadas, tickSecond, persist/restore)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [],
       "description": "**Goal:** Civ sim core (state, sliders, armadas, tickSecond, persist/restore). Full AC in plan Task 1.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/civ/civ_sim.gd\", \"tests/test_civ_sim.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"constructor pins (capital, 3 rivals, city jitter)\", \"on_enter C1/toast_inset 150/objective/brick-hardening\", \"sliders raise/transfer/regen\", \"armada launch gates + snapshot + resolve\", \"tickSecond personalities/hearts/karma/flip/revolt\", \"persist/restore guards + victory go_to hook\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 2: Civ chaos events deck",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         1
       ],

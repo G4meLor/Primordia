@@ -1,9 +1,9 @@
 ## Stage backdrops — port of Spore src/gfx/backdrop.ts (frozen).
 ## drawWaterBackdrop (cell stage) + drawLandBackdrop/drawGround (creature
-## stage); space arrives with its stage. Screen-space: call with the canvas
-## transform at IDENTITY (TS draws it before cam.begin) — it parallaxes
-## against cam.x/cam.y directly. Deterministic hash2 tiling, no per-frame
-## allocation.
+## stage) + drawSpaceBackdrop (civ stage; SpaceStage consumes it later).
+## Screen-space: call with the canvas transform at IDENTITY (TS draws it
+## before cam.begin) — it parallaxes against cam.x/cam.y directly.
+## Deterministic hash2 tiling, no per-frame allocation.
 ##
 ## Recorded divergence: the god-ray block uses canvas 'lighter' (additive)
 ## compositing; Godot blend modes are per-canvas-ITEM (one item cannot mix
@@ -96,6 +96,61 @@ static func draw_water_backdrop(ci: CanvasItem, cam: Variant, vw: float, vh: flo
 	# Chaos tint
 	if chaos > 0.55:
 		ci.draw_rect(Rect2(0, 0, vw, vh), RendererScript.hsl(340.0, 0.8, 0.2, (chaos - 0.55) * 0.10))
+
+
+# ---- SPACE (civ stage; SpaceStage later) — backdrop.ts:210-260 ------------------
+
+## drawSpaceBackdrop (backdrop.ts:213-260): flat #02030a → 4 nebulae (radial
+## gradients) → 3 parallax star layers. Reads ONLY cam.x/cam.y (backdrop.ts
+## :227-228) — the civ stage passes a fakeCam whose other TS literal fields
+## (zoom 1, view rect, shx/shy 0) are dead at this call site and are not
+## ported. Nebulae used canvas 'lighter' (additive) compositing in TS — Godot
+## blend modes are per-canvas-ITEM, so they composite normally at their TS
+## alphas (≤ 0.10, the god-ray divergence precedent in this file's header);
+## each nebula's 3-stop radial gradient is the _radial_stops_disc fan.
+static func draw_space_backdrop(ci: CanvasItem, cam: Variant, vw: float, vh: float,
+		t: float, seed: float) -> void:
+	ci.draw_rect(Rect2(0, 0, vw, vh), Color("02030a"))
+
+	# Nebulae (backdrop.ts:222-243)
+	for i in 4:
+		var hx := hash2(float(i), seed, 3.0)
+		var hy := hash2(float(i), seed, 4.0)
+		var hue: float = [265.0, 200.0, 320.0, 180.0][i % 4]
+		# ((hx·3000 − cam.x·0.05) % 3000 + 3000) % 3000 − 500 + vw·0.2 — fmod
+		# keeps the dividend's sign like JS %, so the +3000 re-wrap is exact
+		var nx: float = fmod(fmod(hx * 3000.0 - cam.x * 0.05, 3000.0) + 3000.0, 3000.0) \
+				- 500.0 + vw * 0.2
+		var ny: float = fmod(fmod(hy * 2000.0 - cam.y * 0.05, 2000.0) + 2000.0, 2000.0) \
+				- 300.0 + vh * 0.2
+		var r: float = 300.0 + hash2(float(i), seed, 5.0) * 350.0
+		_radial_stops_disc(ci, Vector2(nx, ny), [
+			[0.0, RendererScript.hsl(hue, 0.75, 0.4, 0.10)],
+			[r * 0.6, RendererScript.hsl(hue + 30.0, 0.7, 0.3, 0.05)],
+			[r, Color(0.0, 0.0, 0.0, 0.0)],  # TS stop-1 'transparent'
+		])
+
+	# Star layers (backdrop.ts:245-260)
+	for layer in 3:
+		var p := 0.08 + float(layer) * 0.14
+		var s_span := 260.0 - float(layer) * 70.0
+		var ox: float = cam.x * p
+		var oy: float = cam.y * p
+		var i0 := floori((ox - vw / 2.0) / s_span) - 1
+		var i1 := ceili((ox + vw / 2.0) / s_span) + 1
+		var j0 := floori((oy - vh / 2.0) / s_span) - 1
+		var j1 := ceili((oy + vh / 2.0) / s_span) + 1
+		for i in range(i0, i1 + 1):
+			for j in range(j0, j1 + 1):
+				var hx2 := hash2(float(i), float(j), 11.0 + float(layer) * 31.0 + seed)
+				var hy2 := hash2(float(i), float(j), 23.0 + float(layer) * 31.0 + seed)
+				var hp2 := hash2(float(i), float(j), 47.0 + float(layer) * 31.0 + seed)
+				var sx: float = vw / 2.0 + (float(i) * s_span + hx2 * s_span) - ox
+				var sy: float = vh / 2.0 + (float(j) * s_span + hy2 * s_span) - oy
+				var sz: float = 0.7 + hp2 * (float(layer) * 0.9 + 0.8)
+				var tw: float = 0.35 + 0.5 * absf(sin(t * (0.4 + hp2 * 1.4) + hp2 * 20.0))
+				ci.draw_rect(Rect2(sx, sy, sz, sz),
+						RendererScript.hsl(hp2 * 40.0 + 200.0, 0.35 * hp2, 0.85, tw))
 
 
 # ---- LAND (creature stage) — backdrop.ts:100-207 -------------------------------
