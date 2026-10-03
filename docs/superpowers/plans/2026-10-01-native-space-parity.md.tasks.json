@@ -1,0 +1,83 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Space sim core — state, system generation, per-planet ecosystems, persist/restore",
+      "status": "pending",
+      "blockedBy": [],
+      "description": "**Goal:** Space sim core part 1 (state, system gen, planet ecosystems, restore whitelist, ship physics). Full AC in plan Task 1.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/space/space_sim.gd\", \"tests/test_space_sim.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"constructor + generateSystem pins\", \"makePlanetEco diet dial + bonus-species ordering\", \"restore whitelist every guard\", \"persistColonies blob\", \"ship physics + sun/colony regen + ff timeScale\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Space sim core — interactions, gene lab, hazards, finale",
+      "status": "pending",
+      "blockedBy": [
+        1
+      ],
+      "description": "**Goal:** Space sim core part 2 (panel dispatch, abduct/seed/merge/graft, pirates, black holes, death, finale). Full AC in plan Task 2.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/space/space_sim.gd\", \"tests/test_space_sim.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"disabled-button-owns-click dispatch + uiHold\", \"abduct ledger 10/3 + last-member extinction\", \"seed/splice/graft exact\", \"pirates/black holes/death\", \"finale trigger + ending dismiss + tribute onEnd\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Space chaos events deck",
+      "status": "pending",
+      "blockedBy": [
+        2
+      ],
+      "description": "**Goal:** Space chaos deck (4 baseline + 2 gated, first end hook, the Math.random pirate-count site). Full AC in plan Task 3.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/space/space_events.gd\", \"src/game/space/space_sim.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"4 baseline defs verbatim\", \"nebula_flip + pirate_lull gated (first end hook)\", \"Math.random->scheduler rng in-stream + replay pin\", \"tribute onEnd unpaid->pirates\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Space stage scene — world render",
+      "status": "pending",
+      "blockedBy": [
+        3
+      ],
+      "description": "**Goal:** Space stage world render (real cam, backdrop seed 7, sun/orbits/holes/planets/finale/beam/ship/pirate). Full AC in plan Task 4.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/space/space_stage.gd\", \"tests/test_space_scene.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"render order TS-verbatim through cam.begin/end\", \"beam creature-vs-cell branch\", \"3-RID painter contract\", \"two fx pools\", \"drawShip/drawPirate paths\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Space stage scene — screen HUD, planet panel, xvfb suite",
+      "status": "pending",
+      "blockedBy": [
+        4
+      ],
+      "description": "**Goal:** Space stage screen HUD + planet panel + ending + xvfb suite. Full AC in plan Task 5.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/space/space_stage.gd\", \"tests/scenes/test_space_scene.tscn\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"chip/ff/hull/cargo bar verbatim\", \"panel_rects write-back + mkBtn states\", \"ending fade windows + renderEnding\", \"abilities per frame\", \"xvfb 9 moments >=3 asserts\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Wiring — registration, spaceWorld save/continue, civ-victory landing, i18n",
+      "status": "pending",
+      "blockedBy": [
+        5
+      ],
+      "description": "**Goal:** Wiring (5th branch registration, civ victory lands REAL space, spaceWorld E2E, ending persistence, i18n). Full AC in plan Task 6.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/main.gd\", \"tests/test_hud_space.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"registration both lists + exactly-5 branch pin\", \"civ victory lands REAL space (stale asserts upgraded)\", \"spaceWorld round-trip + guards\", \"won-run-stays-won + dismissed sleeps\", \"i18n 1:1\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Space bot + flow integration",
+      "status": "pending",
+      "blockedBy": [
+        6
+      ],
+      "description": "**Goal:** Space bot (arrival via real civ victory, fly/abduct/seed/scan/ff/splice/siege, finale + dismiss, determinism x2). Full AC in plan Task 7.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"tests/bots/bot_space.gd\", \"tools/test_bot_space.sh\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"arrival via REAL civ victory leg\", \"honest key/mouse arc through the finale\", \"THE CHAOS CORE ACCEPTS YOU + dismiss -> sandbox\", \"determinism x2\", \"bot law audit 1:1\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Space probes + visual moments + PARITY-M6",
+      "status": "pending",
+      "blockedBy": [
+        7
+      ],
+      "description": "**Goal:** Space probes + the RID-leak baseline rider + PARITY-M6. Full AC in plan Task 8.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"tests/test_probe_space.gd\", \"docs/PARITY-M6.md\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"probes TS-verbatim independent derivations\", \"RID-leak baseline comparison (M5 rider) recorded\", \"PARITY-M6 rows + checklist + M7 deferred list\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: M6 wrap — A-B, perf, review, tag",
+      "status": "pending",
+      "blockedBy": [
+        8
+      ],
+      "description": "**Goal:** M6 wrap (A-B vs civ-parity-m5, perf incl. the ff-tick row, ARCHITECTURE, final review, tag). Full AC in plan Task 9.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"docs/PARITY-M6.md\", \"docs/ARCHITECTURE.md\", \"README.md\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"A-B base civ-parity-m5 IDENTICAL\", \"perf split metrics incl. ff row\", \"full xvfb sweep green\", \"final whole-branch review\", \"tag space-parity-m6\"]}\n```"
+    }
+  ]
+}
