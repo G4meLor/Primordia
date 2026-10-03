@@ -259,3 +259,23 @@ perf, the 17-entry sweep on the committed tree) took the window.
 Remaining: the controller's final whole-branch review, then the
 `civ-parity-m5` tag per the binding scope split (not done at the wrap —
 the tree is left tag-ready and clean).
+
+## 13. Completion note
+
+M5 is complete per spec §5.4: the four criteria gates pass ((a)–(d) above), the
+A-B behavior-identity gate is IDENTICAL across the whole milestone window (dump
+sha ea35920b unmoved since the M2 gate, diff_lines=0 at the final tree), all
+perf budgets met (civ sim tick 0.026–0.029 ms vs the ≤ 2 ms target — ~70×
+under; render-prep 0.048–0.054 ms vs ≤ 4 ms; frame window recorded with the
+rig caveat), and the full suite is green (49 files / 721 tests / 19548 checks /
+0 failures; the 17-entry xvfb sweep all exit 0 with the third BOT_CIV_ALL_OK).
+The final whole-branch review (final-review-m5.md — independent; the frozen
+CivStage.ts + civEvents.ts read in full, every load-bearing seam re-derived,
+all seven rider chains confirmed, the gates re-run LIVE) returned **TAG-READY:
+0 Critical / 0 Important**, 3 Minors + 3 Nits ledgered as follow-ups (the
+continents 3-of-7 anchor pin, the factory-list first-three order pin, the
+probe/sim overlap disclosure — none gate the tag). Milestone arc
+e367148..this-commit. Tagged `civ-parity-m5`. Next milestone: M6 = Space
+(SpaceStage.ts 52.2K + spaceEvents.ts 2.5K — the §5.4 gates at space flavor;
+the largest TS file in the arc; the RID-leak baseline comparison is its first
+rider), then M7 = CI/release + repo overwrite.
