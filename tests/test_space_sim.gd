@@ -30,6 +30,7 @@ const MutationLib := preload("res://src/evo/mutation.gd")
 const EcoScript := preload("res://src/evo/ecosystem.gd")
 const WorldGenomeLib := preload("res://src/evo/world_genome.gd")
 const PartsLib := preload("res://src/evo/parts.gd")
+const SpaceEventsLib := preload("res://src/game/space/space_events.gd")
 
 const SEED := 0x5EED
 const OBJECTIVE := "SEED 3 WORLDS, GROW EACH TO POP 20 — awaken the Chaos Core · R abduct · F evolve"
@@ -305,9 +306,17 @@ func test_constructor_seeding_pins() -> void:
 		"stage rng state after construction (chaos-branch-then-system draw order)")
 	eq(int(sim.chaos._rng.state()), int(exp_v["chaos_state"]),
 		"chaos scheduler on a SECOND rng.branch() (TS:98)")
-	# the deck is Task 3's: the scheduler holds an EMPTY defs array (the M5-T1
-	# ruling) — the C1 rebuild gate is fully wired around it
-	eq(sim.chaos.defs.size(), 0, "chaos deck EMPTY until task 3 (spaceEvents.ts)")
+	# the deck is the real factory deck now (task 3): the constructor folds
+	# ctx.world in (TS:98) — compared against the factory on the SAME world
+	var deck_exp: Array = SpaceEventsLib.make_space_chaos_events(ctx.world)
+	var ids_exp: Array = []
+	for d in deck_exp:
+		ids_exp.append(d["id"])
+	var ids_got: Array = []
+	for d in sim.chaos.defs:
+		ids_got.append(d["id"])
+	eq(ids_got, ids_exp, "chaos deck = the factory deck for ctx.world (task 3)")
+	ok(ids_got.size() >= 4, "the deck carries at least the 4 baseline defs")
 	eq(int(sim.deckSeed), int(ctx.world["seed"]), "deckSeed = world seed (TS:99)")
 	eq(bool(sim.has_active_chaos()), false, "hasActiveChaos false at boot (TS:80-82)")
 
@@ -391,13 +400,15 @@ func test_on_enter_semantics() -> void:
 	var old: Variant = sim.chaos
 	sim.on_enter()
 	ok(is_same(sim.chaos, old), "same world seed → no deck rebuild (TS:183)")
-	# a different world seed rebuilds the scheduler + updates deckSeed; the
-	# deck stays EMPTY until task 3 (the M5-T1 ruling)
+	# a different world seed rebuilds the scheduler + updates deckSeed, folding
+	# the (seed-changed) world into the deck (task 3)
 	m["ctx"].world["seed"] = SEED + 1
 	sim.on_enter()
 	ok(not is_same(sim.chaos, old), "world seed changed → scheduler rebuilt (C1, TS:184)")
 	eq(int(sim.deckSeed), SEED + 1, "deckSeed updated (TS:185)")
-	eq(sim.chaos.defs.size(), 0, "rebuilt deck still EMPTY until task 3")
+	eq(sim.chaos.defs.size(),
+			SpaceEventsLib.make_space_chaos_events(m["ctx"].world).size(),
+			"rebuilt deck folds the world in (task 3)")
 
 
 # ---- the restore whitelist (TS:190-267) --------------------------------------------

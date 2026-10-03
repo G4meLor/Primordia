@@ -47,12 +47,14 @@
 ## the cell_sim precedent: the sim never touches cam; the stage runs the
 ## block in the TS order).
 ## The chaos scheduler rides a SECOND branch of the stage rng (TS:98) holding
-## the world-parameterized space deck (spaceEvents.ts) — the DECK IS TASK 3'S:
-## the scheduler is constructed with an EMPTY defs array and the C1 rebuild
-## gate is fully wired around it (the M5-T1 ruling; _make_deck returns []).
-## chaos.update receives the FULL ctx incl. onEnd (TS:519-548) — with the
-## empty deck nothing ever schedules, so the tribute onEnd rule never fires
-## in production until task 3 lands the deck.
+## the world-parameterized space deck (space_events.gd — the spaceEvents.ts
+## port): 4 baseline defs + the nebula_flip/pirate_lull variants the world
+## genome gates in. The factory draws NOTHING from any stream (the M5
+## draw-nothing ruling; the deck's one Math.random site — the pirate count —
+## rides the scheduler's own rng in-stream, the M4 storm precedent).
+## chaos.update receives the FULL ctx incl. onEnd (TS:519-548) — the tribute
+## unpaid→pirates rule; the deck def itself carries no end (the deck/ctx
+## split, documented in space_events.gd's header).
 ## The panel rects (panel_rects, TS:1192) are written by the STAGE each frame
 ## before update (task 5's render pass); the sim only READS them — an empty
 ## array no-ops the dispatch ladder gracefully (clicks pass through to the
@@ -145,6 +147,7 @@ class_name SpaceSim
 extends RefCounted
 
 const ChaosScript := preload("res://src/game/chaos.gd")
+const SpaceEventsScript := preload("res://src/game/space/space_events.gd")
 const EcoScript := preload("res://src/evo/ecosystem.gd")
 const WorldGenomeScript := preload("res://src/evo/world_genome.gd")
 const GenomeScript := preload("res://src/evo/genome.gd")
@@ -200,8 +203,8 @@ var blackHoles: Array = []       # TS:46-48/72 — task 2's
 var cargo: Array = []            # TS:73 — {genome, name} rows
 
 # TS ChaosScheduler<SpaceStage> (:74) — constructed in _init at the TS stream
-# position on a SECOND rng.branch(); the space deck arrives with task 3
-# (spaceEvents.ts) and the defs array stays EMPTY until then.
+# position on a SECOND rng.branch(); the deck is space_events.gd's
+# make_space_chaos_events(ctx.world) — draw-free at build (the M5 ruling).
 var chaos: Variant = null
 ## TS deckSeed (:75-78) — a CONTINUE/NEW LIFE landing on a different world
 ## rebuilds the deck at on_enter (C1: decks built from a stale WorldGenome
@@ -249,18 +252,19 @@ func has_active_chaos() -> bool:
 	return chaos.active_events().size() > 0
 
 
-## The deck factory seam (spaceEvents.ts:49) — task 3 ships the
-## world-parameterized space deck; until then the scheduler runs with an
-## EMPTY defs array (the M5-T1 ruling). Draws nothing from any stage rng.
+## The deck factory (spaceEvents.ts:49) — the world-parameterized space deck
+## (space_events.gd). Draws nothing from any stage rng: the nebula/calm gates
+## read the world genome only and fold into the weight Callables at build time
+## (the M5 draw-nothing ruling — the scheduler construction stays TS-aligned).
 func _make_deck() -> Array:
-	return []
+	return SpaceEventsScript.make_space_chaos_events(ctx.world)
 
 
 # ---- stage lifecycle (TS:181-297) --------------------------------------------------
 
 func on_enter() -> void:
 	# C1: a CONTINUE/NEW LIFE landing on a different world rebuilds the deck
-	# (TS:182-186) — the rebuilt scheduler still holds the empty task-3 deck
+	# folding the NEW world in (TS:182-186)
 	if int(ctx.world["seed"]) != deckSeed:
 		chaos = ChaosScript.new(rng.branch(), _make_deck())
 		deckSeed = int(ctx.world["seed"])
@@ -1098,6 +1102,43 @@ func spawn_pirates(n: int) -> void:
 	_fire("audio_play", ["alarm", 0.9, 0.0])  # TS audio.play('alarm', 0.9) — audio core: its own task
 
 
+## TS nebulaFlip (:812-827) — chaos variant (nebula_flip): a mutation nebula
+## washes one living world — two forced speciations there.
+func nebula_flip() -> void:
+	var living: Array = []
+	for p in planets:
+		if p["eco"] != null:
+			living.append(p)
+	if living.is_empty():
+		_fire("hud_toast", [tr("The nebula washes only dead rock."), "info", "🌌"])  # TS:816
+		return
+	var p: Dictionary = rng.pick(living)  # TS:819 — ONE stage-stream draw
+	# TS: [forceSpeciation(), forceSpeciation()].filter(sp => sp !== null).length
+	# — both calls always run (the array literal evaluates both)
+	var made := 0
+	for i in 2:
+		if p["eco"].force_speciation() != null:
+			made += 1
+	if made == 0:
+		_fire("hud_toast", ["%s %s — %s" % [tr("The nebula passes over"),
+			String(p["name"]), tr("nothing takes hold.")], "info", "🌌"])  # TS:821
+		return
+	_fire("hud_toast", ["%s %d %s %s!" % [tr("The nebula seeds"), made,
+		tr("new species on"), String(p["name"])], "chaos", "🌌"])  # TS:823
+
+
+## TS pirateLullBegin (:829-833) — chaos variant (pirate_lull): pirates hold
+## fire while the calm lasts.
+func pirate_lull_begin() -> void:
+	pirateLull = true
+	_fire("hud_toast", [tr("The pirates pull back — an uneasy quiet falls."), "good", "🕊"])  # TS:831
+
+
+## TS pirateLullEnd (:835-838) — the pirate_lull def's END hook clears the lull.
+func pirate_lull_end() -> void:
+	pirateLull = false
+
+
 ## TS spawnBlackHole (:840-849).
 func spawn_black_hole() -> void:
 	var a: float = rng.next() * TAU
@@ -1126,6 +1167,19 @@ func pay_tribute() -> void:
 		tributeDemand = 0.0
 	else:
 		_fire("hud_toast", [tr("Not enough DNA — the raid is coming!"), "bad", "⚔️"])  # TS:868
+
+
+## TS solarFlare (:872-884).
+func solar_flare() -> void:
+	shp = maxf(10.0, shp - 20.0)  # TS:873 — the 10 floor
+	hurtT = 1.0
+	_fire("cam_shake", [7.0, 0.8])  # TS:875 camShakeFor(7, 0.8)
+	_fire("hud_toast", [tr("Solar flare scorches your hull!"), "bad", "☀️"])  # TS:876
+	for p in planets:
+		if p["eco"] != null:
+			for sp in p["eco"].living():
+				sp["pop"] = maxf(0.5, float(sp["pop"]) * 0.7)  # TS:880 — the 0.5 floor
+	_fire("audio_play", ["boom", 0.8, 0.0])  # TS audio.play('boom', 0.8) — audio core: its own task
 
 
 ## TS repairHull (:1233-1242).
@@ -1172,9 +1226,9 @@ func scan_planet(p: Dictionary) -> void:
 ## TS:519-548 — chaos.update with the FULL ctx incl. onEnd (the civ wiring
 ## lacks onEnd; space's tribute rule needs it). The storyteller reference
 ## arrives through hooks (get_gap_bias / get_mood / get_warn_scale — the civ
-## pattern), noteChaosEvent through storyteller_note_chaos_event. With the
-## EMPTY task-3 deck nothing ever schedules, so none of the hooks fire in
-## production until task 3 lands the deck.
+## pattern), noteChaosEvent through storyteller_note_chaos_event. The onEnd
+## reads the def id: an UNPAID tribute demand ends in 3 pirates (the deck
+## def itself carries no end — the deck/ctx split, space_events.gd's header).
 func update_chaos(dt: float) -> void:
 	var gap_bias := 1.0
 	var mood := "test"  # Storyteller.MOOD_TEST
