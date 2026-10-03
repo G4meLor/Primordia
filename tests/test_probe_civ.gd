@@ -57,9 +57,9 @@
 # fixture writes go straight at sim fields (the M3/M4 precedent, each
 # commented at its site). Draw-dependent pins replay the TS draw chain on a
 # CLONED stream (Rng.new_from(sim.rng.state()) — the test_civ_sim _probe
-# shape): the derivation never calls the sim's own code. The two
-# stream-position literals (burning draw) are pinned beside their band with
-# the re-instrument rule: any draw-history change must re-derive them.
+# shape): the derivation never calls the sim's own code. The one
+# stream-position literal (the burning draw) is pinned beside its band with
+# the re-instrument rule: any draw-history change must re-derive it.
 extends "res://tests/test_base.gd"
 
 const GameScript := preload("res://src/game/game.gd")

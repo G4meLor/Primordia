@@ -103,7 +103,8 @@ probe's provenance comment. Independent derivations: closed-form TS-verbatim
 formulas computed probe-side, fire ticks replayed from the same accumulation
 regime, and draw-dependent pins replayed on a CLONED stream
 (`Rng.new_from(sim.rng.state())` — never the sim's own code). Seeds
-0xC171-0xC17E; the red-check (a deliberately corrupted derivation fails
+0xC171-0xC17E + 0xC180 (probe 7's tickSecond seed sits outside the run);
+the red-check (a deliberately corrupted derivation fails
 loudly) is recorded in the task-6 report:
 
 | Probe | Pins |
