@@ -483,8 +483,6 @@ func civ_tick(game: Variant) -> String:
 			# change must re-derive this ordering.
 			if float(sim.mil) < 5.0:
 				_tap(game, KEY_Q, "KeyQ")
-			if float(sim.mil) < 5.0:
-				_tap(game, KEY_Q, "KeyQ")
 			step(game, 1)
 			_watch(game)
 			if float(sim.mil) >= 5.0:
