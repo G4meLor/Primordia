@@ -19,7 +19,7 @@
     {
       "id": 3,
       "subject": "Task 3: Civ stage scene node (planet render, portrait, sliders panel)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         2
       ],
@@ -28,7 +28,7 @@
     {
       "id": 4,
       "subject": "Task 4: Wiring — registration, tribe→civ landing, civState save/continue, space placeholder",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         3
       ],
@@ -37,7 +37,7 @@
     {
       "id": 5,
       "subject": "Task 5: Civ bot + flow integration",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         4
       ],
@@ -46,7 +46,7 @@
     {
       "id": 6,
       "subject": "Task 6: Civ probes + visual moments + PARITY-M5",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         5
       ],
