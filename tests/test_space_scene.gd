@@ -1,15 +1,17 @@
 # Tests for game/space/space_stage.gd — the space stage's non-pixel surface
-# (M6 task 4): the hook bindings (17 sim keys), the on_enter flow (objective +
-# the cam-rig ownership pairing — the FIRST stage render that runs THROUGH the
-# real Camera2D rig since tribe), the update() scene-side halves (the M2
-# snapshot → sim wiring, WASD thrust through the Input singleton, the camera
-# feed numbers follow rate 5 / zoom 0.85, the toWorld feed, the fx pool
-# steps), the take_click freshness + the wrapper mirror, the panel_rects T5
-# stub write, the beam creature-vs-cell dispatch (legs), the ship visibility
-# seam, the world-layer geometry seams (the planet shadow ladder, the beam
-# quad, the ship hull), the fx hooks → the stage pool (Fx(1300)), the frozen
-# seam, and the render guards pre/post restore. Pixel/visual behavior lives
-# in the task-5 xvfb suite (NOT built here — task 4 is headless-only).
+# (M6 task 4 + task 5 headless additions): the hook bindings (17 sim keys),
+# the on_enter flow (objective + the cam-rig ownership pairing), the update()
+# scene-side halves (the M2 snapshot → sim wiring, WASD thrust through the
+# Input singleton, the camera feed numbers follow rate 5 / zoom 0.85, the
+# toWorld feed, the fx pool steps), the take_click freshness + the wrapper
+# mirror, the panel_rects write-back + the end-to-end rect-click dispatch
+# (task 5 — the f1387fe contract), the abilities payload per frame, the
+# ending fade math windows (task 5), the beam creature-vs-cell dispatch
+# (legs), the ship visibility seam, the world-layer geometry seams (the
+# planet shadow ladder, the beam quad, the ship hull), the fx hooks → the
+# stage pool (Fx(1300)), the frozen seam, and the render guards pre/post
+# restore. Pixel/visual behavior lives in the task-5 xvfb suite
+# (tests/scenes/test_space_scene.gd + tools/visual_check_space_scene.py).
 # TS source: Spore src/game/space/SpaceStage.ts (frozen), lines cited per pin.
 # Path-based extends + preload-by-path: class_name globals don't resolve in
 # `-s` mode.
@@ -171,20 +173,132 @@ func test_take_click_mirror_and_freshness() -> void:
 	eq(stage._build_input_snapshot()["take_click"], false, "take_click starts false (fresh per frame)")
 
 
-# ---- the panel_rects write-back stub (the T5 seam; the f1387fe contract) ----------
+# ---- the panel_rects write-back + the rect-click dispatch (the f1387fe
+# contract, TS:1192 + renderPlanetPanel :1195-1231) -----------------------------------
 
-func test_panel_rects_stub_write() -> void:
+func test_panel_rects_write_back_and_dispatch() -> void:
 	var m := _mk_stage()
 	var stage: Variant = m["stage"]
+	var game: Variant = m["game"]
+	var sim: Variant = m["sim"]
 	stage.on_enter()
-	# T5's renderPlanetPanel completes the write (screen-space button rows);
-	# T4 stubs it EMPTY each frame BEFORE sim.update so the sim's dispatch
-	# ladder no-ops gracefully (clicks pass through to the pirate shooting)
+	# one live step first: generate_system leaves the planets at (0,0) — the
+	# orbit tick places them before the ship can park beside one
 	stage.update(DT)
-	ok(m["sim"].panel_rects is Array and (m["sim"].panel_rects as Array).is_empty(),
-			"panel_rects stubbed empty each update")
+	# park the ship beside planet 0 (inside the r+130 panel range) with 2 cargo
+	# rows and a damaged hull; dna 40 (< 50) keeps REPAIR disabled so the
+	# hull-fraction label variant shows
+	var p: Dictionary = sim.planets[0]
+	sim.sx = float(p["x"]) + float(p["r"]) + 80.0
+	sim.sy = float(p["y"])
+	sim.cargo = [{"genome": GenomeLib.default_genome(), "name": "a"},
+			{"genome": GenomeLib.default_genome(), "name": "b"}]
+	sim.shp = 60.0
+	stage.render()  # the render-side sync collects the button rows (TS:1195)
+	stage.update(DT)  # the write-back lands BEFORE sim.update (TS:1192)
+	var rows: Array = sim.panel_rects
+	eq(rows.size(), 6, "6 button rows (JETTISON rides cargo > 0)")
+	eq(String(rows[0]["action"]), "abduct", "row order: abduct first")
+	ok(bool(rows[0]["enabled"]), "abduct enabled (eco, cargo < 4, beamT 0)")
+	eq(bool(rows[1]["enabled"]), true, "seed enabled at cargo > 0")
+	eq(String(rows[2]["action"]), "scan", "scan row third")
+	eq(bool(rows[2]["enabled"]), true, "scan enabled at eco")
+	eq(String(rows[3]["action"]), "repair", "repair row fourth")
+	eq(bool(rows[3]["enabled"]), false, "repair disabled (dna 40 < 50)")
+	eq(String(rows[3]["label"]), "🔧 REPAIR (60/100)",
+			"the hull-fraction label when disabled (TS:1216)")
+	eq(bool(rows[4]["enabled"]), true, "gene lab enabled at cargo ≥ 2")
+	eq(String(rows[5]["action"]), "jettison", "jettison row last")
+	ok(bool(rows[5]["enabled"]), "jettison always enabled")
+	# the fixed frame geometry via the panel_frame/panel_button_rect seams
+	# (vw/vh 800/600 headless: x = vw−270, h = 290 at cargo > 0, y = vh−h−150)
+	var r0: Dictionary = rows[0]["r"]
+	approx(float(r0["x"]), 800.0 - 270.0 + 14.0, "button x = frame x + 14", 1e-9)
+	approx(float(r0["y"]), 600.0 - 290.0 - 150.0 + 70.0, "abduct at frame y + 70", 1e-9)
+	approx(float(r0["w"]), 250.0 - 28.0, "button w = frame w − 28", 1e-9)
+	approx(float(r0["h"]), 30.0, "button h 30", 1e-9)
+	approx(float(rows[5]["r"]["y"]), 600.0 - 290.0 - 150.0 + 250.0,
+			"jettison at frame y + 250", 1e-9)
+	# a rect click through the snapshot dispatches the action end-to-end —
+	# JETTISON pops a cargo row (the sim reads what the stage drew)
+	var cr: Dictionary = rows[5]["r"]
+	game.input.mx = float(cr["x"]) + float(cr["w"]) / 2.0
+	game.input.my = float(cr["y"]) + float(cr["h"]) / 2.0
+	game.input.wx = sim.sx  # park the world cursor in the thrust deadzone
+	game.input.wy = sim.sy
+	game.input.down = true
+	game.input.clicked = true
 	stage.update(DT)
-	ok((m["sim"].panel_rects as Array).is_empty(), "the stub rewrites every frame")
+	eq(sim.cargo.size(), 1, "the clicked jettison popped a cargo row")
+	eq(game.input.clicked, false, "the consumed click cleared the wrapper one-shot")
+	ok(bool(sim.uiHold), "uiHold written on the click frame (TS:431)")
+	# out of range: the panel stops drawing (the view gate closes) while the
+	# rows STALE-KEEP (TS panelRects keeps the last in-range rows; the sim's
+	# own range gate no-ops them) — the write still lands every update
+	sim.sx += 5000.0
+	stage.render()
+	stage.update(DT)
+	eq(sim.panel_rects.size(), 6, "the rows stale-keep out of range (TS-verbatim)")
+	eq(stage._panel_view, null, "the panel view gate closed (nothing draws)")
+
+
+# ---- the abilities payload per frame (TS:626-631 via the hud hook) ------------------
+
+func test_abilities_payload_per_frame() -> void:
+	var m := _mk_stage()
+	var stage: Variant = m["stage"]
+	var game: Variant = m["game"]
+	var sim: Variant = m["sim"]
+	stage.on_enter()
+	var seen: Array = []
+	game.hud["set_abilities"] = func(list: Array) -> void: seen.append(list)
+	sim.beamT = 1.0
+	stage.update(DT)
+	eq(seen.size(), 1, "the hook fires at the END of every update (TS:626-631)")
+	var row: Array = seen[0]
+	eq(row.size(), 4, "4 ability slots")
+	eq(String(row[0]["key"]), "R", "slot key R")
+	eq(String(row[0]["icon"]), "🛸", "slot icon 🛸")
+	eq(float(row[0]["cd"]), 0.0, "no cooldowns on space")
+	ok(bool(row[0]["active"]), "R active while the beam flies")
+	eq(String(row[1]["key"]), "F", "slot key F")
+	eq(String(row[1]["icon"]), "⏩", "slot icon ⏩")
+	ok(not bool(row[1]["active"]), "F inactive (ffHold 0)")
+	eq(String(row[2]["key"]), "G", "slot key G")
+	eq(String(row[2]["icon"]), "🧪", "slot icon 🧪")
+	ok(not bool(row[2]["active"]), "G inactive at cargo 0")
+	eq(String(row[3]["key"]), "LMB", "slot key LMB")
+	eq(String(row[3]["icon"]), "🔫", "slot icon 🔫")
+	eq(row[3].has("active"), false, "the LMB row carries no active key (TS verbatim)")
+	# next frame: the beam ended + cargo 2 → R inactive, G active
+	sim.beamT = 0.0
+	sim.cargo = [{"genome": GenomeLib.default_genome(), "name": "a"},
+			{"genome": GenomeLib.default_genome(), "name": "b"}]
+	stage.update(DT)
+	eq(seen.size(), 2, "fires again next update (every frame)")
+	ok(not bool(seen[1][0]["active"]), "R inactive once the beam ends")
+	ok(bool(seen[1][2]["active"]), "G active at cargo ≥ 2")
+
+
+# ---- the ending fade math (TS:1085-1088 — the 2 s in / 1.5 s out windows) -----------
+
+func test_ending_fade_windows() -> void:
+	# fade-in: min(1, endingT/2) while the ending plays
+	approx(SpaceStage.ending_alpha(false, 0.0, 0.0), 0.0, "the veil opens at 0", 1e-9)
+	approx(SpaceStage.ending_alpha(false, 1.0, 0.0), 0.5,
+			"half-veiled at 1 s of the 2 s fade-in", 1e-9)
+	approx(SpaceStage.ending_alpha(false, 2.0, 0.0), 1.0, "fully veiled at 2 s", 1e-9)
+	approx(SpaceStage.ending_alpha(false, 9.0, 0.0), 1.0,
+			"the veil holds while un-dismissed", 1e-9)
+	# fade-out: max(0, 1 − (endingT − dismissT)/1.5) after dismissal
+	approx(SpaceStage.ending_alpha(true, 2.0, 2.0), 1.0,
+			"dismissal starts the fade from full", 1e-9)
+	approx(SpaceStage.ending_alpha(true, 2.75, 2.0), 0.5,
+			"half-clear 0.75 s into the 1.5 s fade-out", 1e-9)
+	approx(SpaceStage.ending_alpha(true, 3.5, 2.0), 0.0,
+			"fully clear 1.5 s after dismissal", 1e-9)
+	approx(SpaceStage.ending_alpha(true, 9.0, 2.0), 0.0,
+			"stays clear — the 86%-black-forever bug stays dead", 1e-9)
 
 
 # ---- the beam draw dispatch: creature-vs-cell on legs (TS:1000-1014) --------------

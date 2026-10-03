@@ -150,28 +150,29 @@ static func glow(ci: CanvasItem, x: float, y: float, r: float, color: Color, alp
 
 ## Radial gradient DISC with a held inner radius (canvas
 ## createRadialGradient(x,y,r0 → x,y,r1): solid stop0 inside r0, falloff to
-## stop1 at r1). Used by the cell painter auras and the toxin zones. The
-## annulus is a vertex-colored ring polygon (Gouraud ≈ radial at these
-## segment counts); the inner disc is a plain fill of stop0.
+## stop1 at r1). Used by the cell painter auras, the toxin zones and the
+## space black holes. The annulus is a vertex-colored ring (Gouraud ≈ radial
+## at these segment counts); the inner disc is a plain fill of stop0. The
+## ring emits ONE QUAD PER SEGMENT — the old single self-touching strip
+## polygon (each quad's corner repeated at the segment boundary) failed
+## triangulation under llvmpipe ("Invalid polygon data") and rendered NOTHING,
+## silently dropping every annulus (found by the M6 task-5 space scene suite:
+## the black hole's outer band was invisible).
 static func radial_disc(ci: CanvasItem, center: Vector2, r0: float, r1: float, col0: Color, col1: Color, segments := 36) -> void:
 	if r1 <= r0:
 		ci.draw_circle(center, r1, col0)
 		return
 	ci.draw_circle(center, r0, col0)
-	var pts := PackedVector2Array()
-	var cols := PackedColorArray()
 	for i in segments:
 		var a0 := (float(i) / float(segments)) * TAU
 		var a1 := (float(i + 1) / float(segments)) * TAU
-		pts.append(center + Vector2(cos(a0), sin(a0)) * r0)
-		pts.append(center + Vector2(cos(a1), sin(a1)) * r0)
-		pts.append(center + Vector2(cos(a1), sin(a1)) * r1)
-		pts.append(center + Vector2(cos(a0), sin(a0)) * r1)
-		cols.append(col0)
-		cols.append(col0)
-		cols.append(col1)
-		cols.append(col1)
-	ci.draw_polygon(pts, cols)
+		ci.draw_polygon(
+				PackedVector2Array([
+					center + Vector2(cos(a0), sin(a0)) * r0,
+					center + Vector2(cos(a1), sin(a1)) * r0,
+					center + Vector2(cos(a1), sin(a1)) * r1,
+					center + Vector2(cos(a0), sin(a0)) * r1]),
+				PackedColorArray([col0, col0, col1, col1]))
 
 
 ## Ellipse outline points (TS ctx.ellipse(x, y, rx, ry, rotation)) — shared by

@@ -7,9 +7,15 @@
 ## with the REAL cam — not the civ fakeCam — seed 7) → [cam.begin] sun → orbit
 ## paths → black holes → planets → finale core → pirates → beam (the line on
 ## the world canvas + the rising specimen on its painter item) → ship → stage
-## fx + game fx → [cam.end]. The T5 screen layer (colonies chip, ff tint,
-## vignette, hull/cargo bars, the planet panel + its rect write-back, the
-## ending veil/renderEnding) is NOT ported here (task 5).
+## fx + game fx → [cam.end].
+## PART 2 (M6 task 5): the SCREEN layer AFTER cam.end (TS :1027-1122 +
+## renderPlanetPanel :1195-1231): the colonies chip → the ff tint → vignette
+## → the hull bar → the cargo bar (4 slots, each a clipped specimen) → the
+## planet panel → the ending veil + renderEnding. TWO screen canvases keep
+## the TS command order around the clipped slot subtrees: ui (chip → ff →
+## vignette → hull → cargo panel + label; the 4 CargoSlot items are its
+## children, so they draw after the ui canvas's own commands) → panel (planet
+## panel → ending veil → renderEnding).
 ##
 ## Draw architecture — the tribe_stage pattern (the rig doctrine): the
 ## Camera2D rig is ENABLED on enter and the VIEWPORT carries the camera
@@ -17,19 +23,23 @@
 ## the sky canvas (the backdrop is screen-space) cancels the live viewport
 ## canvas_transform with affine_inverse(). Ownership: on_enter enables the
 ## rig, on_exit disables it again (menu/cell draw in absolute screen space).
-## HEADER NOTE (the T3 doctrine scoping): everything in THIS task is
-## world-space under the cam — NO node-transform cancellation is needed on
-## the world layer; the cancellation doctrine (civ_stage._screen_inv) applies
-## to T5's screen layer, which slots its ui canvas between the ship and veil
-## canvases.
+## HEADER NOTE (the T3 doctrine scoping): the world layer draws at identity
+## under the enabled rig — no cancellation there. The PART 2 SCREEN layer is
+## screen-space: the ui/panel canvases cancel the live viewport transform via
+## draw_set_transform_matrix(_screen_inv()) INSIDE _draw, and the cargo-slot
+## node subtrees (clipped painter children) cancel at the NODE transform in
+## render() (the civ portrait precedent — a node subtree can only cancel at
+## its own transform; the civ lesson, T3/civ_stage header).
 ##
-## Beam specimen draw protocol — the 3-RID painter contract (TS:1000-1014):
-## the beam item is ONE CanvasItem per creature; the legs>0 branch repaints
-## via the creature painter (three caller-owned sub-RIDs, freed at the top of
-## every repaint and on teardown), the legs==0 branch paints via the cell
-## painter directly on the item (a draw-call painter, no RIDs — the
-## cell_painter contract). The item sits between the world and ship canvases
-## so it draws after the beam line but under the ship/fx, exactly TS order.
+## Specimen draw protocol — the 3-RID painter contract (TS:1000-1014 beam +
+## TS:1063-1074 cargo thumbnails): ONE SpecimenItem per creature; the legs>0
+## branch repaints via the creature painter (three caller-owned sub-RIDs,
+## freed at the top of every repaint and on teardown), the legs==0 branch
+## paints via the cell painter directly on the item (a draw-call painter, no
+## RIDs — the cell_painter contract). The beam item sits between the world
+## and ship canvases so it draws after the beam line but under the ship/fx,
+## exactly TS order; the cargo items sit INSIDE their clipped CargoSlot
+## (the civ portrait clip mechanism).
 ##
 ## TWO FX POOLS (TS:53/:622-623/:1023-1024): the stage owns fx = Fx(1300) —
 ## the engine trail (TS:355 spawns into this.fx) and the pirate/zap bursts
@@ -43,11 +53,14 @@
 ## creature's 5/1.15 (plan Global Constraints: per-stage constants, do not
 ## share).
 ##
-## panel_rects (TS:1192): the planet-panel button rects are written by the
-## STAGE each frame BEFORE sim.update — the write belongs to T5's
-## renderPlanetPanel; T4 stubs it EMPTY every update so the sim's dispatch
-## ladder no-ops gracefully (clicks pass through to the pirate shooting —
-## the f1387fe contract).
+## panel_rects (TS:1192): the planet-panel button rows are collected by the
+## RENDER-side sync (_sync_panel_view — TS renderPlanetPanel computed them at
+## draw time) and the stage writes them to sim.panel_rects each update BEFORE
+## sim.update — one frame of positional lag, TS-identical. Out of range the
+## panel stops drawing (the view gate closes) but the rows STALE-KEEP (TS
+## panelRects keeps the last in-range rows; the sim's own range gate no-ops
+## them), and a never-shown panel writes [] (the f1387fe graceful no-op —
+## clicks pass through to the pirate shooting).
 ##
 ## TS quirks ported AS-IS (parity-pin ledger, each commented at its site):
 ##  - the ship draws when !endingDone || endingDismissed INSIDE the cam scope
@@ -90,11 +103,21 @@ var pause_inst: Variant = null
 
 var sky_canvas: Node2D = null
 var world_canvas: Node2D = null
-var beam_item: BeamItem = null
+var beam_item: SpecimenItem = null
 var ship_canvas: Node2D = null
+var ui_canvas: Node2D = null          # T5 screen layer: chip → ff → vignette → hull → cargo panel
+var panel_canvas: Node2D = null       # T5 screen layer: planet panel → ending veil
+var cargo_slots: Array = []           # 4 CargoSlot items (ui_canvas children)
 var veil_canvas: Node2D = null
 var hud_canvas: Node2D = null
 var pause_canvas: Node2D = null
+
+## TS:1192 panelRects — the button rows the render-side sync collected (the
+## write-back reads this; see the header note).
+var _panel_rects: Array = []
+## The draw-side view (TS renderPlanetPanel's draw state): {p, frame, rows}
+## while the near-planet gate holds, null otherwise (nothing draws).
+var _panel_view: Variant = null
 
 
 class StageCanvas extends Node2D:
@@ -105,13 +128,14 @@ class StageCanvas extends Node2D:
 			stage._draw_layer(layer, self)
 
 
-## The beam's rising specimen (TS:998-1014) — one painter item per creature
-## (the 3-RID contract): legs > 0 → the creature painter (three caller-owned
-## sub-RIDs, freed per repaint + PREDELETE); legs == 0 → the cell painter
-## draws directly on this item. genome empty = the beam gate is closed —
-## nothing draws. Draws at identity in WORLD coordinates (the enabled rig
-## carries the camera; the pose carries x/y).
-class BeamItem extends Node2D:
+## One painter specimen (the 3-RID contract) — the beam's rising creature
+## (TS:998-1014) AND the cargo-slot thumbnails (TS:1063-1074): legs > 0 → the
+## creature painter (three caller-owned sub-RIDs, freed at the top of every
+## repaint and on teardown), legs == 0 → the cell painter draws directly on
+## this item. genome empty = the gate is closed — nothing draws. The CALLER
+## decides the branch (the beam keys on legs only, TS:1005; cargo keys on
+## legs OR arms, TS:1065) and carries world/screen coords in the pose.
+class SpecimenItem extends Node2D:
 	var genome: Dictionary = {}
 	var pose: Dictionary = {}
 	var opts: Dictionary = {}
@@ -137,6 +161,35 @@ class BeamItem extends Node2D:
 			_rids = []
 
 
+## One cargo-bar slot (TS:1063-1072) — the civ portrait clip mechanism: the
+## item's own drawn content (the TS slot panel + a full-alpha mask rect) IS
+## the clip shape for its SpecimenItem child (clip_children AND_DRAW — the
+## shape-accurate group mode; canvas_item_set_clip is a bounding-rect scissor
+## that would leak the specimen past the slot, the creature_painter ruling).
+## The mask is INSET 2px so the TS 1.5px stroke ring survives the full-alpha
+## overpaint (the civ portrait's own 4px inset precedent); the specimen loses
+## at most 2px of clip against the TS full-slot rect.
+class CargoSlot extends Node2D:
+	var rect := Rect2()       # the TS slot rect, screen coords per frame
+	var spec: SpecimenItem = null
+
+	func _draw() -> void:
+		RendererScript.panel(self, rect.position.x, rect.position.y,
+				rect.size.x, rect.size.y, {
+					"fill": RendererScript.css_color("rgba(10,18,40,0.9)"),
+					"stroke": RendererScript.css_color("rgba(120,170,240,0.25)"),
+				})
+		# the clip mask — the panel color at FULL alpha, inset 2px (see the
+		# class note): the group mask multiplies child alpha (the task-6
+		# divergence note), so the TS 0.9 fill alone would dim the specimen
+		draw_rect(Rect2(rect.position.x + 2.0, rect.position.y + 2.0,
+				rect.size.x - 4.0, rect.size.y - 4.0),
+				Color(10.0 / 255.0, 18.0 / 255.0, 40.0 / 255.0, 1.0), true)
+
+	func _notification(_what: int) -> void:
+		pass  # no RIDs here — the child specimen item owns its own
+
+
 func _init(game_v: Variant) -> void:
 	super(game_v, "space")
 
@@ -159,8 +212,9 @@ func _ready() -> void:
 		c2d.enabled = false
 
 	# tree order = the TS draw order: sky (backdrop) → world (sun..beam line)
-	# + the beam specimen item → ship (ship + both fx pools) → [T5 slots the
-	# ui canvas HERE] → veil → hud → pause
+	# + the beam specimen item → ship (ship + both fx pools) → ui (the T5
+	# screen layer + the 4 clipped cargo slots) → panel (planet panel + the
+	# ending overlay) → veil → hud → pause
 	sky_canvas = StageCanvas.new()
 	sky_canvas.stage = self
 	sky_canvas.layer = "sky"
@@ -171,7 +225,7 @@ func _ready() -> void:
 	world_canvas.layer = "world"
 	world_canvas.name = "WorldCanvas"
 	add_child(world_canvas)
-	beam_item = BeamItem.new()
+	beam_item = SpecimenItem.new()
 	beam_item.name = "BeamItem"
 	world_canvas.add_child(beam_item)
 	ship_canvas = StageCanvas.new()
@@ -179,6 +233,30 @@ func _ready() -> void:
 	ship_canvas.layer = "ship"
 	ship_canvas.name = "ShipCanvas"
 	add_child(ship_canvas)
+	# T5 screen layer — two screen canvases bracket the clipped cargo-slot
+	# subtrees so the node items draw between the cargo panel and the planet
+	# panel exactly as the TS command order (:1052-1080): ui (chip → ff →
+	# vignette → hull → cargo panel + label) + its 4 CargoSlot children →
+	# panel (planet panel → ending veil → renderEnding)
+	ui_canvas = StageCanvas.new()
+	ui_canvas.stage = self
+	ui_canvas.layer = "ui"
+	ui_canvas.name = "UICanvas"
+	add_child(ui_canvas)
+	for i in 4:
+		var slot := CargoSlot.new()
+		slot.name = "CargoSlot%d" % i
+		slot.spec = SpecimenItem.new()
+		slot.spec.name = "Specimen%d" % i
+		slot.add_child(slot.spec)  # the clipped subtree: spec rides INSIDE the slot
+		slot.clip_children = CanvasItem.CLIP_CHILDREN_AND_DRAW
+		ui_canvas.add_child(slot)
+		cargo_slots.append(slot)
+	panel_canvas = StageCanvas.new()
+	panel_canvas.stage = self
+	panel_canvas.layer = "panel"
+	panel_canvas.name = "PanelCanvas"
+	add_child(panel_canvas)
 	# the TS game-level transition overlay slots between the stage's UI and
 	# the hud (native draw-order ruling — see cell_stage.gd's header)
 	veil_canvas = StageCanvas.new()
@@ -243,6 +321,10 @@ func _draw_layer(kind: String, ci: CanvasItem) -> void:
 			_draw_world(ci)
 		"ship":
 			_draw_ship_layer(ci)
+		"ui":
+			_draw_ui_layer(ci)
+		"panel":
+			_draw_panel_layer(ci)
 		"veil":
 			# screen space under the enabled rig — cancel the camera transform
 			ci.draw_set_transform_matrix(_screen_inv())
@@ -332,6 +414,33 @@ static func _quad_into(pts: PackedVector2Array, p0: Vector2, ctrl: Vector2,
 ## this; the scene test pins the truth table.
 static func ship_visible(ending_done: bool, ending_dismissed: bool) -> bool:
 	return not ending_done or ending_dismissed
+
+
+## TS:1197-1199 — the planet-panel frame: w 250 at x = vw−w−20, h = cargo > 0
+## ? 290 : 252, y = vh−h−150. Static seam — the row sync and the draw site
+## consume this; the scene test pins the live production values.
+static func panel_frame(cargo_count: int, vw: float, vh: float) -> Rect2:
+	var h := 290.0 if cargo_count > 0 else 252.0
+	return Rect2(vw - 250.0 - 20.0, vh - h - 150.0, 250.0, h)
+
+
+## TS:1204-1211 — the button rects ride the frame: {x+14, y+70+36·idx, w−28,
+## 30} (ABDUCT 70 / SEED 106 / SCAN 142 / REPAIR 178 / GENE LAB 214 /
+## JETTISON 250). Static seam — the row sync consumes this.
+static func panel_button_rect(frame: Rect2, idx: int) -> Rect2:
+	return Rect2(frame.position.x + 14.0,
+			frame.position.y + 70.0 + 36.0 * float(idx),
+			frame.size.x - 28.0, 30.0)
+
+
+## TS:1085-1088 — the ending veil alpha: the 2 s fade-in while the ending
+## plays, the 1.5 s fade-out after dismissal (a lost round-6 edit left the
+## sandbox at 86% black forever — the TS comment is the pin). Static seam —
+## the draw site consumes this; the headless test pins the windows.
+static func ending_alpha(ending_dismissed: bool, ending_t: float, dismiss_t: float) -> float:
+	if ending_dismissed:
+		return maxf(0.0, 1.0 - (ending_t - dismiss_t) / 1.5)
+	return minf(1.0, ending_t / 2.0)
 
 
 # ---- TS render() world sections (:887-1025) ---------------------------------------
@@ -478,7 +587,11 @@ func _draw_pirate(ci: CanvasItem, p: Dictionary) -> void:
 	ci.draw_colored_polygon(hull, Color("#6a3a3a"))
 	var closed := hull.duplicate()
 	closed.append(hull[0])
-	ci.draw_polyline(closed, Color("#3a1a1a"), 1.0, true)
+	# TS drawPirate never sets lineWidth — the stroke INHERITS 2 from the
+	# black-hole/finale blocks whenever holes exist or a finale runs (TS:922/
+	# :974); the orbit's 1 applies only in the holes-empty-no-finale state.
+	# The port pins the common case (the T4-review Minor 1).
+	ci.draw_polyline(closed, Color("#3a1a1a"), 2.0, true)
 	ci.draw_set_transform(Vector2.ZERO)  # TS restore
 	RendererScript.glow(ci, pp.x, pp.y, 20.0,
 			RendererScript.css_color("rgba(255,90,60,0.4)"), 0.6)
@@ -534,20 +647,308 @@ func _draw_ship(ci: CanvasItem) -> void:
 	ci.draw_set_transform(Vector2.ZERO)  # TS restore
 
 
-## Per-frame draw hook (Game's render side): sync the beam specimen, queue
-## all canvases.
+# ---- TS render() screen sections (:1027-1122, AFTER cam.end) -----------------------
+# Screen space: every canvas cancels the live rig inside _draw (the T3
+# doctrine). The 4 clipped cargo slots draw as the ui canvas's children right
+# after its own commands; the panel canvas follows with the planet panel and
+# the ending overlay — TS command order end to end.
+
+## TS:1027-1074 — the colonies chip → the ff tint → vignette → the hull bar →
+## the cargo panel + label.
+func _draw_ui_layer(ci: CanvasItem) -> void:
+	ci.draw_set_transform_matrix(_screen_inv())
+	var vw: float = game.vw
+	var vh: float = game.vh
+
+	# colonies progress chip — TS:1027-1030 (the win gate, always visible)
+	var thriving := 0
+	var colonies := 0
+	for p in sim.planets:
+		if p["colony"] != null:
+			colonies += 1
+			if float(p["colony"]["pop"]) >= 20.0:
+				thriving += 1
+	RendererScript.panel(ci, vw / 2.0 - 110.0, 44.0, 220.0, 26.0, {
+		"fill": RendererScript.css_color("rgba(6,12,28,0.85)"),
+		"stroke": RendererScript.css_color("rgba(150,220,150,0.4)"),
+	})
+	# the chip template is NOT t()-wrapped in TS (:1029) — raw
+	RendererScript.outlined_text(ci,
+			"🏳 %d colonies · ★ %d/3 thriving" % [colonies, thriving],
+			vw / 2.0, 57.0, {"size": 11.0,
+					"fill": Color("#ffe08a") if thriving >= 3 else Color("#9fe89a")})
+
+	# fast-forward tint — TS:1032-1038
+	if sim.ffHold > 0.0:
+		ci.draw_rect(Rect2(0.0, 0.0, vw, vh),
+				RendererScript.css_color("rgba(150,100,255,0.06)"), true)
+		# below the banner panel (y 70..144) — TS comment
+		RendererScript.outlined_text(ci, tr("⏩ EVOLUTION ACCELERATING"),
+				vw / 2.0, 160.0, {"size": 14.0, "fill": Color("#e2a4ff")})
+
+	# vignette — TS:1040
+	RendererScript.vignette(ci, vw, vh, 0.5)
+
+	# ship HP — TS:1042-1049
+	var hp_w := minf(300.0, vw * 0.26)
+	var hx := vw / 2.0 - hp_w / 2.0
+	var hy := vh - 104.0
+	RendererScript.panel(ci, hx - 6.0, hy - 6.0, hp_w + 12.0, 22.0, {
+		"fill": RendererScript.css_color("rgba(6,10,24,0.75)"),
+		"stroke": RendererScript.css_color("rgba(150,200,255,0.3)"),
+	})
+	var hp_p := clampf(sim.shp / sim.shpMax, 0.0, 1.0)
+	ci.draw_rect(Rect2(hx, hy, hp_w * hp_p, 10.0),
+			Color("#5ab8ff") if hp_p > 0.35 else Color("#ff5a5a"), true)
+	RendererScript.outlined_text(ci, "%s %d" % [tr("HULL"), ceili(sim.shp)],
+			vw / 2.0, hy + 5.0, {"size": 10.0, "fill": Color("#fff")})
+
+	# cargo bar — TS:1052-1062 (the 4 clipped slots ride the CargoSlot
+	# children right after these commands)
+	var cargo_w := 4.0 * 54.0 + 3.0 * 8.0
+	var cx0 := vw / 2.0 - cargo_w / 2.0
+	var cy := vh - 178.0  # clear of the HUD ability row (vh-66..vh-14) + hull bar
+	RendererScript.panel(ci, cx0 - 10.0, cy - 8.0, cargo_w + 20.0, 70.0, {
+		"fill": RendererScript.css_color("rgba(6,10,24,0.8)"),
+		"stroke": RendererScript.css_color("rgba(160,200,255,0.25)"),
+	})
+	# 'CARGO' is NOT t()-wrapped in TS (:1062) — raw
+	RendererScript.outlined_text(ci, "CARGO", cx0 - 10.0 + 40.0, cy - 16.0,
+			{"size": 9.0, "fill": RendererScript.css_color("rgba(180,210,255,0.6)")})
+
+
+## TS:1076-1097 — the planet panel (when near) → the ending veil →
+## renderEnding. The panel frame + rows come from the render-side sync
+## (_panel_view — TS computed both inside renderPlanetPanel; the native split
+## keeps the write-back headless-testable while the draw consumes the SAME
+## rows).
+func _draw_panel_layer(ci: CanvasItem) -> void:
+	ci.draw_set_transform_matrix(_screen_inv())
+	var vw: float = game.vw
+	var vh: float = game.vh
+	if _panel_view != null:
+		_draw_planet_panel(ci)
+	# ending — veil fades back OUT over ~1.5s after dismissal (a lost round-6
+	# edit left the sandbox at 86% black forever) — TS:1083-1097
+	if sim.endingDone:
+		var a: float = ending_alpha(sim.endingDismissed, sim.endingT, sim.dismissT)
+		if a > 0.0:
+			ci.draw_rect(Rect2(0.0, 0.0, vw, vh),
+					Color(4.0 / 255.0, 6.0 / 255.0, 20.0 / 255.0, a * 0.86), true)
+		if a >= 1.0 and not sim.endingDismissed:
+			_draw_ending(ci)
+
+
+## TS renderPlanetPanel (:1195-1231) — the frame + header + the button rows
+## (mkBtn's draws; the rows themselves were collected by _sync_panel_view).
+## NOTE: the click dispatch lives in sim.update — the render only draws the
+## rects (the TS:1230 note).
+func _draw_planet_panel(ci: CanvasItem) -> void:
+	var p: Dictionary = _panel_view["p"]
+	var frame: Rect2 = _panel_view["frame"]
+	var rows: Array = _panel_view["rows"]
+	var hue := float(p["hue"])
+	RendererScript.panel(ci, frame.position.x, frame.position.y,
+			frame.size.x, frame.size.y, {
+				"fill": RendererScript.css_color("rgba(6,12,28,0.92)"),
+				"stroke": RendererScript.hsl(hue, 0.5, 0.6, 0.6),
+			})
+	RendererScript.outlined_text(ci, String(p["name"]),
+			frame.position.x + frame.size.x / 2.0, frame.position.y + 20.0,
+			{"size": 14.0, "fill": RendererScript.hsl(hue, 0.7, 0.75), "weight": "700"})
+	var kind_line := "%s · uncolonized" % String(p["kind"])
+	if p["colony"] != null:
+		kind_line = "%s · colony %d · gen %d" % [String(p["kind"]),
+				roundi(float(p["colony"]["pop"])),
+				roundi(float(p["colony"]["generations"]))]
+	RendererScript.outlined_text(ci, kind_line,
+			frame.position.x + frame.size.x / 2.0, frame.position.y + 38.0,
+			{"size": 10.0, "fill": RendererScript.css_color("rgba(200,225,255,0.6)")})
+	var bio: String = tr("lifeless rock")
+	if p["eco"] != null:
+		bio = "%d %s · %s %d" % [p["eco"].living().size(), tr("species"),
+				tr("flora"), roundi(float(p["eco"].flora))]
+	RendererScript.outlined_text(ci, bio,
+			frame.position.x + frame.size.x / 2.0, frame.position.y + 54.0,
+			{"size": 10.0, "fill": RendererScript.css_color("rgba(200,225,255,0.6)")})
+	for b in rows:
+		var r: Dictionary = b["r"]
+		RendererScript.panel(ci, float(r["x"]), float(r["y"]),
+				float(r["w"]), float(r["h"]), {
+					"fill": RendererScript.css_color("rgba(50,90,170,0.9)")
+							if bool(b["enabled"])
+							else RendererScript.css_color("rgba(45,50,62,0.9)"),
+					"stroke": RendererScript.css_color("rgba(150,200,255,0.35)"),
+				})
+		RendererScript.outlined_text(ci, String(b["label"]),
+				float(r["x"]) + float(r["w"]) / 2.0, float(r["y"]) + 15.0,
+				{"size": 12.0, "fill": Color("#fff") if bool(b["enabled"])
+						else RendererScript.css_color("rgba(255,255,255,0.4)")})
+
+
+## TS renderEnding (:1100-1122).
+func _draw_ending(ci: CanvasItem) -> void:
+	var vw: float = game.vw
+	var vh: float = game.vh
+	RendererScript.outlined_text(ci, tr("THE CHAOS CORE ACCEPTS YOU"),
+			vw / 2.0, vh / 2.0 - 120.0,
+			{"size": 34.0, "fill": Color("#e2a4ff"), "weight": "700"})
+	var colonies := 0
+	var thriving := 0
+	for p in sim.planets:
+		if p["colony"] != null:
+			colonies += 1
+			if float(p["colony"]["pop"]) >= 20.0:
+				thriving += 1
+	var karma_v := float(game.context.karma)
+	var karma_txt := ("+" if karma_v >= 0.0 else "") + "%.2f" % karma_v
+	var flavor := "The universe cannot decide what you are. It keeps watching."
+	if karma_v > 0.3:
+		flavor = "The universe hums in harmony — you gardened the stars."
+	elif karma_v < -0.3:
+		flavor = "The universe fears your name — chaos was your harvest."
+	var lines: Array = [
+		"playtime %d min · %d DNA harvested across the ages" % [
+			roundi(float(game.context.playtime) / 60.0),
+			roundi(float(game.context.total_dna_earned))],
+		"%d thriving colonies · %d worlds seeded · %d species catalogued" % [
+			thriving, colonies, game.context.bestiary.size()],
+		"karma %s · chaos %d%%" % [karma_txt,
+				roundi(float(game.context.chaos) * 100.0)],
+		tr(flavor),
+	]
+	var y := vh / 2.0 - 60.0
+	for l in lines:
+		RendererScript.outlined_text(ci, String(l), vw / 2.0, y,
+				{"size": 14.0,
+						"fill": RendererScript.css_color("rgba(210,230,255,0.85)")})
+		y += 30.0
+	RendererScript.outlined_text(ci,
+			tr("the sandbox remains yours — keep flying, keep evolving"),
+			vw / 2.0, y + 20.0, {"size": 12.0, "fill": Color("#ffe08a")})
+	RendererScript.outlined_text(ci,
+			tr("(ESC to pause · M mute · F fast-forward · R abduct)"),
+			vw / 2.0, y + 46.0, {"size": 11.0,
+					"fill": RendererScript.css_color("rgba(160,190,230,0.5)")})
+
+
+## Per-frame draw hook (Game's render side): sync the beam specimen + the
+## cargo slots + the panel rows, queue all canvases. The syncs run BEFORE the
+## draw phase every frame; headless tests call render() directly (the civ
+## portrait precedent).
 func render() -> void:
 	if sky_canvas == null or sim == null:
 		return
 	_sync_beam_item()
+	_sync_cargo_slots()
+	_sync_panel_view()
 	sky_canvas.queue_redraw()
 	world_canvas.queue_redraw()
 	ship_canvas.queue_redraw()
+	ui_canvas.queue_redraw()
+	panel_canvas.queue_redraw()
 	veil_canvas.queue_redraw()
 	hud_canvas.queue_redraw()
 	pause_canvas.visible = bool(game.paused)
 	if pause_canvas.visible:
 		pause_canvas.queue_redraw()
+
+
+## TS:1063-1074 — the cargo slots: position + the specimen payload per slot
+## (the creature-vs-cell branch keys on legs OR arms, TS:1065 — the beam's
+## own sync keys on legs only, TS:1005). The node transform carries the
+## screen-space cancellation (the civ portrait precedent — a node subtree
+## cancels at its own transform, the T3 doctrine).
+func _sync_cargo_slots() -> void:
+	var cargo_w := 4.0 * 54.0 + 3.0 * 8.0
+	var cx0: float = game.vw / 2.0 - cargo_w / 2.0
+	var cy: float = game.vh - 178.0
+	var inv := _screen_inv()
+	for i in 4:
+		var slot: CargoSlot = cargo_slots[i]
+		var x := cx0 + float(i) * 62.0
+		slot.transform = inv
+		slot.rect = Rect2(x, cy, 54.0, 54.0)
+		var item: Variant = sim.cargo[i] if i < sim.cargo.size() else null
+		slot.spec.genome = {}
+		slot.spec.pose = {}
+		slot.spec.opts = {}
+		slot.spec.is_cell = false
+		if item != null:
+			var g: Dictionary = item["genome"]
+			slot.spec.genome = g
+			slot.spec.opts = {"t": sim.time}
+			if int(g.get("legs", 0)) > 0 or int(g.get("arms", 0)) > 0:
+				slot.spec.is_cell = false
+				slot.spec.pose = {
+					"x": x + 27.0, "y": cy + 44.0, "facing": 1.0, "speed": 0.05,
+					"gaitPhase": sim.time * 3.0 + float(i), "attack": 0.0,
+					"hurt": 0.0, "eat": 0.0, "airborne": 0.0, "mood": "idle",
+					"scale": 0.85,
+				}
+			else:
+				slot.spec.is_cell = true
+				slot.spec.pose = {
+					"x": x + 27.0, "y": cy + 27.0, "moveAngle": 0.0, "speed": 0.1,
+					"scale": 1.1, "hurt": 0.0, "eat": 0.0, "dash": 0.0,
+					"seed": float(i) * 3.0,
+				}
+		slot.spec.queue_redraw()
+		slot.queue_redraw()
+
+
+## TS:1076-1080 + renderPlanetPanel (:1195-1231) — the panel rows collected at
+## sync time (TS computed them inside the draw): the near-planet gate first,
+## then one row per button (mkBtn — the rect from panel_button_rect, the
+## enabled flag + label verbatim). Out of range the view closes (nothing
+## draws) while the rows STALE-KEEP (TS panelRects keeps the last in-range
+## rows; the sim's own range gate no-ops them).
+func _sync_panel_view() -> void:
+	var near: Variant = sim.nearest_planet()
+	if near != null and _dist_to(near) < float(near["r"]) + 130.0:
+		var frame := panel_frame(sim.cargo.size(), game.vw, game.vh)
+		var cargo_full: bool = sim.cargo.size() >= 4
+		var can_repair: bool = sim.shp < sim.shpMax and float(game.context.dna) >= 50.0
+		var defs: Array = [
+			{"action": "abduct", "label": tr("🛸 ABDUCT LIFE (R)"),
+				"enabled": near["eco"] != null and not cargo_full
+						and sim.beamT <= 0.0},
+			{"action": "seed", "label": tr("🌱 SEED COLONY"),
+				"enabled": sim.cargo.size() > 0},
+			{"action": "scan",
+				"label": tr("📋 RE-SURVEY (+3)") if bool(near["scanned"])
+						else tr("📡 SCAN"),
+				"enabled": near["eco"] != null},
+			{"action": "repair",
+				"label": "🔧 REPAIR HULL (50 DNA)" if can_repair
+						else "🔧 REPAIR (%d/%d)" % [ceili(sim.shp), roundi(sim.shpMax)],
+				"enabled": can_repair},
+			{"action": "merge", "label": tr("🧬 GENE LAB: merge 2 cargo (G)"),
+				"enabled": sim.cargo.size() >= 2},
+		]
+		var rows: Array = []
+		for i in defs.size():
+			var d: Dictionary = defs[i]
+			var r := panel_button_rect(frame, i)
+			rows.append({"action": d["action"], "enabled": d["enabled"],
+					"label": d["label"], "r": {"x": r.position.x, "y": r.position.y,
+					"w": r.size.x, "h": r.size.y}})
+		if sim.cargo.size() > 0:
+			var r5 := panel_button_rect(frame, 5)
+			rows.append({"action": "jettison",
+					"label": "%s (%d/4)" % [tr("🗑 JETTISON 1 CARGO"), sim.cargo.size()],
+					"enabled": true, "r": {"x": r5.position.x, "y": r5.position.y,
+					"w": r5.size.x, "h": r5.size.y}})
+		_panel_rects = rows
+		_panel_view = {"p": near, "frame": frame, "rows": rows}
+	else:
+		_panel_view = null
+
+
+## TS render :1077-1079 — the vecDist ship→planet gate (the sim's _dist_ship
+## shape, inlined so the draw-side sync doesn't reach into sim privates).
+func _dist_to(p: Dictionary) -> float:
+	return Vector2(float(p["x"]) - sim.sx, float(p["y"]) - sim.sy).length()
 
 
 ## TS:998-1014 — the beam's rising specimen syncs HERE (draw-time state): the
@@ -597,12 +998,12 @@ func _sync_beam_item() -> void:
 func update(dt: float) -> void:
 	if sim == null or frozen:
 		return
-	# panel_rects write-back — TS:1192 rides the RENDER side (renderPlanetPanel,
-	# task 5): the write lands each frame BEFORE sim.update (one frame of
-	# positional lag, TS-identical). T4 stubs it EMPTY so the sim's dispatch
-	# ladder no-ops gracefully (clicks pass through to the pirate shooting —
-	# the f1387fe contract; the T5 panel task completes the write).
-	sim.panel_rects = []
+	# panel_rects write-back — TS:1192 rides the RENDER side (the rows are
+	# collected by the render-side sync, _sync_panel_view) and lands each frame
+	# BEFORE sim.update — one frame of positional lag, TS-identical. Out of
+	# range the rows stale-keep (see _sync_panel_view); the sim's dispatch
+	# ladder no-ops them behind its own range gate (the f1387fe contract).
+	sim.panel_rects = _panel_rects
 	var inp: Dictionary = _build_input_snapshot()
 	sim.update(dt, inp)
 	# a sim-consumed click (panel/pirate) mirrors TS inp.takeClick() mutating
