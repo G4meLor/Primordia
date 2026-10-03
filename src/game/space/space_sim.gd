@@ -1,14 +1,20 @@
-## SPACE STAGE sim core PART 1 — the finale/sandbox system as a headless
-## RefCounted: all state fields, the constructor (the stage rng branch + the
-## chaos scheduler on a SECOND branch + deckSeed + generateSystem), the
+## SPACE STAGE sim core — the finale/sandbox system as a headless RefCounted.
+## PART 1 (task 1): all state fields, the constructor (the stage rng branch +
+## the chaos scheduler on a SECOND branch + deckSeed + generateSystem), the
 ## per-planet ecosystems (makePlanetEco — the archetype diet dial), the onEnter
 ## C1 gate + the FULL restore whitelist, persistColonies, and the update
 ## subset: the fast-forward block, ship control (cursor thrust + WASD), engine
 ## particles, planet orbits + colony logistic growth, sun danger + hull regen.
-## Plus the debug seams (debug_state / debug_seed_colonies). Port of Spore
-## src/game/space/SpaceStage.ts (frozen) :25-394 + debugSeedColonies
-## (:1275-1287); the near-planet interaction block starts at :391 and is NOT
-## ported here.
+## PART 2 (task 2, TS:391-632 + the private methods): the near-planet panel
+## interaction dispatch (the disabled-button-owns-click rule + the uiHold
+## write side), black holes, pirates (chase + click-to-shoot), the R/G/V keys
+## and the beam countdown, the chaos update with the FULL ctx incl. onEnd (the
+## tribute unpaid→pirates rule), the finale/ending state machine, ship death,
+## the cooldown decays, the 5 s persist cadence, and the methods
+## nearestPlanet/tryAbduct/finishAbduct/seedNearest/mergeCargo/
+## borrowedFleshGraft/spawnPirates/spawnBlackHole/demandTribute/payTribute/
+## repairHull/scanPlanet. The render pass (:885+) and the stage-side hook
+## bindings are task 4/5's.
 ##
 ## Architecture (M4/M5 pattern, same as civ_sim.gd): SpaceSim.new(ctx,
 ## rng_branch, hooks) —
@@ -22,22 +28,35 @@
 ##              key = silent no-op so tests record selectively. Keys used by
 ##              PART 1: hud_toast(text, kind, icon), hud_show_objective(text),
 ##              audio_set_mood(name), cam_shake(mag, dur), fx_spawn(opts).
-##              Keys that exist for parity but PART 1 never fires: hud_banner,
-##              hud_set_abilities, audio_play, go_to (space never go_to's
-##              onward), save_all (the stage binds persist_state to it).
-##              (Audio sites carry `# TS audio.play(...) — audio core: its own
-##              task` per the standing deferral; PART 1 has none.)
+##              Keys PART 2 fires: hud_banner(data), hud_float_world(x, y,
+##              text, color, size), hud_set_abilities(list), audio_play(name,
+##              vol, pan — the TS audio core is its own task), fx_burst(x, y,
+##              n, opts — the sim replays the TS burst rng draws, the
+##              cell_sim precedent), set_cursor(state), plus the storyteller
+##              seam get_gap_bias/get_mood/get_warn_scale/
+##              storyteller_note_chaos_event (the civ wiring). go_to/save_all
+##              exist for parity but neither part fires them.
 ## No Input singleton reads: update(dt, inp) takes the M2 input SNAPSHOT and
-## reads keys_held (KeyF hold, WASD/arrows) + down/wx/wy (cursor thrust).
+## reads keys_held (KeyF hold, WASD/arrows) + keys_pressed (R/G/V canonical)
+## + down/wx/wy (cursor thrust) + mx/my (the panel rects, screen space) +
+## clicked/take_click (the panel and pirate-click dispatches consume via
+## inp["take_click"] = true — Dictionaries pass by reference, so the take is
+## visible to every later read this frame, the TS takeClick semantics).
+## The camera feed + the fx-pool steps + the world-pointer recompute
+## (TS:616-623) stay SCENE-SIDE (task 5 binds them right after sim.update —
+## the cell_sim precedent: the sim never touches cam; the stage runs the
+## block in the TS order).
 ## The chaos scheduler rides a SECOND branch of the stage rng (TS:98) holding
 ## the world-parameterized space deck (spaceEvents.ts) — the DECK IS TASK 3'S:
 ## the scheduler is constructed with an EMPTY defs array and the C1 rebuild
 ## gate is fully wired around it (the M5-T1 ruling; _make_deck returns []).
-## The finale/ending state fields exist (TS:88-93) but their update logic is
-## task 2's (:391-632), as are the pirates/black-holes machines, the panel
-## interactions (the uiHold WRITE side, TS:431/434), the 5 s auto-persist tick
-## (TS:610-613) and the invuln/hurtT decays (TS:605-606). The render pass
-## (:885+) and the stage-side hook bindings are task 4's.
+## chaos.update receives the FULL ctx incl. onEnd (TS:519-548) — with the
+## empty deck nothing ever schedules, so the tribute onEnd rule never fires
+## in production until task 3 lands the deck.
+## The panel rects (panel_rects, TS:1192) are written by the STAGE each frame
+## before update (task 5's render pass); the sim only READS them — an empty
+## array no-ops the dispatch ladder gracefully (clicks pass through to the
+## pirate shooting).
 ##
 ## TS quirks ported AS-IS (parity pins, each commented at its site):
 ##  - timeScale reads ffHold BEFORE the KeyF update (:306 before :307) — the
@@ -70,6 +89,27 @@
 ##  - debugSeedColonies' docstring says 'three nearest lush worlds' but the
 ##    code takes the FIRST THREE non-barren uncolonized planets in ORDER
 ##    (:1275-1287, pinned as coded)
+##  - the panel dispatch: even a DISABLED button owns its click (:412-415) —
+##    greyed-out presses must not fall through and thrust the ship away;
+##    uiHold is written ONLY on click frames (:431) and cleared on !isDown
+##    (:434); panel clicks outrank pirate shooting (:391 block order)
+##  - tryAbduct checks DISTANCE FIRST (:646-647) — a full-cargo message from
+##    out of range teaches the wrong lesson
+##  - finishAbduct filters candidates to pop ≥ 1 (:676) — pop-0 leftovers must
+##    not stay farmable forever (the infinite-DNA faucet)
+##  - the last-member abduct is a player-caused extinction counted HERE (it
+##    never passes through eco.tick, TS:692-696)
+##  - the beamT countdown is NOT clamped (:503) — it lands negative and stays
+##    there until the next tryAbduct resets it
+##  - a graft NEVER downgrades (:786) — raised ≤ cur tries the next lineage
+##  - ship death keeps the cargo (:589-590) and skips the DNA bill post-ending
+##    (:587); the black-hole cull radius 700 must exceed the 600 pull radius
+##    (:595-597); finishAbduct flushes the save (the 60s autosave lag, :706)
+##  - splice/jettison costs DNA (:737-738) — free splices + free abducts were
+##    a 395 DNA/min AFK faucet; the re-survey trickle is cooled by resurveyCd
+##    (:1246-1251, an unbounded mash measured ~720 DNA/min)
+##  - the pirate ttl reads `pirateTtl[pi] ?? 40` (:457) — a desynced array
+##    reads the 40 default
 ## Recorded divergences (parity-pin ledger):
 ##  - TS `world.abductCount && typeof world.abductCount === 'object'` passes
 ##    for ANY JS object ({} included — JS object truthiness; arrays too,
@@ -86,11 +126,21 @@
 ##    stores String(opts.color), so a Color would corrupt).
 ##  - the TS try/catch around the restore ports as JSON.parse_string null
 ##    checks (no GDScript try/catch): a parse failure reads as "no blob".
+##  - the abductCount ledger reads numerically (`?? 0` + the JS string-concat
+##    pathology for a hand-corrupted "0" value is unreachable through the
+##    real write path — the ledger is sim-written and JSON-restored, and JSON
+##    numbers stay numbers); the port numeric-guards instead.
+##  - the graft's `child[part.def.gene] as number` on a MISSING gene reads NaN
+##    in TS (NaN ≤ NaN false → the graft fires with NaN); unreachable for
+##    real children (crossover outputs are clamped full genomes) — the port
+##    reads 0.0 via .get().
 ## Documented debug seam surface (bot parity law's exception list, the civ
 ## analog of tribe's debug_grant): debug_state() (read) +
 ## debug_seed_colonies() (TS:1275-1287, the task-6 bot's colony leg). No
 ## debug_set_ship — PART 1's tests set the ship fields directly; task 6 may
-## add it for bot legs (any addition gets documented here).
+## add it for bot legs (any addition gets documented here). debug_state also
+## exposes the part-2 machine fields: pirates, blackHoles, beamT,
+## tributeDemand, resurveyCd, pirateLull, persistT, endingT, dismissT.
 class_name SpaceSim
 extends RefCounted
 
@@ -100,6 +150,7 @@ const WorldGenomeScript := preload("res://src/evo/world_genome.gd")
 const GenomeScript := preload("res://src/evo/genome.gd")
 const MutationScript := preload("res://src/evo/mutation.gd")
 const NamesScript := preload("res://src/evo/names.gd")
+const PartsScript := preload("res://src/evo/parts.gd")
 
 ## TS hud.showObjective on onEnter (SpaceStage.ts:188).
 const OBJECTIVE_LINE := "SEED 3 WORLDS, GROW EACH TO POP 20 — awaken the Chaos Core · R abduct · F evolve"
@@ -169,10 +220,15 @@ var dismissT := 0.0              # TS:92
 var tributeDemand := 0.0         # TS:93
 
 # TS:1193 — read by the ship control (down && !uiHold); the WRITE side is the
-# panel-interaction task's (TS:431/434)
+# panel-interaction block below (TS:431/434)
 var uiHold := false
 # TS:280 — the 5 s auto-persist tick is task 2's (TS:610-613); the field rides
 var persistT := 0.0
+# TS:1192 — the planet-panel button rects, written by the STAGE each frame
+# before update (task 5's render pass); the sim only READS them here. Rows:
+# {action: String, enabled: bool, r: {x, y, w, h}}. Empty array = no panel —
+# the dispatch ladder no-ops gracefully (clicks pass through to the pirates).
+var panel_rects: Array = []
 
 
 func _init(ctx_v: Variant, rng_branch: Variant, hooks: Dictionary = {}) -> void:
@@ -571,24 +627,252 @@ func update(dt: float, inp: Dictionary) -> void:
 		hurtT = 1.0
 		_fire("cam_shake", [4.0, 0.2])  # TS:381
 
-	# hull regen near your thriving colonies (TS:384-389) — the invuln/hurtT
-	# decays and the ship-death check are task 2's (TS:591/605-606)
+	# hull regen near your thriving colonies (TS:384-389)
 	for p in planets:
 		if p["colony"] != null and float(p["colony"]["pop"]) >= 5.0 \
 				and sqrt(pow(sx - float(p["x"]), 2.0) + pow(sy - float(p["y"]), 2.0)) < float(p["r"]) + 150.0:
 			shp = minf(shpMax, shp + 8.0 * dt)
 
+	# ---- near-planet interactions (TS:391-434) — panel clicks outrank pirate
+	# shooting, so this block runs BEFORE the pirate loop
+	var near0: Variant = nearest_planet()  # TS:392
+	if near0 != null and _dist_ship(near0) < float(near0["r"]) + 130.0:
+		var mx: float = float(inp.get("mx", 0.0))
+		var my: float = float(inp.get("my", 0.0))
+		# hover feedback BEFORE any click — pointer only showed mid-click before
+		# (TS:394-403)
+		for b in panel_rects:
+			if bool(b["enabled"]) and _in_rect(mx, my, b["r"]):
+				_fire("set_cursor", ["pointer"])  # TS:399
+				break
+		if _was_clicked(inp):  # TS:404
+			var consumed := false
+			var over_panel := false
+			for b in panel_rects:
+				var inside: bool = _in_rect(mx, my, b["r"])  # TS:409
+				if inside and bool(b["enabled"]):
+					_fire("set_cursor", ["pointer"])  # TS:410
+				if not inside:
+					continue
+				# even a DISABLED button owns its click — greyed-out presses must
+				# not fall through and thrust the ship out of interaction range
+				# (TS:412-414)
+				over_panel = true
+				if not bool(b["enabled"]):
+					continue
+				_take_click(inp)  # TS:416
+				consumed = true
+				_fire("audio_play", ["click", 1.0, 0.0])  # TS audio.play('click') — audio core: its own task
+				match String(b["action"]):  # TS:419-428 — the else-if chain
+					"abduct":
+						try_abduct()
+					"seed":
+						seed_nearest()
+					"scan":
+						scan_planet(near0)
+					"repair":
+						repair_hull()
+					"merge":
+						merge_cargo()
+					"jettison":
+						var dropped: Variant = cargo.pop_back()  # TS:425 — JS .pop() = Godot pop_back
+						if dropped != null:
+							_fire("hud_toast", ["%s released back to the void" % String(dropped["name"]),
+								"info", "🗑"])  # TS:426
+						persist_colonies()  # TS:427
+				break  # TS:429 — the first inside rect dispatches and stops the loop
+			uiHold = (consumed or over_panel) and bool(inp.get("down", false))  # TS:431
+	if not bool(inp.get("down", false)):
+		uiHold = false  # TS:434
+
+	# black holes pull + damage (TS:436-452)
+	for bh in blackHoles:
+		var bd: float = _dist_ship(bh)
+		if bd < 600.0 and bd > 0.001 and invuln <= 0.0:
+			var pull: float = 24000.0 / maxf(80.0, bd)
+			svx += ((float(bh["x"]) - sx) / bd) * pull * dt
+			svy += ((float(bh["y"]) - sy) / bd) * pull * dt
+		if bd < 40.0 and invuln <= 0.0:
+			shp -= 60.0 * dt
+			hurtT = 1.0
+		bh["x"] = float(bh["x"]) + float(bh["vx"]) * dt
+		bh["y"] = float(bh["y"]) + float(bh["vy"]) * dt
+		bh["ttl"] = float(bh["ttl"]) - dt
+	var holes_alive: Array = []
+	for bh in blackHoles:
+		if float(bh["ttl"]) > 0.0:
+			holes_alive.append(bh)
+	blackHoles = holes_alive  # TS:452 filter
+
+	# pirates chase (with lifetime so sieges end) (TS:454-498)
+	var pi := pirates.size() - 1
+	while pi >= 0:
+		var p: Dictionary = pirates[pi]
+		# TS `pirateTtl[pi] ?? 40` — a desynced ttl array reads the default
+		var ttl: float = (float(pirateTtl[pi]) if pi < pirateTtl.size() else 40.0) - dt
+		if ttl <= 0.0:
+			pirates.remove_at(pi)
+			pirateTtl.remove_at(pi)
+			_fire("hud_toast", [tr("The siege lifts — pirates give up"), "good", "🌿"])  # TS:461
+			pi -= 1
+			continue
+		if pi < pirateTtl.size():
+			pirateTtl[pi] = ttl
+		else:
+			pirateTtl.append(ttl)  # TS `this.pirateTtl[pi] = ttl` — an index assign past the end extends the array
+		var pd: float = _dist_ship(p)
+		if pd > 30.0:
+			p["vx"] = float(p["vx"]) + ((sx - float(p["x"])) / pd) * 300.0 * dt
+			p["vy"] = float(p["vy"]) + ((sy - float(p["y"])) / pd) * 300.0 * dt
+		var drag_p := exp(-1.4 * dt)
+		p["vx"] = float(p["vx"]) * drag_p
+		p["vy"] = float(p["vy"]) * drag_p
+		p["x"] = float(p["x"]) + float(p["vx"]) * dt
+		p["y"] = float(p["y"]) + float(p["vy"]) * dt
+		p["gait"] = float(p["gait"]) + dt
+		if pd < 60.0 and invuln <= 0.0 and not pirateLull:
+			shp -= 14.0 * dt
+			hurtT = maxf(hurtT, 0.5)
+			if rng.chance(dt * 6.0):
+				_fx_burst(sx, sy, 4, ["#ff8a5a"], {"speed": 120.0, "ttl": 0.4})  # TS:478
+				_fire("audio_play", ["hit", 0.4, 0.0])  # TS audio.play('hit', 0.4) — audio core: its own task
+		# shoot the pirate you actually CLICKED ON (TS:482-497)
+		var click_d: float = sqrt(pow(wx - float(p["x"]), 2.0) + pow(wy - float(p["y"]), 2.0))
+		if _was_clicked(inp) and click_d < 60.0:
+			p["hp"] = float(p["hp"]) - 34.0
+			_take_click(inp)  # TS:486
+			_fire("audio_play", ["zap", 0.7, 0.0])  # TS audio.play('zap', 0.7) — audio core: its own task
+			_fx_burst(float(p["x"]), float(p["y"]), 8, ["#ffe97a", "#9fd8ff"], {"speed": 140.0, "ttl": 0.5})
+			if float(p["hp"]) <= 0.0:
+				pirates.remove_at(pi)
+				pirateTtl.remove_at(pi)
+				_fire("hud_toast", [tr("Pirate destroyed! +30 DNA"), "good", "💥"])  # TS:492
+				ctx.add_dna(30.0)  # TS:493
+				_fx_burst(float(p["x"]), float(p["y"]), 20, ["#ff8a5a", "#ffd08a"], {"speed": 180.0, "ttl": 0.9})
+				_fire("audio_play", ["boom", 0.6, 0.0])  # TS audio.play('boom', 0.6) — audio core: its own task
+		pi -= 1
+
+	# abduction (R — A was double-booked with strafe-left) (TS:500-507)
+	var pressed: Array = inp.get("keys_pressed", [])
+	if pressed.has("KeyR"):
+		try_abduct()
+	if beamT > 0.0:
+		beamT -= dt  # NOT clamped — lands negative until the next tryAbduct (the verbatim read)
+		if beamT <= 0.0 and beamTarget != null:
+			finish_abduct(beamTarget)
+
+	# gene lab key (G) (TS:509-512)
+	if pressed.has("KeyG") and cargo.size() >= 2:
+		merge_cargo()
+
+	# pay the Void Empire's tribute (V) (TS:514-517)
+	if pressed.has("KeyV") and tributeDemand > 0.0:
+		pay_tribute()
+
+	# chaos — the FULL ctx incl. onEnd (the tribute rule) (TS:519-548)
+	update_chaos(dt)
+
+	resurveyCd = maxf(0.0, resurveyCd - dt)  # TS:550
+
+	# finale trigger: 3 thriving colonies (TS:552-559)
+	var thriving := 0
+	for p in planets:
+		if p["colony"] != null and float(p["colony"]["pop"]) >= 20.0:
+			thriving += 1
+	if thriving >= 3 and finale == null and not endingDone:
+		# spawn in clear space between sun and outermost orbit (TS:555)
+		finale = {"x": 0.0, "y": -1900.0, "active": true, "t": 0.0}
+		_fire("hud_banner", [{"title": "THE CHAOS CORE AWAKENS",
+			"subtitle": "something pulses beyond the outer light", "kind": "chaos", "ttl": 6}])  # TS:557
+		_fire("audio_play", ["ascend", 1.0, 0.0])  # TS audio.play('ascend', 1) — audio core: its own task
+	if finale != null:
+		finale["t"] = float(finale["t"]) + dt
+		var fd: float = _dist_ship(finale)
+		# a persistent bearing — the 6s banner was the only pointer to a core
+		# spawning 1000px off-screen. Post-ending it swaps to a calm line
+		# (the old one nagged forever over the sandbox) (TS:563-568). The TS
+		# writes hud.showObjective every frame while the finale lives — the
+		# hook fire is the sim-side analog.
+		_fire("hud_show_objective", [tr("the core sleeps — the sandbox is yours") if endingDone
+			else "THE CHAOS CORE PULLS — fly %dpx %s to the storm" % [roundi(fd),
+			"up" if float(finale["y"]) < sy else "down"]])
+		if fd < 60.0 and not endingDone:
+			endingDone = true
+			_fire("audio_play", ["ascend", 1.0, 0.0])  # TS:571
+			persist_colonies()  # the win state hits disk immediately (TS:572)
+	if endingDone:
+		endingT += dt
+		# the overlay used to be permanent — any input hands the sandbox back
+		# (TS:577-581); wasClicked reads POST-take — a panel/pirate-consumed
+		# click does not dismiss
+		if not endingDismissed and (_was_clicked(inp) or not (pressed as Array).is_empty()):
+			endingDismissed = true
+			dismissT = endingT  # fade-out timer start
+
+	# ship death (no DNA bill once the ending fired — you already won) (TS:584-602)
+	if shp <= 0.0:
+		shp = shpMax * 0.5
+		var lost: int = 0 if endingDone else roundi(float(ctx.dna) * 0.15)
+		ctx.add_dna(float(-lost))
+		# cargo survives — deleting specimens too blocked seeding → blocked
+		# thriving → blocked the ending (9-15 deaths/run at chaos) (TS:589-590)
+		_fire("hud_toast", ["%s %d DNA" % [tr("Ship destroyed! Lost"), lost], "bad", "💀"])  # TS:591
+		sx = 0.0
+		sy = -900.0
+		svx = 0.0
+		svy = 0.0
+		invuln = 4.0
+		# cull radius must exceed the 600px pull radius or the hole that
+		# killed you chain-kills the fresh respawn (TS:595-597)
+		var holes_kept: Array = []
+		for bh in blackHoles:
+			if sqrt(pow(float(bh["x"]) - sx, 2.0) + pow(float(bh["y"]) - sy, 2.0)) > 700.0:
+				holes_kept.append(bh)
+		blackHoles = holes_kept
+		pirates = []
+		pirateTtl = []
+		_fire("audio_play", ["boom", 1.0, 0.0])  # TS audio.play('boom', 1) — audio core: its own task
+		_fire("cam_shake", [10.0, 0.8])  # TS:601
+
+	# cooldowns (TS:604-606)
+	invuln = maxf(0.0, invuln - dt)
+	hurtT = maxf(0.0, hurtT - dt * 3.0)
+
+	# keep the save current: planets/cargo persist every 5 s (TS:609-613)
+	persistT += dt
+	if persistT > 5.0:
+		persistT = 0.0
+		persist_colonies()
+
+	# camera (TS:616-623 — follow(sx, sy, dt, 5), zoom 0.85, toWorld → setWorld)
+	# and the fx pool steps (:622-623): scene-side, task 5 binds them right
+	# after sim.update in the TS order (the cell_sim precedent — the sim never
+	# touches cam).
+
+	# hud ability slots (TS:626-631) — ONE list arg (the civ wiring shape)
+	_fire("hud_set_abilities", [[
+		{"key": "R", "icon": "🛸", "cd": 0.0, "active": beamT > 0.0},
+		{"key": "F", "icon": "⏩", "cd": 0.0, "active": ffHold > 0.0},
+		{"key": "G", "icon": "🧪", "cd": 0.0, "active": cargo.size() >= 2},
+		{"key": "LMB", "icon": "🔫", "cd": 0.0},
+	]])
+
 
 # ---- debug seams -------------------------------------------------------------------
 
 ## Debug/test access to internal sim state (mirrors civ_sim.debug_state; the
-## bot law's documented read surface).
+## bot law's documented read surface — the part-2 machine fields documented
+## in the header).
 func debug_state() -> Dictionary:
 	return {"planets": planets, "cargo": cargo, "abductCount": abductCount,
 		"time": time, "sx": sx, "sy": sy, "svx": svx, "svy": svy, "shp": shp,
 		"shpMax": shpMax, "shipAngle": shipAngle, "thrust": thrust, "invuln": invuln,
 		"ffHold": ffHold, "deckSeed": deckSeed, "finale": finale,
-		"endingDone": endingDone, "endingDismissed": endingDismissed}
+		"endingDone": endingDone, "endingDismissed": endingDismissed,
+		"pirates": pirates, "blackHoles": blackHoles, "beamT": beamT,
+		"tributeDemand": tributeDemand, "resurveyCd": resurveyCd,
+		"pirateLull": pirateLull, "persistT": persistT,
+		"endingT": endingT, "dismissT": dismissT}
 
 
 ## Test/debug: seed colonies on the first three non-barren uncolonized planets
@@ -610,7 +894,373 @@ func debug_seed_colonies() -> void:
 	persist_colonies()
 
 
+# ---- methods (TS:634-870 + :1233-1272) ----------------------------------------------
+
+## TS nearestPlanet (:634-642) — the strict-min scan.
+func nearest_planet() -> Variant:
+	var best: Variant = null
+	var bd := INF
+	for p in planets:
+		var d: float = _dist_ship(p)
+		if d < bd:
+			bd = d
+			best = p
+	return best
+
+
+## TS tryAbduct (:644-670).
+func try_abduct() -> void:
+	if beamT > 0.0:
+		return  # TS:645
+	# distance FIRST — a full-cargo message from out of range teaches the
+	# wrong lesson about why nothing happened (TS:646-647)
+	var p: Variant = nearest_planet()
+	if p == null:
+		return
+	if _dist_ship(p) > float(p["r"]) + 130.0:
+		_fire("hud_toast", [tr("Fly closer to a planet to abduct"), "info", "🛸"])  # TS:651
+		return
+	if cargo.size() >= 4:
+		_fire("hud_toast", [tr("Cargo full — SEED a world, SPLICE genes (G), or JETTISON from the planet panel"),
+			"info", "📦"])  # TS:655
+		return
+	if p["eco"] == null:
+		_fire("hud_toast", [tr("No life to abduct here"), "info", "🛸"])  # TS:659
+		return
+	var living: Array = p["eco"].living()
+	if living.is_empty():
+		_fire("hud_toast", [tr("No life to abduct here"), "info", "🛸"])  # TS:664
+		return
+	beamTarget = p
+	beamT = 1.4
+	_fire("audio_play", ["warp", 0.6, 0.0])  # TS audio.play('warp', 0.6) — audio core: its own task
+
+
+## TS finishAbduct (:672-707).
+func finish_abduct(p: Dictionary) -> void:
+	if p["eco"] == null:
+		return  # TS:673
+	# only species with an actual member left can be abducted — pop-0
+	# leftovers must not stay farmable forever (infinite-DNA faucet) (TS:674-675)
+	var candidates: Array = p["eco"].living().filter(func(sp): return float(sp["pop"]) >= 1.0)
+	if candidates.is_empty():
+		_fire("hud_toast", [tr("Nothing left to abduct here"), "info", "🛸"])  # TS:678
+		beamTarget = null
+		return
+	var sp: Dictionary = rng.pick(candidates)
+	sp["pop"] = float(sp["pop"]) - 1.0
+	# diminishing returns per species per planet — park-and-beam used to
+	# print ~395 DNA/min (first catch +10, repeats +3) (TS:684-685)
+	var key := "%s:%s" % [str(p["id"]), str(sp["id"])]
+	# the ledger values are sim-written numbers restored through JSON; the TS
+	# `?? 0` null-fallback + the string-concat pathology for a hand-corrupted
+	# "0" is unreachable through the real write path — the port numeric-guards
+	# (see the divergence note in the header)
+	var repeats: float = float(abductCount[key]) \
+			if abductCount.has(key) and (abductCount[key] is float or abductCount[key] is int) else 0.0
+	abductCount[key] = repeats + 1.0
+	var pay: int = 10 if repeats == 0.0 else 3
+	if float(sp["pop"]) < 1.0:
+		sp["pop"] = 0.0
+		sp["extinct"] = true  # living getter filters this out — no re-farming
+		# beaming up a species' last member wipes it from this world — that is
+		# a player-caused extinction for the world-story counters (it never
+		# passes through eco.tick, so this is the only place it gets counted)
+		# (TS:692-696)
+		ctx.bump_extinction()
+		_fire("hud_toast", ["%s %s — %s" % [tr("Abducted:"), String(sp["name"]),
+			tr("that species is now gone from this world")], "bad", "🛸"])  # TS:697
+	else:
+		_fire("hud_toast", ["%s %s +%d" % [tr("Abducted:"), String(sp["name"]), pay], "good", "🛸"])  # TS:699
+	cargo.append({"genome": GenomeScript.clone_genome(sp["genome"]), "name": sp["name"]})  # TS:701
+	ctx.add_dna(float(pay))  # TS:702
+	ctx.discover(sp["genome"], String(sp["name"]), "space", bool(sp.get("kin", false)))  # TS:703
+	_fire("audio_play", ["dna", 0.8, 0.0])  # TS audio.play('dna', 0.8) — audio core: its own task
+	beamTarget = null
+	persist_colonies()  # flush — the 60s autosave lagged catches by up to a minute (TS:706)
+
+
+## TS seedNearest (:709-733).
+func seed_nearest() -> void:
+	var p: Variant = nearest_planet()
+	if p == null or cargo.is_empty():
+		return  # TS:711
+	if _dist_ship(p) > float(p["r"]) + 130.0:
+		_fire("hud_toast", [tr("Fly closer to seed"), "info", "🌱"])  # TS:713
+		return
+	if not ctx.spend_dna(20):
+		_fire("hud_toast", [tr("Seeding costs 20 DNA"), "bad", "🌱"])  # TS:717
+		return
+	var item: Dictionary = cargo.pop_back()  # TS:720 — JS .pop() = Godot pop_back
+	if p["eco"] == null:
+		p["eco"] = EcoScript.new(rng.branch())  # TS:722 — ONE stage-stream draw
+		p["eco"].flora_cap = 60.0 if String(p["kind"]) == "volcanic" else 100.0  # TS:723
+		p["eco"].flora = float(p["eco"].flora_cap) * 0.6  # TS:724
+		p["kind"] = "lush" if String(p["kind"]) == "barren" else String(p["kind"])  # TS:725
+	var sp: Dictionary = p["eco"].add_species(item["genome"], 5.0, {"kin": true, "name": item["name"]})  # TS:727
+	ctx.discover(sp["genome"], String(sp["name"]), "space", true)  # TS:728
+	if p["colony"] == null:
+		p["colony"] = {"pop": 0.0, "generations": 0.0}  # TS:729 — the ?? keeps an existing one
+	_fire("hud_banner", [{"title": "%s SEEDED" % String(p["name"]),
+		"subtitle": "%s takes its first breath" % String(item["name"]), "kind": "reward"}])  # TS:730
+	_fire("audio_play", ["levelup", 1.0, 0.0])  # TS audio.play('levelup', 1) — audio core: its own task
+	persist_colonies()  # TS:732
+
+
+## TS mergeCargo (:735-770).
+func merge_cargo() -> void:
+	if cargo.size() < 2:
+		return  # TS:736
+	# splicing costs DNA — free splices + free abducts were a 395 DNA/min AFK faucet (TS:737)
+	if not ctx.spend_dna(15):
+		_fire("hud_toast", [tr("Gene splice costs 15 DNA"), "bad", "🧪"])  # TS:739
+		return
+	var a: Dictionary = cargo[0]
+	var b: Dictionary = cargo[1]
+	# M1/M2 run as the post-crossover table (crossover itself is untouched):
+	# wild-mutation worlds run the recessive table hotter; defect_rate is the
+	# TOTAL per-splice budget (never additive — catalog IV) (TS:744-746)
+	var info: Dictionary = {"anomaly": null, "defect": null}
+	var wild: bool = WorldGenomeScript.world_has(ctx.world, "wild_mutations")
+	var child: Dictionary = MutationScript.crossover(a["genome"], b["genome"], rng, 0.3, {
+		"anomalyChance": 0.15 if wild else 0.10,  # TS:750
+		"defectRate": 0.3 if wild else 0.2,  # TS:751
+		# I-q2: mutation_moon's rate_add rides the fresh-mutation step (TS:752-753)
+		"bias": {"rate_add": WorldGenomeScript.world_num(ctx.world, "mutation_rate_add", 0.0)},
+		"info": info,
+	})
+	var child_name := "%s (spliced)" % NamesScript.species_name(rng)  # TS:756
+	cargo = cargo.slice(2)
+	cargo.append({"genome": child, "name": child_name})  # TS:758
+	if info["anomaly"] != null:
+		var ak: String = String(info["anomaly"]["kind"])
+		_fire("hud_toast", ["%s — %s" % [tr("UNEXPECTED EXPRESSION"),
+			tr(String(MutationScript.ANOMALY_NAMES[ak]))], "chaos", "🧬"])  # TS:760
+	if info["defect"] != null:
+		var dk: String = String(info["defect"]["kind"])
+		_fire("hud_toast", ["%s %s" % [tr("Defective splice:"),
+			tr(String(MutationScript.DEFECT_NAMES[dk]))], "bad", "⚠️"])  # TS:763
+	_fire("hud_toast", ["%s %s!" % [tr("Gene splice:"), child_name], "chaos", "🧪"])  # TS:765
+	_fire("audio_play", ["levelup", 0.9, 0.0])  # TS audio.play('levelup', 0.9) — audio core: its own task
+	ctx.discover(child, child_name, "space")  # TS:767 — kin defaults false
+	borrowed_flesh_graft(child)  # TS:768
+	persist_colonies()  # TS:769
+
+
+## borrowed_flesh: the ONE graft slot — one part value of an extinct species
+## joins the splice result. Once per run (flag-guarded); the slot only
+## exists while the combo is live and a grafted species exists in the
+## bestiary. (TS:772-792)
+func borrowed_flesh_graft(child: Dictionary) -> void:
+	if not WorldGenomeScript.combo_active(ctx.world, "borrowed_flesh"):
+		return  # TS:778 — the guard precedes the shuffle: no draw when off
+	var fg: Variant = ctx.flags.get("borrowed_flesh_graft")
+	if fg is bool and bool(fg):
+		return  # TS `=== true` — the strict flag read
+	var extinct: Array = []
+	for entry in ctx.bestiary.values():
+		if bool(entry["extinct"]):
+			extinct.append(entry)  # TS:779
+	for src in rng.shuffled(extinct):
+		var part: Variant = PartsScript.standout_part(src["genome"])
+		if part == null:
+			continue  # TS:782
+		var gene: String = String(part["def"]["gene"])
+		var bound: Variant = GenomeScript.GENE_BOUNDS.get(gene)
+		# TS `child[part.def.gene] as number` reads NaN on a missing gene —
+		# unreachable for real children (crossover outputs are clamped full
+		# genomes); the port reads 0.0 (see the divergence note in the header)
+		var cur: float = float(child.get(gene, 0.0))
+		var bound_max: float = float(part["level"]) if bound == null else float(bound["max"])
+		var raised: float = PartsScript.graft_value(cur, float(part["level"]), bound_max)
+		if raised <= cur:
+			continue  # a graft never downgrades — try the next lineage (TS:786)
+		child[gene] = raised
+		ctx.flags["borrowed_flesh_graft"] = true
+		_fire("hud_toast", ["%s %s ← %s" % [tr("Borrowed flesh:"), tr(String(part["def"]["name"])),
+			String(src["name"])], "good", "🫱"])  # TS:789
+		return
+
+
+## TS spawnPirates (:794-810).
+func spawn_pirates(n: int) -> void:
+	if pirates.size() >= 5:
+		return  # TS:795
+	n = mini(n, 5 - pirates.size())  # TS:796
+	var life := 40.0
+	for i in n:
+		var a: float = rng.next() * TAU  # TS:799
+		pirates.append({
+			"x": sx + cos(a) * 700.0, "y": sy + sin(a) * 700.0,
+			"vx": 0.0, "vy": 0.0, "hp": 140.0, "gait": 0.0,
+		})
+		pirateTtl.append(life)
+	_fire("audio_play", ["alarm", 0.9, 0.0])  # TS audio.play('alarm', 0.9) — audio core: its own task
+
+
+## TS spawnBlackHole (:840-849).
+func spawn_black_hole() -> void:
+	var a: float = rng.next() * TAU
+	blackHoles.append({
+		"x": sx + cos(a) * 1000.0, "y": sy + sin(a) * 1000.0,
+		"vx": rng.range(-12.0, 12.0), "vy": rng.range(-12.0, 12.0), "ttl": 45.0,
+	})
+
+
+## TS demandTribute (:851-859).
+func demand_tribute(amount: float) -> void:
+	tributeDemand = amount
+	_fire("hud_banner", [{"title": "THE VOID EMPIRE DEMANDS TRIBUTE",
+		"subtitle": "pay %s DNA (press V) or face the raid" % str(amount),
+		"kind": "danger", "ttl": 8}])  # TS:853-857
+	_fire("audio_play", ["alarm", 1.0, 0.0])  # TS audio.play('alarm', 1) — audio core: its own task
+
+
+## TS payTribute (:861-870).
+func pay_tribute() -> void:
+	if tributeDemand <= 0.0:
+		return  # TS:862
+	if float(ctx.dna) >= tributeDemand:
+		ctx.add_dna(-tributeDemand)
+		_fire("hud_toast", [tr("Tribute paid. The Void Empire is satisfied… for now."), "info", "📦"])  # TS:865
+		tributeDemand = 0.0
+	else:
+		_fire("hud_toast", [tr("Not enough DNA — the raid is coming!"), "bad", "⚔️"])  # TS:868
+
+
+## TS repairHull (:1233-1242).
+func repair_hull() -> void:
+	if shp >= shpMax:
+		return  # TS:1234
+	if not ctx.spend_dna(50):
+		_fire("hud_toast", [tr("Not enough DNA"), "bad", "🧬"])  # TS:1236
+		return
+	shp = shpMax
+	_fire("audio_play", ["heal", 0.9, 0.0])  # TS audio.play('heal', 0.9) — audio core: its own task
+	_fire("hud_toast", [tr("Hull fully repaired"), "good", "🔧"])  # TS:1241
+
+
+## TS scanPlanet (:1244-1272).
+func scan_planet(p: Dictionary) -> void:
+	if bool(p["scanned"]):
+		# re-survey pays a trickle — the only legal income for a pacifist
+		# with full cargo and no DNA (was a total softlock). Cooled: an
+		# unbounded mash measured ~720 DNA/min. (TS:1246-1248)
+		if resurveyCd > 0.0:
+			_fire("hud_toast", [tr("Survey instruments recharging"), "info", "📡"])  # TS:1250
+			return
+		resurveyCd = 4.0
+		ctx.add_dna(3.0)  # TS:1254-1255
+		_fire("hud_float_world", [float(p["x"]), float(p["y"]) - float(p["r"]) - 14.0,
+			"+3 %s" % tr("survey"), "#8fd0ff", 12.0])  # TS:1256
+		_fire("audio_play", ["dna", 0.4, 0.0])  # TS audio.play('dna', 0.4) — audio core: its own task
+		persist_colonies()  # TS:1258
+		return
+	p["scanned"] = true
+	if p["eco"] != null:
+		for sp in p["eco"].living():
+			ctx.discover(sp["genome"], String(sp["name"]), "space", bool(sp.get("kin", false)))  # TS:1263-1264
+		ctx.add_dna(15.0)  # survey pay so pacifist runs fund repairs (TS:1266)
+		_fire("hud_toast", ["%s +15" % tr("Scan complete: %d species on %s"
+			% [p["eco"].living().size(), String(p["name"])]), "good", "📡"])  # TS:1267
+	else:
+		_fire("hud_toast", ["Scan complete: %s is lifeless — bring life!" % String(p["name"]),
+			"info", "📡"])  # TS:1269
+	_fire("audio_play", ["dna", 0.7, 0.0])  # TS audio.play('dna', 0.7) — audio core: its own task
+
+
+## TS:519-548 — chaos.update with the FULL ctx incl. onEnd (the civ wiring
+## lacks onEnd; space's tribute rule needs it). The storyteller reference
+## arrives through hooks (get_gap_bias / get_mood / get_warn_scale — the civ
+## pattern), noteChaosEvent through storyteller_note_chaos_event. With the
+## EMPTY task-3 deck nothing ever schedules, so none of the hooks fire in
+## production until task 3 lands the deck.
+func update_chaos(dt: float) -> void:
+	var gap_bias := 1.0
+	var mood := "test"  # Storyteller.MOOD_TEST
+	var warn_scale := 1.0
+	var gb: Variant = _hooks.get("get_gap_bias")
+	if gb is Callable:
+		gap_bias = float(gb.call())
+	var gm: Variant = _hooks.get("get_mood")
+	if gm is Callable:
+		mood = String(gm.call())
+	var ws: Variant = _hooks.get("get_warn_scale")
+	if ws is Callable:
+		warn_scale = float(ws.call())
+	var on_warn := func(def) -> void:
+		# TS `if (def.warn)` (:527) — effective_warn keeps the static-key
+		# semantics (the civ/creature/tribe wiring shape)
+		if ChaosScript.effective_warn(def):
+			_fire("hud_banner", [{"title": ChaosScript.effective_warn(def), "kind": "danger", "ttl": 2.4}])  # TS:528
+			_fire("audio_play", ["alarm", 0.5, 0.0])  # TS audio.play('alarm', 0.5) — audio core: its own task
+	var on_apply := func(def) -> void:
+		_fire("hud_banner", [{"title": def["name"], "kind": "chaos"}])  # TS:533
+		ctx.add_chaos(0.03)  # TS:534
+		# world_temperament pacing: warned events going live are the
+		# high-severity marker (cradle grace / lean cycles / wildcard streak)
+		_fire("storyteller_note_chaos_event", [float(ctx.playtime)])  # TS:537
+	var on_end := func(def) -> void:
+		# the tribute rule (TS:539-547): if unpaid → pirates!
+		if String(def.get("id", "")) == "tribute":
+			if tributeDemand > 0.0:
+				spawn_pirates(3)
+				tributeDemand = 0.0
+	chaos.update(dt, self, {
+		"chaos": float(ctx.chaos), "karma": float(ctx.karma), "stageTime": time,
+		"gapMult": ctx.chaos_gap_mult() * gap_bias,
+		"mood": mood,
+		"warnScale": warn_scale,  # bio_tell bucket (TS:524)
+	}, {
+		"onWarn": on_warn,
+		"onApply": on_apply,
+		"onEnd": on_end,
+	})
+
+
 # ---- internals -----------------------------------------------------------------------
+
+## TS vecDist inlined against the ship (the civ precedent).
+func _dist_ship(p: Dictionary) -> float:
+	return sqrt(pow(float(p["x"]) - sx, 2.0) + pow(float(p["y"]) - sy, 2.0))
+
+
+## TS:398/409 — the screen-space panel-rect hit (mx/my from the snapshot).
+func _in_rect(mx: float, my: float, r: Dictionary) -> bool:
+	return mx >= float(r["x"]) and mx <= float(r["x"]) + float(r["w"]) \
+			and my >= float(r["y"]) and my <= float(r["y"]) + float(r["h"])
+
+
+## TS input.wasClicked() — the snapshot's clicked minus the pre-taken flag
+## (the cell_sim read convention).
+func _was_clicked(inp: Dictionary) -> bool:
+	return bool(inp.get("clicked", false)) and not bool(inp.get("take_click", false))
+
+
+## TS input.takeClick() — sets the pre-taken flag; Dictionaries pass by
+## reference, so the consume is visible to every later read this frame.
+func _take_click(inp: Dictionary) -> void:
+	inp["take_click"] = true
+
+
+## The TS fx.burst(x, y, n, rng, opts) — the sim replays the TS rng draws
+## (particles.ts burst: ang/sp/color/ttl/size per particle) and ships the
+## sampled particles in the hook payload (the cell_sim precedent).
+func _fx_burst(x: float, y: float, n: int, colors: Array, opts: Dictionary = {}) -> void:
+	var o: Dictionary = opts.duplicate()
+	o["colors"] = colors
+	var parts: Array = []
+	for i in n:
+		var ang: float = rng.next() * PI * 2.0
+		var sp: float = rng.range(0.3, 1.0) * float(o.get("speed", 90.0))
+		var color: String = String(rng.pick(colors)) if not colors.is_empty() \
+				else String(o.get("color", "#ffffff"))
+		var ttl: float = rng.range(0.4, 1.0) * float(o.get("ttl", 0.7))
+		var psz: float = rng.range(0.6, 1.4) * float(o.get("size", 3.0))
+		parts.append({"ang": ang, "sp": sp, "color": color, "ttl": ttl, "size": psz})
+	o["parts"] = parts
+	_fire("fx_burst", [x, y, n, o])
+
 
 ## TS num(v, min) (SpaceStage.ts:208) — a numeric JSON value strictly above
 ## the min, else null. Number.isFinite("50") is false — the port type-checks

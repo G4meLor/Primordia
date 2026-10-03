@@ -1,13 +1,21 @@
-# Tests for game/space/space_sim.gd — the space stage sim core PART 1 (M6 T1):
-# constructor seeding (the 6-planet system at a pinned seed — parallel-branch
-# replay, the boot-order branch pin), makePlanetEco (floraCap by kind, the
-# archetype diet dial pulls, volcanic/ocean modifiers, titan/swarm bonus AFTER
-# the roster), the onEnter restore whitelist (EVERY guard), persistColonies +
-# the CONTINUE round-trip, ship physics (cursor deadzone, WASD/arrows,
-# accel/drag integration, engine particles), the ff timeScale block (eco.tick
-# dt·26, the ecoMods wire, extinctions/speciations toasts, generations),
-# orbits + colony logistic growth (the cap-120 brake), sun danger + hull regen
-# windows, debug seams.
+# Tests for game/space/space_sim.gd — the space stage sim core.
+# PART 1 (M6 T1): constructor seeding (the 6-planet system at a pinned seed —
+# parallel-branch replay, the boot-order branch pin), makePlanetEco (floraCap
+# by kind, the archetype diet dial pulls, volcanic/ocean modifiers,
+# titan/swarm bonus AFTER the roster), the onEnter restore whitelist (EVERY
+# guard), persistColonies + the CONTINUE round-trip, ship physics (cursor
+# deadzone, WASD/arrows, accel/drag integration, engine particles), the ff
+# timeScale block (eco.tick dt·26, the ecoMods wire, extinctions/speciations
+# toasts, generations), orbits + colony logistic growth (the cap-120 brake),
+# sun danger + hull regen windows, debug seams.
+# PART 2 (M6 T2): the planet-panel interaction dispatch (the
+# disabled-button-owns-click rule + uiHold), tryAbduct/finishAbduct (the gate
+# ladder, the pay-curve ledger, the last-member extinction), seedNearest
+# (barren→lush), mergeCargo (crossover opts at a pinned stream),
+# borrowedFleshGraft (never-downgrade), pirates (chase/ttl/click-to-shoot),
+# black holes (pull math), ship death (the bill + cull), the R/G/V keys, the
+# chaos ctx WITH onEnd (tribute unpaid→pirates), the finale/ending state
+# machine, cooldowns + the 5 s persist cadence, the ff e2e through a REAL eco.
 # TS source: Spore src/game/space/SpaceStage.ts (frozen), lines cited per pin.
 # Path-based extends + preload-by-path: class_name globals don't resolve in
 # `-s` mode.
@@ -21,6 +29,7 @@ const GenomeLib := preload("res://src/evo/genome.gd")
 const MutationLib := preload("res://src/evo/mutation.gd")
 const EcoScript := preload("res://src/evo/ecosystem.gd")
 const WorldGenomeLib := preload("res://src/evo/world_genome.gd")
+const PartsLib := preload("res://src/evo/parts.gd")
 
 const SEED := 0x5EED
 const OBJECTIVE := "SEED 3 WORLDS, GROW EACH TO POP 20 — awaken the Chaos Core · R abduct · F evolve"
@@ -40,6 +49,11 @@ class RecEco:
 		ticks.append(dt)
 		return {"extinctions": extinctions, "speciations": speciations}
 
+	# persist_colonies calls to_json on every non-null eco — the part-2
+	# persist cadence reaches the recorder in long-update tests
+	func to_json() -> Dictionary:
+		return {"species": [], "flora": 0.0, "floraCap": 0.0}
+
 
 # ---- fixtures ------------------------------------------------------------------
 
@@ -53,7 +67,7 @@ func _mk_sim(seed_v: int = SEED, ctx_v: Variant = null, world_over: Dictionary =
 	var rec: Dictionary = {
 		"toasts": [], "banners": [], "audio": [], "shakes": [], "spawns": [],
 		"objectives": [], "insets": [], "moods": [], "floats": [], "abilities": [],
-		"gotos": [], "saves": 0,
+		"gotos": [], "saves": 0, "cursors": [], "bursts": [], "notes": [],
 	}
 	var hooks: Dictionary = {
 		"hud_toast": func(text, kind, icon): rec["toasts"].append([text, kind, icon]),
@@ -65,10 +79,16 @@ func _mk_sim(seed_v: int = SEED, ctx_v: Variant = null, world_over: Dictionary =
 		"fx_spawn": func(opts): rec["spawns"].append(opts),
 		"go_to": func(stage_v, data): rec["gotos"].append([stage_v, data]),
 		"save_all": func(): rec["saves"] = int(rec["saves"]) + 1,
+		# part-2 hooks (additive — the part-1 tests never asserted these)
+		"hud_float_world": func(x, y, text, color, size): rec["floats"].append([x, y, text, color, size]),
+		"hud_set_abilities": func(list): rec["abilities"].append(list),
+		"fx_burst": func(x, y, n, o): rec["bursts"].append([x, y, n, o]),
+		"set_cursor": func(state): rec["cursors"].append(state),
+		"storyteller_note_chaos_event": func(t): rec["notes"].append(t),
 	}
 	var rng: Variant = ctx.rng.branch()
 	var sim: Variant = SpaceSim.new(ctx, rng, hooks)
-	return {"sim": sim, "ctx": ctx, "rec": rec, "rng": rng}
+	return {"sim": sim, "ctx": ctx, "rec": rec, "rng": rng, "hooks": hooks}
 
 
 # Input snapshot with the M2 field shape (space reads keys_held + wx/wy/down).
@@ -1009,12 +1029,15 @@ func test_sun_danger_and_hull_regen() -> void:
 	eq(float(sim.shp), 100.0, "invuln 2 > 0 → no sun damage (TS:378)")
 	eq(float(sim.hurtT), 0.0, "no hurt flash (TS:380)")
 	eq(rec["shakes"].size(), 0, "no shake (TS:381)")
-	eq(float(sim.invuln), 2.0, "invuln NOT decayed here — that decay is task 2's (TS:605)")
-	# inside the sun window with invuln 0: −30·dt, hurtT 1, camShakeFor(4, 0.2)
+	eq(float(sim.invuln), 1.5, "invuln decayed 2−dt=1.5 — the part-2 cooldown block landed (TS:605)")
+	# inside the sun window with invuln 0: −30·dt, hurtT 1 — the part-2
+	# cooldown decay (dt·3) then eats it IN THE SAME FRAME: max(0, 1−1.5) = 0
+	# (the TS :380-set → :606-decay composite; the SET itself is pinned in the
+	# black-hole test at dt 1/60 where the decay leaves 0.95)
 	sim.invuln = 0.0
 	sim.update(0.5, _inp())
 	approx(float(sim.shp), 100.0 - 30.0 * 0.5, "sun damage −30·dt (TS:379)")
-	eq(float(sim.hurtT), 1.0, "hurtT 1 (TS:380)")
+	eq(float(sim.hurtT), 0.0, "hurtT set 1 mid-frame, decayed to 0 by dt·3 (TS:380→:606)")
 	eq(rec["shakes"], [[4.0, 0.2]], "camShakeFor(4, 0.2) (TS:381)")
 	# the boundary: d exactly sun.r + 60 is safe (strict <, TS:378)
 	sim.sx = 190.0
@@ -1097,3 +1120,1610 @@ func test_debug_seams() -> void:
 			eq(float(sim.planets[4]["colony"]["pop"]), 1.0, "planet 4 colony pop 1 (TS:1283)")
 		else:
 			eq(now_n, int(eco_counts[i]), "planet %d untouched by the second call (TS:1279)" % i)
+
+
+# ===================================================================================
+# PART 2 (M6 T2) — interactions, gene lab, hazards, finale (TS:391-632 + methods)
+# ===================================================================================
+
+# A duck-typed chaos scheduler stand-in: records the update call so the test
+# can pin the FULL ctx payload (incl. onEnd — the tribute rule) and fire the
+# recorded hooks directly.
+class ChaosRec:
+	var calls: Array = []
+
+	func update(dt: float, stage: Variant, ctx: Dictionary, hooks: Dictionary) -> void:
+		calls.append({"dt": dt, "ctx": ctx, "hooks": hooks})
+
+	func active_events() -> Array:
+		return []
+
+
+# ---- part-2 fixtures ----------------------------------------------------------------
+
+# Panel rect row in the TS panelRects shape (TS:1192) — the STAGE writes these
+# (task 5); the tests write them the same way.
+func _rect(action: String, enabled: bool, x: float, y: float, w: float, h: float) -> Dictionary:
+	return {"action": action, "enabled": enabled, "r": {"x": x, "y": y, "w": w, "h": h}}
+
+
+# Pin planet i at world (x, y): orbitSpeed 0 freezes the position and the
+# orbit block fills x/y BEFORE the panel block reads them (no warm-up update);
+# x/y are also set directly for tests that never update.
+func _place_planet(sim_v: Variant, i: int, x: float, y: float, r: float = 50.0) -> Dictionary:
+	var p: Dictionary = sim_v.planets[i]
+	p["angle"] = atan2(y, x)
+	p["orbitR"] = sqrt(x * x + y * y)
+	p["orbitSpeed"] = 0.0
+	p["r"] = r
+	p["x"] = x
+	p["y"] = y
+	return p
+
+
+# Push every planet except `keep` out to orbit 5000 so nearestPlanet is unambiguous.
+func _isolate_planet(sim_v: Variant, keep: int) -> void:
+	for i in 6:
+		if i != keep:
+			sim_v.planets[i]["orbitR"] = 5000.0
+			sim_v.planets[i]["orbitSpeed"] = 0.0
+
+
+# Craft a hermetic eco on planet i with species at the given pops (each a
+# clamped default genome). The eco rides its own fixed rng — the STAGE stream
+# stays untouched (only rng.pick in finishAbduct draws from it).
+func _craft_eco(sim_v: Variant, i: int, pops: Array) -> Variant:
+	var eco: Variant = EcoScript.new(RngLib.new_from(4242 + i))
+	for pop in pops:
+		eco.add_species(GenomeLib.clone_genome(GenomeLib.default_genome()), float(pop))
+	sim_v.planets[i]["eco"] = eco
+	return eco
+
+
+# ---- the panel interaction dispatch (TS:391-434) -------------------------------------
+
+func test_panel_dispatch_ladder() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	var ctx: Variant = m["ctx"]
+	_place_planet(sim, 0, 1000.0, 0.0, 50.0)
+	_isolate_planet(sim, 0)
+	sim.sx = 900.0  # d 100 < r 50 + 130 → inside the interaction range
+	sim.sy = 0.0
+	sim.invuln = 0.0
+
+	# EMPTY panel_rects: the near-planet gate holds but the ladder no-ops
+	# gracefully — no cursor, the click passes through unconsumed, uiHold false
+	var inp_e: Dictionary = _inp({"clicked": true, "down": true, "mx": 750.0, "my": 110.0})
+	sim.update(1.0 / 60.0, inp_e)
+	eq(rec["cursors"], [], "empty panel_rects → no cursor (the dispatch no-ops)")
+	eq(bool(sim.uiHold), false, "empty panel_rects → uiHold false")
+	eq(bool(inp_e.get("take_click", false)), false, "empty panel_rects → the click NOT consumed")
+	# the dna is untouched by the empty-panel click
+	eq(int(ctx.dna), 40, "no action fired through the empty panel")
+
+	# hover feedback BEFORE any click (TS:394-403) — an ENABLED rect under the
+	# pointer shows the cursor on a no-click frame; a DISABLED one does not
+	sim.panel_rects = [_rect("abduct", true, 700.0, 100.0, 200.0, 40.0)]
+	rec["cursors"].clear()
+	sim.update(1.0 / 60.0, _inp({"mx": 750.0, "my": 110.0}))
+	eq(rec["cursors"], ["pointer"], "hover over an enabled rect → setCursor('pointer') (TS:398-400)")
+	rec["cursors"].clear()
+	sim.panel_rects = [_rect("abduct", false, 700.0, 100.0, 200.0, 40.0)]
+	sim.update(1.0 / 60.0, _inp({"mx": 750.0, "my": 110.0}))
+	eq(rec["cursors"], [], "hover over a DISABLED rect → no cursor (TS:398 gate)")
+
+	# DISABLED BUTTON OWNS ITS CLICK (TS:412-415): overPanel swallows the
+	# press (no consume, no action), uiHold = overPanel && isDown
+	sim.panel_rects = [_rect("abduct", false, 700.0, 100.0, 200.0, 40.0)]
+	var inp_d: Dictionary = _inp({"clicked": true, "down": true, "mx": 750.0, "my": 110.0})
+	sim.update(1.0 / 60.0, inp_d)
+	eq(rec["cursors"], [], "disabled rect click → no cursor from the dispatch loop (enabled gate)")
+	eq(bool(inp_d.get("take_click", false)), false, "disabled rect does NOT consume the click (TS:415 continue)")
+	eq(bool(sim.uiHold), true, "uiHold = (consumed||overPanel) && isDown → overPanel alone holds it (TS:431)")
+	eq(rec["toasts"], [], "disabled rect fires NO action")
+	# the hold persists into the next frame (the write only happens on click
+	# frames) and suppresses the cursor thrust (TS:329 reads the flag first)
+	sim.svx = 0.0
+	sim.svy = 0.0
+	sim.update(1.0 / 60.0, _inp({"down": true, "wx": 1200.0, "wy": 0.0, "mx": 750.0, "my": 110.0}))
+	eq(bool(sim.uiHold), true, "uiHold persists while held (the write is click-frame-only, TS:431)")
+	eq(float(sim.thrust), 0.0, "uiHold suppresses the cursor pull (TS:329)")
+	# release → the :434 reset
+	sim.update(1.0 / 60.0, _inp({"down": false}))
+	eq(bool(sim.uiHold), false, "!isDown → uiHold false (TS:434)")
+
+	# enabled dispatch — jettison: cargo.pop + toast + persist (TS:424-428)
+	ctx.flags.erase("spaceWorld")
+	sim.panel_rects = [_rect("jettison", true, 700.0, 100.0, 200.0, 40.0)]
+	sim.cargo = [{"genome": GenomeLib.default_genome(), "name": "Spec A"}]
+	var inp_j: Dictionary = _inp({"clicked": true, "down": true, "mx": 750.0, "my": 110.0})
+	sim.update(1.0 / 60.0, inp_j)
+	eq(sim.cargo.size(), 0, "jettison pops the last cargo row (TS:425)")
+	eq(String(rec["toasts"][0][0]), "Spec A released back to the void", "jettison toast text (TS:426)")
+	eq(String(rec["toasts"][0][1]), "info", "jettison toast kind")
+	eq(String(rec["toasts"][0][2]), "🗑", "jettison toast icon")
+	eq(bool(inp_j.get("take_click", false)), true, "enabled rect CONSUMES the click (TS:416)")
+	eq(bool(sim.uiHold), true, "consumed click while held → uiHold true (TS:431)")
+	ok(ctx.flags.has("spaceWorld"), "jettison persists (TS:427)")
+	eq(rec["audio"][0], ["click", 1.0, 0.0], "audio.play('click') — the default vol 1 pan 0 (TS:418)")
+	# hover loop + dispatch loop both cursor on the click frame (TS:398 + :410)
+	eq(rec["cursors"], ["pointer", "pointer"], "click frame cursors: hover + dispatch (TS:398/410)")
+	# jettison with EMPTY cargo: pop → null → no toast, persist still runs
+	rec["toasts"].clear()
+	ctx.flags.erase("spaceWorld")
+	sim.update(1.0 / 60.0, _inp({"clicked": true, "down": false, "mx": 750.0, "my": 110.0}))
+	eq(rec["toasts"], [], "jettison of an empty cargo → no toast (the dropped guard, TS:426)")
+	ok(ctx.flags.has("spaceWorld"), "jettison of an empty cargo STILL persists (TS:427)")
+	eq(bool(sim.uiHold), false, "overPanel && !isDown → uiHold false (TS:431)")
+
+	# enabled dispatch — scan on a scanned planet under cooldown: the recharge
+	# toast, cd UNCHANGED (the early return precedes the reset, TS:1249-1251)
+	sim.planets[0]["scanned"] = true
+	sim.resurveyCd = 9.0
+	sim.panel_rects = [_rect("scan", true, 700.0, 100.0, 200.0, 40.0)]
+	sim.update(1.0 / 60.0, _inp({"clicked": true, "down": false, "mx": 750.0, "my": 110.0}))
+	ok(_toasted(rec, "Survey instruments recharging"), "cooldown scan → the recharge toast (TS:1250)")
+	approx(float(sim.resurveyCd), 9.0 - 1.0 / 60.0,
+		"cooldown scan leaves resurveyCd at 9 minus the :550 decay (TS:1251 return)")
+
+	# OVERLAPPING rects: the FIRST inside rect dispatches and breaks (TS:429)
+	sim.shp = 50.0
+	ctx.dna = 100
+	sim.panel_rects = [_rect("abduct", true, 700.0, 100.0, 200.0, 40.0),
+		_rect("repair", true, 700.0, 100.0, 200.0, 40.0)]
+	sim.update(1.0 / 60.0, _inp({"clicked": true, "down": false, "mx": 750.0, "my": 110.0}))
+	approx(float(sim.beamT), 1.4 - 1.0 / 60.0,
+		"the first inside rect (abduct) dispatched — beamT armed then −dt (TS:419/503)")
+	eq(float(sim.shp), 50.0, "the second rect (repair) NEVER ran — the break (TS:429)")
+	sim.beamT = 0.0
+	sim.beamTarget = null
+
+	# OUT OF RANGE: no near-planet gate → the ladder never runs at all
+	sim.sx = 0.0
+	sim.sy = -900.0
+	rec["cursors"].clear()
+	rec["toasts"].clear()
+	sim.panel_rects = [_rect("abduct", true, 700.0, 100.0, 200.0, 40.0)]
+	var inp_far: Dictionary = _inp({"clicked": true, "down": true, "mx": 750.0, "my": 110.0})
+	sim.update(1.0 / 60.0, inp_far)
+	eq(rec["cursors"], [], "out of range → no hover cursor (TS:393 gate)")
+	eq(bool(inp_far.get("take_click", false)), false, "out of range → the click passes through (TS:393 gate)")
+	eq(bool(sim.uiHold), false, "out of range → uiHold untouched")
+	eq(rec["toasts"], [], "out of range → no action")
+
+	# PANEL CLICKS OUTRANK PIRATE SHOOTING (TS:391): one click under BOTH the
+	# panel rect (mx/my) and a pirate (wx/wy) — the panel consumes it first
+	sim.sx = 900.0
+	sim.sy = 0.0
+	sim.pirates = [{"x": 900.0, "y": 0.0, "vx": 0.0, "vy": 0.0, "hp": 140.0, "gait": 0.0}]
+	sim.pirateTtl = [40.0]
+	sim.update(1.0 / 60.0, _inp({"clicked": true, "down": false, "mx": 750.0, "my": 110.0,
+		"wx": 900.0, "wy": 0.0}))
+	eq(float(sim.pirates[0]["hp"]), 140.0, "the panel consumed the click — the pirate is NOT shot (TS:391 order)")
+	sim.pirates = []
+	sim.pirateTtl = []
+
+	# the ability slots ride every update (TS:626-631)
+	sim.beamT = 1.0
+	sim.cargo = [{"genome": GenomeLib.default_genome(), "name": "a"}, {"genome": GenomeLib.default_genome(), "name": "b"}]
+	sim.update(1.0 / 60.0, _inp({"keys_held": ["KeyF"]}))
+	var ab: Array = rec["abilities"][rec["abilities"].size() - 1]
+	eq(ab.size(), 4, "four ability slots (TS:626-631)")
+	eq(String(ab[0]["key"]), "R", "slot R (TS:627)")
+	eq(String(ab[0]["icon"]), "🛸", "slot R icon")
+	eq(bool(ab[0]["active"]), true, "R active while beamT > 0 (TS:627)")
+	eq(String(ab[1]["key"]), "F", "slot F (TS:628)")
+	eq(bool(ab[1]["active"]), true, "F active while ffHold > 0 (TS:628)")
+	eq(String(ab[2]["key"]), "G", "slot G (TS:629)")
+	eq(bool(ab[2]["active"]), true, "G active with cargo ≥ 2 (TS:629)")
+	eq(String(ab[3]["key"]), "LMB", "slot LMB (TS:630)")
+	eq(String(ab[3]["icon"]), "🔫", "slot LMB icon")
+	ok(not ab[3].has("active"), "LMB carries NO active key (TS:630)")
+	eq(float(ab[0]["cd"]), 0.0, "cd 0 (TS:627)")
+
+
+# ---- tryAbduct / finishAbduct (TS:644-707) -------------------------------------------
+
+func test_try_abduct_gates_and_ledger() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	var ctx: Variant = m["ctx"]
+	var eco: Variant = _craft_eco(sim, 0, [3.0])
+	var sp1: Dictionary = eco.species[0]
+	_place_planet(sim, 0, 1000.0, 0.0, 50.0)
+	_isolate_planet(sim, 0)
+	sim.sx = 900.0
+	sim.sy = 0.0
+	sim.invuln = 0.0
+
+	# the beamT gate: an active beam blocks re-abduction (TS:645) — the
+	# countdown still ticks in the same frame (1.4-style decay: 1 − dt)
+	sim.beamT = 1.0
+	var st0: int = int(sim.rng.state())
+	sim.update(1.0 / 60.0, _inp({"keys_pressed": ["KeyR"]}))
+	approx(float(sim.beamT), 1.0 - 1.0 / 60.0, "beamT > 0 → tryAbduct returns; the countdown still ticks (TS:645/503)")
+	eq(sim.beamTarget, null, "no beamTarget while the beam runs")
+	eq(int(sim.rng.state()), st0, "the beamT gate draws NOTHING from the stage stream")
+
+	# DISTANCE FIRST (TS:646-647): out of range with FULL cargo → the distance
+	# toast, NOT the cargo toast — the wrong-lesson comment
+	sim.beamT = 0.0
+	sim.sx = 0.0
+	sim.sy = -900.0
+	var g: Dictionary = GenomeLib.default_genome()
+	sim.cargo = [{"genome": g, "name": "1"}, {"genome": g, "name": "2"},
+		{"genome": g, "name": "3"}, {"genome": g, "name": "4"}]
+	sim.update(1.0 / 60.0, _inp({"keys_pressed": ["KeyR"]}))
+	eq(rec["toasts"][0], [tr("Fly closer to a planet to abduct"), "info", "🛸"],
+		"distance FIRST — the full-cargo ship gets the distance toast (TS:650-651)")
+	eq(sim.beamTarget, null, "no beam out of range")
+
+	# the cargo-4 gate (TS:654-656) — the ship back in range of planet 0
+	sim.sx = 900.0
+	sim.sy = 0.0
+	sim.update(1.0 / 60.0, _inp({"keys_pressed": ["KeyR"]}))
+	eq(rec["toasts"][1], [tr("Cargo full — SEED a world, SPLICE genes (G), or JETTISON from the planet panel"),
+		"info", "📦"], "cargo 4 → the cargo-full toast (TS:655)")
+	eq(sim.cargo.size(), 4, "cargo untouched by the refusal")
+
+	# the eco-null gate on a barren planet (TS:658-660)
+	sim.cargo = []
+	_place_planet(sim, 3, 1000.0, 0.0, 50.0)
+	_isolate_planet(sim, 3)
+	sim.update(1.0 / 60.0, _inp({"keys_pressed": ["KeyR"]}))
+	eq(rec["toasts"][2], [tr("No life to abduct here"), "info", "🛸"], "eco null → the no-life toast (TS:659)")
+
+	# the living-empty gate: an all-extinct eco (TS:662-665)
+	_place_planet(sim, 0, 1000.0, 0.0, 50.0)
+	_isolate_planet(sim, 0)
+	eco.species[0]["extinct"] = true
+	sim.update(1.0 / 60.0, _inp({"keys_pressed": ["KeyR"]}))
+	eq(rec["toasts"][3], [tr("No life to abduct here"), "info", "🛸"], "living empty → the no-life toast (TS:664)")
+	eco.species[0]["extinct"] = false
+
+	# SUCCESS: the beam arms with NO stage-stream draw (TS:667-669) — the
+	# countdown then ticks in the same frame (1.4 − dt)
+	st0 = int(sim.rng.state())
+	sim.update(1.0 / 60.0, _inp({"keys_pressed": ["KeyR"]}))
+	ok(is_same(sim.beamTarget, sim.planets[0]), "beamTarget = the nearest planet (TS:667)")
+	approx(float(sim.beamT), 1.4 - 1.0 / 60.0, "beamT 1.4 armed, then −dt in the same frame (TS:668/503)")
+	eq(rec["audio"][0], ["warp", 0.6, 0.0], "audio warp 0.6 (TS:669)")
+	eq(int(sim.rng.state()), st0, "arming the beam draws NOTHING from the stage stream")
+
+	# the beam countdown + finish IN THE SAME FRAME (R then beamT −dt, TS:501-507):
+	# dt 2.0 > 1.4 → beamT lands NEGATIVE (no clamp — the TS verbatim read)
+	var probe: Variant = _probe(sim)
+	probe.next()  # the finishAbduct rng.pick draw
+	sim.cargo = []
+	ctx.dna = 0
+	ctx.world_stats["extinctions"] = 0
+	ctx.flags.erase("spaceWorld")
+	sim.update(2.0, _inp({"keys_pressed": ["KeyR"]}))
+	# the arming frame left beamT at 1.4 − dt; this frame: −dt again →
+	# (1.4 − 1/60) − 2.0 — NEGATIVE, unclamped (the TS verbatim read)
+	approx(float(sim.beamT), (1.4 - 1.0 / 60.0) - 2.0, "beamT lands NEGATIVE, unclamped (TS:503)")
+	eq(sim.beamTarget, null, "finishAbduct cleared the target (TS:705)")
+	eq(sim.cargo.size(), 1, "cargo push (TS:701)")
+	eq(String(sim.cargo[0]["name"]), String(sp1["name"]), "cargo name = the species name (TS:701)")
+	eq(int(sim.cargo[0]["genome"]["jaw"]), int(sp1["genome"]["jaw"]), "cargo genome = cloneGenome (TS:701)")
+	eq(int(ctx.dna), 10, "FIRST catch pays 10 (TS:689)")
+	eq(int(sim.abductCount["0:%s" % str(sp1["id"])]), 1, "the ledger key '{p.id}:{sp.id}' counts 1 (TS:686-688)")
+	eq(rec["toasts"][4], ["%s %s +10" % [tr("Abducted:"), String(sp1["name"])], "good", "🛸"],
+		"the +10 abducted toast (TS:699)")
+	eq(int(ctx.world_stats["extinctions"]), 0, "a healthy catch is NOT an extinction")
+	ok(ctx.flags.has("spaceWorld"), "finishAbduct FLUSHES the save (the 60s-autosave-lag comment, TS:706)")
+	eq(int(sim.rng.state()), int(probe.state()), "the finish consumed exactly the pick draw")
+	var bestiary_key: String = ""
+	for k in ctx.bestiary:
+		if String(ctx.bestiary[k]["name"]) == String(sp1["name"]):
+			bestiary_key = k
+	ok(bestiary_key != "", "discover(genome, name, 'space', kin) ran (TS:703)")
+	if bestiary_key != "":
+		eq(String(ctx.bestiary[bestiary_key]["stage"]), "space", "the discovery rides stage 'space' (TS:703)")
+
+	# the pay curve: repeats pay 3 (TS:684-689)
+	sim.update(2.0, _inp({"keys_pressed": ["KeyR"]}))
+	eq(int(ctx.dna), 13, "second catch pays 3 (TS:689)")
+	sim.update(2.0, _inp({"keys_pressed": ["KeyR"]}))
+	eq(int(ctx.dna), 16, "third catch pays 3 (TS:689)")
+	eq(int(sim.abductCount["0:%s" % str(sp1["id"])]), 3, "the ledger climbed to 3 (TS:688)")
+	ok(_toasted(rec, "+3"), "the +3 repeat toast (TS:699)")
+
+	# the LAST MEMBER (TS:690-697): pop 1 → pop 0 + extinct + bump_extinction
+	# + the gone-from-this-world toast — a player-caused extinction counted
+	# HERE (it never passes through eco.tick)
+	var eco2: Variant = _craft_eco(sim, 1, [1.0])
+	var sp_last: Dictionary = eco2.species[0]
+	_place_planet(sim, 1, 1000.0, 0.0, 50.0)
+	_isolate_planet(sim, 1)
+	sim.cargo = []
+	sim.abductCount = {}
+	ctx.dna = 0
+	ctx.world_stats["extinctions"] = 0
+	sim.update(2.0, _inp({"keys_pressed": ["KeyR"]}))
+	approx(float(sp_last["pop"]), 0.0, "the last member's pop clamped to 0 (TS:691)")
+	eq(bool(sp_last["extinct"]), true, "the last member goes extinct (TS:692)")
+	eq(int(ctx.world_stats["extinctions"]), 1, "bumpExtinction for the last member (TS:696)")
+	eq(rec["toasts"][rec["toasts"].size() - 1],
+		["%s %s — %s" % [tr("Abducted:"), String(sp_last["name"]),
+			tr("that species is now gone from this world")], "bad", "🛸"],
+		"the gone-from-this-world toast (TS:697)")
+	eq(sim.cargo.size(), 1, "the genome still rides to cargo (TS:701)")
+	eq(int(ctx.dna), 10, "the first catch of the new species pays 10 (the pay curve precedes the pop check)")
+	# re-farm attempt: living() is now EMPTY → the tryAbduct gate, not finishAbduct
+	sim.update(2.0, _inp({"keys_pressed": ["KeyR"]}))
+	eq(rec["toasts"][rec["toasts"].size() - 1], [tr("No life to abduct here"), "info", "🛸"],
+		"an extinct species cannot be re-farmed (TS:664 gate)")
+
+	# the infinite-DNA-faucet pin (TS:674-675): a pop-0.5 leftover is NOT a
+	# candidate — the beam arms (living non-empty) but finish pays NOTHING
+	var eco3: Variant = _craft_eco(sim, 2, [0.5])
+	_place_planet(sim, 2, 1000.0, 0.0, 50.0)
+	_isolate_planet(sim, 2)
+	sim.cargo = []
+	ctx.dna = 0
+	sim.abductCount = {}
+	sim.update(2.0, _inp({"keys_pressed": ["KeyR"]}))
+	eq(rec["toasts"][rec["toasts"].size() - 1], [tr("Nothing left to abduct here"), "info", "🛸"],
+		"pop 0.5 is not a candidate → 'Nothing left' (TS:676-680)")
+	eq(sim.cargo.size(), 0, "no cargo from a starved roster")
+	eq(int(ctx.dna), 0, "no DNA from a starved roster (the infinite-DNA-faucet pin)")
+	eq(sim.beamTarget, null, "the failed finish cleared the target (TS:679)")
+
+
+# ---- seedNearest (TS:709-733) ---------------------------------------------------------
+
+func test_seed_nearest() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	var ctx: Variant = m["ctx"]
+	_place_planet(sim, 3, 1000.0, 0.0, 50.0)  # planet 3 is the KINDS-ring barren
+	_isolate_planet(sim, 3)
+	sim.invuln = 0.0
+	var item: Dictionary = {"genome": GenomeLib.default_genome(), "name": "Pilgrim"}
+
+	# the distance gate (TS:712-715)
+	sim.cargo = [item]
+	sim.sx = 0.0
+	sim.sy = -900.0
+	sim.seed_nearest()
+	eq(rec["toasts"][0], [tr("Fly closer to seed"), "info", "🌱"], "out of range → 'Fly closer to seed' (TS:713)")
+	eq(sim.cargo.size(), 1, "cargo untouched by the refusal")
+	eq(int(ctx.dna), 40, "dna untouched by the refusal")
+
+	# the spendDna(20) refusal (TS:716-719)
+	sim.sx = 900.0
+	sim.sy = 0.0
+	ctx.dna = 19
+	ctx.flags.erase("spaceWorld")
+	sim.seed_nearest()
+	eq(rec["toasts"][1], [tr("Seeding costs 20 DNA"), "bad", "🌱"], "dna 19 → the cost toast (TS:717)")
+	eq(int(ctx.dna), 19, "dna unchanged on the refusal")
+	eq(sim.cargo.size(), 1, "cargo unchanged on the refusal")
+	eq(ctx.flags.has("spaceWorld"), false, "the refusal does NOT persist (TS:718 return)")
+
+	# the empty-cargo gate (TS:711)
+	ctx.dna = 100
+	sim.cargo = []
+	sim.seed_nearest()
+	eq(int(ctx.dna), 100, "empty cargo → no spend (TS:711)")
+
+	# SUCCESS on the barren planet: fresh eco, floraCap 100 (not volcanic),
+	# flora 0.6·cap, barren→lush, colony {0, 0}, the SEEDED banner (TS:720-732)
+	sim.cargo = [{"genome": GenomeLib.default_genome(), "name": "Pilgrim"}]
+	var probe: Variant = _probe(sim)
+	probe.branch()  # TS:722 — the fresh Ecosystem's ONE branch draw
+	sim.seed_nearest()
+	var p3: Dictionary = sim.planets[3]
+	ok(p3["eco"] != null, "the barren planet gained an eco (TS:722)")
+	approx(float(p3["eco"].flora_cap), 100.0, "barren floraCap 100 (the non-volcanic branch, TS:723)")
+	approx(float(p3["eco"].flora), 60.0, "flora 0.6·cap (TS:724)")
+	eq(String(p3["kind"]), "lush", "barren → lush (TS:725)")
+	eq(p3["eco"].species.size(), 1, "one seeded species (TS:727)")
+	var sp: Dictionary = p3["eco"].species[0]
+	eq(String(sp["name"]), "Pilgrim", "the species carries the cargo name (TS:727)")
+	eq(bool(sp["kin"]), true, "the seeded line is kin (TS:727)")
+	approx(float(sp["pop"]), 5.0, "seeded pop 5 (TS:727)")
+	eq(p3["colony"], {"pop": 0.0, "generations": 0.0}, "colony init {pop 0, generations 0} (TS:729)")
+	eq(rec["banners"][0], {"title": "%s SEEDED" % String(p3["name"]),
+		"subtitle": "Pilgrim takes its first breath", "kind": "reward"},
+		"the SEEDED banner (TS:730)")
+	eq(int(ctx.dna), 80, "seeding spent 20 (TS:716)")
+	eq(sim.cargo.size(), 0, "the cargo row popped (TS:720)")
+	eq(rec["audio"][0], ["levelup", 1.0, 0.0], "audio levelup 1 (TS:731)")
+	ok(ctx.flags.has("spaceWorld"), "seeding persists (TS:732)")
+	eq(int(sim.rng.state()), int(probe.state()), "seeding drew exactly the ONE eco-branch draw (TS:722)")
+
+	# the VOLCANIC floraCap 60 branch: a volcanic planet with a nulled eco
+	# (unreachable by generation — reachable by craft) keeps kind volcanic
+	_place_planet(sim, 2, 1000.0, 0.0, 50.0)
+	_isolate_planet(sim, 2)
+	sim.planets[2]["eco"] = null
+	sim.cargo = [{"genome": GenomeLib.default_genome(), "name": "Ember"}]
+	sim.seed_nearest()
+	var p2: Dictionary = sim.planets[2]
+	approx(float(p2["eco"].flora_cap), 60.0, "volcanic floraCap 60 (TS:723)")
+	approx(float(p2["eco"].flora), 36.0, "flora 0.6·60 (TS:724)")
+	eq(String(p2["kind"]), "volcanic", "a non-barren kind is untouched (TS:725 ternary)")
+
+	# seeding a planet with an EXISTING eco appends; the eco/floraCap/kind are
+	# untouched; an existing colony SURVIVES (the ?? keeps it, TS:729)
+	_place_planet(sim, 0, 1000.0, 0.0, 50.0)
+	_isolate_planet(sim, 0)
+	var p0: Dictionary = sim.planets[0]
+	var eco_n: int = p0["eco"].species.size()
+	p0["colony"] = {"pop": 9.0, "generations": 2.0}
+	sim.cargo = [{"genome": GenomeLib.default_genome(), "name": "Latecomer"}]
+	sim.seed_nearest()
+	eq(p0["eco"].species.size(), eco_n + 1, "the existing eco gained ONE species (TS:727)")
+	eq(String(p0["eco"].species[p0["eco"].species.size() - 1]["name"]), "Latecomer", "the appended row (TS:727)")
+	approx(float(p0["eco"].flora_cap), 140.0, "the existing eco's floraCap untouched (no TS:722-724 branch)")
+	eq(String(p0["kind"]), "lush", "kind unchanged")
+	eq(p0["colony"], {"pop": 9.0, "generations": 2.0}, "an existing colony survives (TS:729 ??)")
+
+
+# ---- mergeCargo (TS:735-770) -----------------------------------------------------------
+
+func test_merge_cargo_pinned_stream() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	var ctx: Variant = m["ctx"]
+	sim.invuln = 0.0
+	var ga: Dictionary = GenomeLib.clamp_genome(GenomeLib.default_genome())
+	ga.merge({"size": 1.2, "jaw": 3, "diet": "herbivore", "hue": 100.0}, true)
+	var gb: Dictionary = GenomeLib.clamp_genome(GenomeLib.default_genome())
+	gb.merge({"size": 1.8, "spikes": 2, "diet": "carnivore", "hue": 200.0}, true)
+
+	# the cargo gate (TS:736)
+	ctx.dna = 100
+	sim.cargo = [{"genome": ga, "name": "Al"}]
+	var st0: int = int(sim.rng.state())
+	sim.merge_cargo()
+	eq(sim.cargo.size(), 1, "cargo < 2 → mergeCargo returns (TS:736)")
+	eq(int(ctx.dna), 100, "no spend under the cargo gate")
+	eq(int(sim.rng.state()), st0, "the cargo gate draws NOTHING")
+
+	# the spend refusal (TS:738-740)
+	sim.cargo = [{"genome": ga, "name": "Al"}, {"genome": gb, "name": "Bo"}]
+	ctx.dna = 14
+	sim.merge_cargo()
+	eq(rec["toasts"][0], [tr("Gene splice costs 15 DNA"), "bad", "🧪"], "dna 14 → the cost toast (TS:739)")
+	eq(sim.cargo.size(), 2, "cargo unchanged on the refusal")
+	eq(int(ctx.dna), 14, "dna unchanged on the refusal")
+
+	# SUCCESS at a pinned stream (non-wild world): the child bit-matches the
+	# probe replay of crossover(a, b, rng, 0.3, {anomalyChance 0.10,
+	# defectRate 0.2, bias {rate_add 0}, info}) + the species_name draw
+	rec["toasts"].clear()
+	ctx.dna = 100
+	ctx.flags.erase("spaceWorld")
+	sim.cargo = [{"genome": ga, "name": "Al"}, {"genome": gb, "name": "Bo"}]
+	var probe: Variant = _probe(sim)
+	var info: Dictionary = {"anomaly": null, "defect": null}
+	var expected: Dictionary = MutationLib.crossover(ga, gb, probe, 0.3, {
+		"anomalyChance": 0.10, "defectRate": 0.2,
+		"bias": {"rate_add": WorldGenomeLib.world_num(ctx.world, "mutation_rate_add", 0.0)},
+		"info": info})
+	var child_name: String = NamesLib.species_name(probe) + " (spliced)"
+	sim.merge_cargo()
+	eq(sim.cargo.size(), 1, "slice(2) dropped both parents (TS:757)")
+	eq(sim.cargo[0]["genome"], expected, "the child bit-matches the crossover replay (TS:749-755)")
+	eq(String(sim.cargo[0]["name"]), child_name, "child name '{speciesName} (spliced)' (TS:756)")
+	eq(int(ctx.dna), 85, "the splice spent 15 (TS:738)")
+	# the info toasts follow the probe's SpliceInfo, in TS order:
+	# anomaly → defect → the 'Gene splice:' line
+	var exp_toasts: Array = []
+	if info["anomaly"] != null:
+		var ak: String = String(info["anomaly"]["kind"])
+		exp_toasts.append(["%s — %s" % [tr("UNEXPECTED EXPRESSION"),
+			tr(String(MutationLib.ANOMALY_NAMES[ak]))], "chaos", "🧬"])
+	if info["defect"] != null:
+		var dk: String = String(info["defect"]["kind"])
+		exp_toasts.append(["%s %s" % [tr("Defective splice:"),
+			tr(String(MutationLib.DEFECT_NAMES[dk]))], "bad", "⚠️"])
+	exp_toasts.append(["%s %s!" % [tr("Gene splice:"), child_name], "chaos", "🧪"])
+	eq(rec["toasts"].size(), exp_toasts.size(), "the toast count follows the SpliceInfo (TS:759-765)")
+	for i in exp_toasts.size():
+		eq(rec["toasts"][i], exp_toasts[i], "splice toast %d matches the probe info order (TS:759-765)" % i)
+	eq(rec["audio"][0], ["levelup", 0.9, 0.0], "audio levelup 0.9 (TS:766)")
+	var disc_key: String = ""
+	for k in ctx.bestiary:
+		if String(ctx.bestiary[k]["name"]) == child_name:
+			disc_key = k
+	ok(disc_key != "", "discover(child, name, 'space') ran (TS:767)")
+	if disc_key != "":
+		eq(bool(ctx.bestiary[disc_key]["kin"]), false, "the splice discovery is NOT kin (TS:767 default)")
+	ok(ctx.flags.has("spaceWorld"), "the splice persists (TS:769)")
+	eq(int(sim.rng.state()), int(probe.state()),
+		"the merge consumed exactly crossover + speciesName (no combo → the graft drew nothing)")
+
+	# the 3-cargo slice: only the FIRST TWO merge; the third survives
+	sim.cargo = [{"genome": ga, "name": "Al"}, {"genome": gb, "name": "Bo"},
+		{"genome": ga, "name": "Cy"}]
+	ctx.dna = 100
+	sim.merge_cargo()
+	eq(sim.cargo.size(), 2, "[A,B,C] → [C, child] (TS:757)")
+	eq(String(sim.cargo[0]["name"]), "Cy", "the third row survived the slice")
+
+	# the I-q2 rate_add pin: a world num-effect rides the bias — the child
+	# bit-matches the rate_add 0.5 replay and DIFFERS from the rate_add 0 one
+	var m2 := _mk_sim(SEED, null, {"traits": [{"effects": [
+		{"kind": "num", "key": "mutation_rate_add", "value": 0.5}]}]})
+	var sim2: Variant = m2["sim"]
+	var ctx2: Variant = m2["ctx"]
+	ctx2.dna = 100
+	sim2.cargo = [{"genome": ga, "name": "Al"}, {"genome": gb, "name": "Bo"}]
+	var probe2: Variant = _probe(sim2)
+	var expected_hot: Dictionary = MutationLib.crossover(ga, gb, probe2, 0.3, {
+		"anomalyChance": 0.10, "defectRate": 0.2,
+		"bias": {"rate_add": 0.5}, "info": {"anomaly": null, "defect": null}})
+	NamesLib.species_name(probe2)
+	sim2.merge_cargo()
+	eq(sim2.cargo[0]["genome"], expected_hot, "rate_add 0.5 rode the bias (the I-q2 note, TS:753)")
+	var probe2b: Variant = RngLib.new_from(sim2.rng.state())
+	var cold_child: Dictionary = MutationLib.crossover(ga, gb, probe2b, 0.3, {
+		"anomalyChance": 0.10, "defectRate": 0.2,
+		"bias": {"rate_add": 0.0}, "info": {"anomaly": null, "defect": null}})
+	NamesLib.species_name(probe2b)
+	ok(sim2.cargo[0]["genome"] != cold_child, "a rate_add 0 replay gives a DIFFERENT child (the bias is live)")
+
+	# the WILD_MUTATIONS rates (TS:748-751): scan fixed seeds for one where
+	# the two tables DIVERGE at the REAL merge stream position (post-
+	# construction) — building BOTH sims per candidate and probe-replaying
+	# each merge with the world-derived rate_add. The found pair is used
+	# directly (the probes clone the stream; the sims' streams stay intact).
+	var wild_world: Dictionary = {"traits": [{"effects": [{"kind": "flag", "key": "wild_mutations"}]}]}
+	var div_seed := -1
+	var mw: Variant = null
+	var mn: Variant = null
+	var infow: Dictionary = {}
+	var infon: Dictionary = {}
+	for i in 16:
+		var cand := SEED + i
+		var mw_c: Dictionary = _mk_sim(cand, null, wild_world)
+		var mn_c: Dictionary = _mk_sim(cand)
+		# the derived world must NOT carry the wild flag (or the comparison
+		# is meaningless — the sim would run the wild table "normally")
+		if WorldGenomeLib.world_has(mn_c["ctx"].world, "wild_mutations"):
+			continue
+		var pw: Variant = _probe(mw_c["sim"])
+		var wi: Dictionary = {"anomaly": null, "defect": null}
+		MutationLib.crossover(ga, gb, pw, 0.3, {
+			"anomalyChance": 0.15, "defectRate": 0.3,
+			"bias": {"rate_add": WorldGenomeLib.world_num(mw_c["ctx"].world, "mutation_rate_add", 0.0)},
+			"info": wi})
+		var pn: Variant = _probe(mn_c["sim"])
+		var ni: Dictionary = {"anomaly": null, "defect": null}
+		MutationLib.crossover(ga, gb, pn, 0.3, {
+			"anomalyChance": 0.10, "defectRate": 0.2,
+			"bias": {"rate_add": WorldGenomeLib.world_num(mn_c["ctx"].world, "mutation_rate_add", 0.0)},
+			"info": ni})
+		var wfired: bool = wi["anomaly"] != null or wi["defect"] != null
+		var nfired: bool = ni["anomaly"] != null or ni["defect"] != null
+		if wfired != nfired:
+			div_seed = cand
+			mw = mw_c
+			mn = mn_c
+			infow = wi
+			infon = ni
+			break
+	ok(div_seed >= 0, "a divergence seed exists within the fixed scan")
+	if div_seed >= 0:
+		var simw: Variant = mw["sim"]
+		var recw: Dictionary = mw["rec"]
+		var ctxw: Variant = mw["ctx"]
+		ctxw.dna = 100
+		simw.cargo = [{"genome": ga, "name": "Al"}, {"genome": gb, "name": "Bo"}]
+		var probew: Variant = _probe(simw)
+		var expectedw: Dictionary = MutationLib.crossover(ga, gb, probew, 0.3, {
+			"anomalyChance": 0.15, "defectRate": 0.3,
+			"bias": {"rate_add": WorldGenomeLib.world_num(ctxw.world, "mutation_rate_add", 0.0)},
+			"info": {"anomaly": null, "defect": null}})
+		simw.merge_cargo()
+		eq(simw.cargo[0]["genome"], expectedw, "the wild child bit-matches the 0.15/0.3 replay (TS:750-751)")
+		eq(infow["anomaly"] != null or infow["defect"] != null, true,
+			"the divergence seed actually FIRES under the wild table (premise)")
+		var fired_toast: bool = _toasted(recw, "UNEXPECTED EXPRESSION") \
+				or _toasted(recw, "Defective splice:")
+		eq(fired_toast, true, "the wild run's surprise toast fired (TS:759-763)")
+		# the SAME seed without the flag: the normal table does NOT fire
+		var simn: Variant = mn["sim"]
+		var recn: Dictionary = mn["rec"]
+		var ctxn: Variant = mn["ctx"]
+		ctxn.dna = 100
+		simn.cargo = [{"genome": ga, "name": "Al"}, {"genome": gb, "name": "Bo"}]
+		var proben: Variant = _probe(simn)
+		var expectedn: Dictionary = MutationLib.crossover(ga, gb, proben, 0.3, {
+			"anomalyChance": 0.10, "defectRate": 0.2,
+			"bias": {"rate_add": WorldGenomeLib.world_num(ctxn.world, "mutation_rate_add", 0.0)},
+			"info": {"anomaly": null, "defect": null}})
+		simn.merge_cargo()
+		eq(simn.cargo[0]["genome"], expectedn, "the normal child bit-matches the 0.10/0.2 replay (TS:750-751)")
+		eq(infon["anomaly"], null, "the normal table does NOT fire at the divergence seed (premise)")
+		eq(infon["defect"], null, "no defect under the normal table either (premise)")
+		eq(recn["toasts"].size(), 1, "only the 'Gene splice:' line fired (TS:759/762 gates)")
+
+	# the G key runs mergeCargo when cargo ≥ 2 (TS:510-512)
+	var m3 := _mk_sim()
+	var sim3: Variant = m3["sim"]
+	var ctx3: Variant = m3["ctx"]
+	ctx3.dna = 100
+	sim3.cargo = [{"genome": ga, "name": "Al"}, {"genome": gb, "name": "Bo"}]
+	sim3.update(1.0 / 60.0, _inp({"keys_pressed": ["KeyG"]}))
+	eq(sim3.cargo.size(), 1, "G spliced the pair (TS:510-512)")
+	eq(int(ctx3.dna), 85, "the G path spent 15")
+	# G with cargo < 2 → nothing
+	ctx3.dna = 100
+	sim3.cargo = [{"genome": ga, "name": "Al"}]
+	sim3.update(1.0 / 60.0, _inp({"keys_pressed": ["KeyG"]}))
+	eq(sim3.cargo.size(), 1, "G with cargo < 2 → no merge (TS:510 gate)")
+	eq(int(ctx3.dna), 100, "no spend under the G gate")
+
+
+# ---- borrowedFleshGraft (TS:772-792) ----------------------------------------------------
+
+func test_borrowed_flesh_graft() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	var ctx: Variant = m["ctx"]
+
+	# COMBO OFF: the graft returns before any draw (TS:778)
+	var child: Dictionary = GenomeLib.default_genome()
+	child["jaw"] = 5
+	var st0: int = int(sim.rng.state())
+	sim.borrowed_flesh_graft(child)
+	ok(not ctx.flags.has("borrowed_flesh_graft"), "combo off → no flag (TS:778)")
+	eq(int(child["jaw"]), 5, "combo off → the child untouched")
+	eq(int(sim.rng.state()), st0, "combo off → NO rng draw (the guard precedes the shuffle)")
+	eq(rec["toasts"], [], "combo off → no toast")
+
+	# the FLAG GUARD: once per run (TS:778 === true)
+	rec["toasts"].clear()
+	ctx.world["comboFired"] = {"borrowed_flesh": true}
+	ctx.flags["borrowed_flesh_graft"] = true
+	ctx.bestiary["k2"] = {"key": "k2", "name": "Ridgeback",
+		"genome": GenomeLib.clamp_genome(GenomeLib.default_genome()), "stage": "cell",
+		"seen": 1, "killsByPlayer": 0, "extinct": true, "kin": false}
+	sim.borrowed_flesh_graft(child)
+	eq(bool(ctx.flags["borrowed_flesh_graft"]), true, "the flag guard returned early — still set (TS:778)")
+	eq(rec["toasts"], [], "flag guard → no toast (TS:778)")
+
+	# THE GRAFT: e1's jaw 5 cannot raise the child's jaw 5 (never downgrades /
+	# no-ops at equal), e2's spikes 3 raises the child's spikes 0; the shuffled
+	# visit order is derived from the probe — both orders converge here
+	ctx.flags.erase("borrowed_flesh_graft")
+	ctx.bestiary = {
+		"k1": {"key": "k1", "name": "Old One",
+			"genome": GenomeLib.clamp_genome(GenomeLib.default_genome()), "stage": "cell",
+			"seen": 1, "killsByPlayer": 0, "extinct": true, "kin": false},
+		"k2": {"key": "k2", "name": "Ridgeback",
+			"genome": GenomeLib.clamp_genome(GenomeLib.default_genome()), "stage": "cell",
+			"seen": 1, "killsByPlayer": 0, "extinct": true, "kin": false},
+		"k3": {"key": "k3", "name": "Aliveus",
+			"genome": GenomeLib.clamp_genome(GenomeLib.default_genome()), "stage": "cell",
+			"seen": 1, "killsByPlayer": 0, "extinct": false, "kin": false},
+	}
+	ctx.bestiary["k1"]["genome"]["jaw"] = 5
+	ctx.bestiary["k2"]["genome"]["spikes"] = 3
+	ctx.bestiary["k3"]["genome"]["toxin"] = 4  # NOT extinct — never visited
+	child = GenomeLib.default_genome()
+	child["jaw"] = 5
+	child["spikes"] = 0
+	var probe: Variant = _probe(sim)
+	var order: Array = probe.shuffled([ctx.bestiary["k1"], ctx.bestiary["k2"]])
+	sim.borrowed_flesh_graft(child)
+	eq(bool(ctx.flags["borrowed_flesh_graft"]), true, "the graft set the once-per-run flag (TS:788)")
+	approx(float(child["spikes"]), 3.0, "spikes raised to the graft level 3 (TS:785/787)")
+	eq(int(child["jaw"]), 5, "the jaw-5 lineage was skipped (raised ≤ cur → next, TS:786)")
+	eq(rec["toasts"][0], ["%s %s ← %s" % [tr("Borrowed flesh:"), tr("Spike"), "Ridgeback"], "good", "🫱"],
+		"the borrowed-flesh toast with the part name + source (TS:789)")
+	eq(order.size(), 2, "the probe shuffled both extinct lineages (premise)")
+	eq(int(sim.rng.state()), int(probe.state()),
+		"the graft consumed exactly the shuffle draw (the early continue drew nothing)")
+
+	# NEVER DOWNGRADES (TS:786): a source at the child's own value is skipped —
+	# no flag, no toast, child untouched; a 1-entry shuffle draws NOTHING
+	rec["toasts"].clear()
+	ctx.flags.erase("borrowed_flesh_graft")
+	ctx.bestiary = {"k1": {"key": "k1", "name": "Old One",
+		"genome": GenomeLib.clamp_genome(GenomeLib.default_genome()), "stage": "cell",
+		"seen": 1, "killsByPlayer": 0, "extinct": true, "kin": false}}
+	ctx.bestiary["k1"]["genome"]["jaw"] = 5
+	child = GenomeLib.default_genome()
+	child["jaw"] = 5
+	st0 = int(sim.rng.state())
+	sim.borrowed_flesh_graft(child)
+	ok(not ctx.flags.has("borrowed_flesh_graft"), "raised == cur → NO flag (the never-downgrade skip, TS:786)")
+	eq(rec["toasts"], [], "raised == cur → no toast")
+	eq(int(child["jaw"]), 5, "the child untouched by the skip")
+	eq(int(sim.rng.state()), st0, "a 1-entry shuffle draws nothing (Fisher-Yates i>0)")
+
+	# a LOWER level never downgrades either: source spikes 2 vs child spikes 3
+	ctx.bestiary["k1"]["genome"] = GenomeLib.clamp_genome(GenomeLib.default_genome())
+	ctx.bestiary["k1"]["genome"]["spikes"] = 2
+	child = GenomeLib.default_genome()
+	child["spikes"] = 3
+	st0 = int(sim.rng.state())
+	sim.borrowed_flesh_graft(child)
+	ok(not ctx.flags.has("borrowed_flesh_graft"), "level 2 < cur 3 → skipped (graft_value clamps to level, TS:785)")
+	eq(int(sim.rng.state()), st0, "the skip consumed nothing")
+
+	# a lineage with NO standout part is passed over (TS:781-782)
+	ctx.bestiary["k1"]["genome"] = {
+		"size": 1.0, "diet": "herbivore", "hue": 120.0, "sat": 0.5, "pattern": "plain",
+		"flagella": 0, "cilia": 0, "spikes": 0, "jaw": 0, "toxin": 0, "proboscis": 0,
+		"electro": 0, "jet": 0, "legs": 0, "arms": 0, "eyes": 0, "horns": 0,
+		"tail": false, "wings": 0, "brain": 0, "coat": "skin", "generation": 1}
+	child = GenomeLib.default_genome()
+	child["jaw"] = 5
+	st0 = int(sim.rng.state())
+	sim.borrowed_flesh_graft(child)
+	ok(not ctx.flags.has("borrowed_flesh_graft"), "standout_part null → continue (TS:782)")
+	eq(int(sim.rng.state()), st0, "the standout-null pass consumed nothing")
+
+	# NO extinct entries: the shuffle runs on an empty array (no draws)
+	ctx.bestiary = {}
+	child = GenomeLib.default_genome()
+	st0 = int(sim.rng.state())
+	sim.borrowed_flesh_graft(child)
+	ok(not ctx.flags.has("borrowed_flesh_graft"), "no extinct bestiary rows → no graft (TS:779)")
+	eq(int(sim.rng.state()), st0, "an empty shuffle draws nothing")
+
+	# E2E: the graft rides mergeCargo AFTER the discover (TS:768) — craft the
+	# bestiary from the PROBE child (a maxed gene skips, a zeroed gene grafts)
+	var ga: Dictionary = GenomeLib.clamp_genome(GenomeLib.default_genome())
+	ga.merge({"jaw": 3, "diet": "herbivore", "hue": 100.0}, true)
+	var gb: Dictionary = GenomeLib.clamp_genome(GenomeLib.default_genome())
+	gb.merge({"size": 1.8, "spikes": 2, "diet": "carnivore", "hue": 200.0}, true)
+	var m2 := _mk_sim(SEED)
+	var sim2: Variant = m2["sim"]
+	var rec2: Dictionary = m2["rec"]
+	var ctx2: Variant = m2["ctx"]
+	ctx2.world["comboFired"] = {"borrowed_flesh": true}
+	ctx2.dna = 100
+	sim2.cargo = [{"genome": ga, "name": "Al"}, {"genome": gb, "name": "Bo"}]
+	var probe2: Variant = _probe(sim2)
+	var child2: Dictionary = MutationLib.crossover(ga, gb, probe2, 0.3, {
+		"anomalyChance": 0.10, "defectRate": 0.2, "bias": {"rate_add": 0.0},
+		"info": {"anomaly": null, "defect": null}})
+	NamesLib.species_name(probe2)
+	# find a ZERO gene on the probe child whose part exists (the graft target)
+	var graft_gene := ""
+	for pdef in PartsLib.PARTS:
+		if int(child2.get(pdef["gene"], 0)) == 0:
+			graft_gene = String(pdef["gene"])
+			break
+	ok(graft_gene != "", "the probe child has a zeroed part gene to graft (premise)")
+	# find the child's MAX gene (the skip source at its own value)
+	var max_gene := ""
+	var max_v := -1.0
+	for gene in GenomeLib.GENE_BOUNDS:
+		if float(child2.get(gene, 0)) > max_v:
+			max_v = float(child2.get(gene, 0))
+			max_gene = String(gene)
+	ctx2.bestiary = {
+		"ka": {"key": "ka", "name": "Skipper",
+			"genome": GenomeLib.clamp_genome(GenomeLib.default_genome()), "stage": "cell",
+			"seen": 1, "killsByPlayer": 0, "extinct": true, "kin": false},
+		"kb": {"key": "kb", "name": "Giver",
+			"genome": GenomeLib.clamp_genome(GenomeLib.default_genome()), "stage": "cell",
+			"seen": 1, "killsByPlayer": 0, "extinct": true, "kin": false},
+	}
+	ctx2.bestiary["ka"]["genome"][max_gene] = int(max_v)
+	ctx2.bestiary["kb"]["genome"][graft_gene] = 3
+	sim2.merge_cargo()
+	eq(float(sim2.cargo[0]["genome"][graft_gene]), 3.0, "the e2e graft raised the zeroed gene (TS:768/787)")
+	eq(bool(ctx2.flags["borrowed_flesh_graft"]), true, "the e2e flag set")
+	var grafted := false
+	for t in rec2["toasts"]:
+		if String(t[0]).find("Borrowed flesh:") >= 0:
+			grafted = true
+	ok(grafted, "the e2e borrowed-flesh toast fired")
+	# the splice line precedes the graft toast (TS:765 before :768)
+	var splice_i := -1
+	var graft_i := -1
+	for i in rec2["toasts"].size():
+		if String(rec2["toasts"][i][0]).find("Gene splice:") >= 0:
+			splice_i = i
+		if String(rec2["toasts"][i][0]).find("Borrowed flesh:") >= 0:
+			graft_i = i
+	ok(splice_i >= 0 and graft_i > splice_i, "the graft toast follows the splice toast (TS:765/789)")
+
+
+# ---- pirates (TS:794-810 spawn + :454-498 chase) -----------------------------------------
+
+func test_pirates_lifecycle() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	var ctx: Variant = m["ctx"]
+	sim.invuln = 0.0
+	sim.sx = 0.0
+	sim.sy = -900.0
+
+	# spawnPirates: the 5 cap, ring 700, hp 140, ttl 40 (TS:794-809)
+	var probe: Variant = _probe(sim)
+	var exp_pos: Array = []
+	for i in 5:
+		var a: float = probe.next() * TAU
+		exp_pos.append({"x": 0.0 + cos(a) * 700.0, "y": -900.0 + sin(a) * 700.0})
+	sim.spawn_pirates(7)
+	eq(sim.pirates.size(), 5, "spawn cap 5 (TS:795-796)")
+	eq(sim.pirateTtl.size(), 5, "ttls ride in parallel (TS:807)")
+	for i in 5:
+		approx(float(sim.pirates[i]["x"]), float(exp_pos[i]["x"]), "pirate %d ring x 700 (TS:800)" % i)
+		approx(float(sim.pirates[i]["y"]), float(exp_pos[i]["y"]), "pirate %d ring y 700 (TS:801)" % i)
+		eq(float(sim.pirates[i]["vx"]), 0.0, "pirate %d vx 0 (TS:802)" % i)
+		eq(float(sim.pirates[i]["hp"]), 140.0, "pirate %d hp 140 (TS:804)" % i)
+		eq(float(sim.pirates[i]["gait"]), 0.0, "pirate %d gait 0 (TS:805)" % i)
+		eq(float(sim.pirateTtl[i]), 40.0, "pirate %d life 40 (TS:797)" % i)
+	eq(rec["audio"][0], ["alarm", 0.9, 0.0], "ONE alarm for the whole spawn (TS:809)")
+	eq(int(sim.rng.state()), int(probe.state()), "the spawn consumed exactly the 5 angle draws")
+
+	# at the cap: early return, NO draw, NO audio (TS:795)
+	probe = _probe(sim)
+	rec["audio"].clear()
+	sim.spawn_pirates(3)
+	eq(sim.pirates.size(), 5, "the cap holds (TS:795)")
+	eq(rec["audio"], [], "no alarm at the cap (TS:795 return)")
+	eq(int(sim.rng.state()), int(probe.state()), "the cap return drew NOTHING")
+
+	# the partial top-up: n = min(n, 5 − len) (TS:796)
+	sim.pirates.remove_at(0)
+	sim.pirateTtl.remove_at(0)
+	sim.spawn_pirates(2)
+	eq(sim.pirates.size(), 5, "4 existing + request 2 → +1 (TS:796)")
+
+	# the chase integration (TS:465-473): accel 300 toward the ship when
+	# d > 30, drag exp(−1.4dt), drift, gait — bit-exact at dt 0.1
+	sim.pirates = [{"x": 100.0, "y": -900.0, "vx": 0.0, "vy": 0.0, "hp": 140.0, "gait": 0.0}]
+	sim.pirateTtl = [40.0]
+	sim.sx = 0.0
+	sim.update(0.1, _inp())
+	var p0: Dictionary = sim.pirates[0]
+	var exp_vx: float = (-300.0 * 0.1) * exp(-1.4 * 0.1)
+	approx(float(p0["vx"]), exp_vx, "vx = accel(−300·dt) then drag exp(−1.4dt) (TS:467/470)")
+	approx(float(p0["x"]), 100.0 + exp_vx * 0.1, "x integrates vx·dt (TS:472)")
+	approx(float(p0["gait"]), 0.1, "gait += dt (TS:473)")
+	eq(float(sim.shp), 100.0, "d 100 > 60 → no damage (TS:474 gate)")
+
+	# d ≤ 30 → no accel (TS:466). The pirate sits INSIDE the damage radius too
+	# (d < 60), so invuln silences the damage branch (and its chance draw)
+	# while the chase math is pinned
+	sim.invuln = 5.0
+	sim.pirates = [{"x": 0.0, "y": -900.0, "vx": 5.0, "vy": 0.0, "hp": 140.0, "gait": 0.0}]
+	sim.pirateTtl = [40.0]
+	sim.update(0.1, _inp())
+	approx(float(sim.pirates[0]["vx"]), 5.0 * exp(-1.4 * 0.1), "d 0: no accel, drag only (TS:466)")
+	sim.invuln = 0.0
+
+	# the ttl siege-lift (TS:457-462)
+	sim.pirateTtl = [0.05]
+	sim.update(0.06, _inp())
+	eq(sim.pirates.size(), 0, "ttl ≤ 0 → the pirate splices out (TS:458-460)")
+	eq(sim.pirateTtl.size(), 0, "the ttl row splices too (TS:460)")
+	eq(rec["toasts"][0], [tr("The siege lifts — pirates give up"), "good", "🌿"], "the siege-lift toast (TS:461)")
+
+	# the `?? 40` ttl fallback: a desynced ttl array reads 40 (TS:457)
+	sim.pirates = [{"x": 100.0, "y": -900.0, "vx": 0.0, "vy": 0.0, "hp": 140.0, "gait": 0.0}]
+	sim.pirateTtl = []
+	sim.update(0.1, _inp())
+	approx(float(sim.pirateTtl[0]), 39.9, "a missing ttl row reads 40 (TS:457 ??)")
+
+	# the damage window (TS:474-481): d < 60, invuln 0, no lull → shp −14dt,
+	# hurtT raised to 0.5 (then decayed 3dt → 0.45 at dt 1/60), the
+	# chance(dt·6) burst + hit — the burst is CONDITIONAL at dt 1/60, so the
+	# probe replay decides the branch and the stream cadence is asserted
+	sim.pirates = [{"x": 0.0, "y": -900.0, "vx": 0.0, "vy": 0.0, "hp": 140.0, "gait": 0.0}]
+	sim.pirateTtl = [40.0]
+	sim.shp = 100.0
+	sim.hurtT = 0.0
+	var dt_p := 1.0 / 60.0
+	probe = _probe(sim)
+	var fired_p: bool = probe.chance(dt_p * 6.0)  # the damage-branch chance draw
+	var bparts: Array = []
+	if fired_p:
+		for i in 4:
+			var ang: float = probe.next() * PI * 2.0
+			var bsp: float = probe.range(0.3, 1.0) * 120.0
+			var col: String = String(probe.pick(["#ff8a5a"]))
+			var bttl: float = probe.range(0.4, 1.0) * 0.4
+			var bsz: float = probe.range(0.6, 1.4) * 3.0
+			bparts.append({"ang": ang, "sp": bsp, "color": col, "ttl": bttl, "size": bsz})
+	sim.update(dt_p, _inp())
+	approx(float(sim.shp), 100.0 - 14.0 * dt_p, "shp −14·dt (TS:475)")
+	approx(float(sim.hurtT), 0.5 - 3.0 * dt_p, "hurtT max(hurtT, 0.5) then decayed 3dt (TS:476→:606)")
+	eq(rec["bursts"].size(), 1 if fired_p else 0, "the burst follows chance(dt·6) at the pinned stream (TS:477)")
+	if fired_p:
+		eq(int(rec["bursts"][0][2]), 4, "burst n 4 (TS:478)")
+		eq(rec["bursts"][0][3]["parts"], bparts, "the burst parts bit-match the replay (the _fx_burst draw order)")
+		eq(rec["bursts"][0][3]["colors"], ["#ff8a5a"], "burst colors (TS:478)")
+		eq(float(rec["bursts"][0][3]["speed"]), 120.0, "burst speed 120 (TS:478)")
+		eq(float(rec["bursts"][0][3]["ttl"]), 0.4, "burst ttl 0.4 (TS:478)")
+		eq(rec["audio"][0], ["hit", 0.4, 0.0], "audio hit 0.4 (TS:479)")
+	eq(int(sim.rng.state()), int(probe.state()), "the frame consumed exactly the chance (+burst) draws (TS:477-479)")
+
+	# the deterministic-burst frame at dt 1.0 (chance(6) always true) — the
+	# decay then eats hurtT entirely (max(0, 0.5−3))
+	sim.pirates = [{"x": 0.0, "y": -900.0, "vx": 0.0, "vy": 0.0, "hp": 140.0, "gait": 0.0}]
+	sim.pirateTtl = [40.0]
+	sim.shp = 100.0
+	sim.hurtT = 0.0
+	probe = _probe(sim)
+	probe.chance(1.0 * 6.0)  # the damage-branch chance draw (always true at dt 1)
+	for i in 4:
+		probe.next()
+		probe.range(0.3, 1.0)
+		probe.pick(["#ff8a5a"])
+		probe.range(0.4, 1.0)
+		probe.range(0.6, 1.4)
+	sim.update(1.0, _inp())
+	eq(rec["bursts"].size(), (2 if fired_p else 1), "dt 1.0 → chance(6) ALWAYS fires the burst (TS:477)")
+	eq(float(sim.hurtT), 0.0, "the decay dominates at dt 1: max(0, 0.5−3) (TS:606)")
+	eq(int(sim.rng.state()), int(probe.state()), "the dt-1 frame consumed exactly the 20 burst draws")
+
+	# the LULL: no damage, no burst, NO draw (TS:474 !pirateLull)
+	sim.pirateLull = true
+	sim.shp = 100.0
+	sim.hurtT = 0.0
+	var bursts_n: int = rec["bursts"].size()
+	probe = _probe(sim)
+	sim.update(1.0, _inp())
+	eq(float(sim.shp), 100.0, "lull → no shp damage (TS:474)")
+	eq(float(sim.hurtT), 0.0, "lull → no hurt flash")
+	eq(rec["bursts"].size(), bursts_n, "lull → no burst")
+	eq(int(sim.rng.state()), int(probe.state()), "lull → the chance draw never happens")
+	sim.pirateLull = false
+
+	# the invuln gate: the whole damage block is skipped (TS:474)
+	sim.invuln = 5.0
+	sim.shp = 100.0
+	probe = _probe(sim)
+	sim.update(1.0, _inp())
+	eq(float(sim.shp), 100.0, "invuln > 0 → no damage (TS:474)")
+	eq(int(sim.rng.state()), int(probe.state()), "invuln → no chance draw")
+	sim.invuln = 0.0
+
+	# CLICK-TO-SHOOT (TS:482-497): the pirate sits ON the ship (d 0 → no
+	# move), every click at its position lands; hp 140 → dead on the 5th
+	sim.pirates = [{"x": 0.0, "y": -900.0, "vx": 0.0, "vy": 0.0, "hp": 140.0, "gait": 0.0}]
+	sim.pirateTtl = [40.0]
+	ctx.dna = 0
+	sim.invuln = 5.0  # silence the damage branch — the click shot is NOT invuln-gated
+	for i in 4:
+		var hp_before: float = float(sim.pirates[0]["hp"])
+		sim.update(1.0 / 60.0, _inp({"clicked": true, "wx": 0.0, "wy": -900.0}))
+		eq(float(sim.pirates[0]["hp"]), hp_before - 34.0, "click %d: hp −34 (TS:485)" % (i + 1))
+		eq(sim.pirates.size(), 1, "click %d: still alive (TS:489 gate)" % (i + 1))
+	eq(int(ctx.dna), 0, "no DNA before the kill")
+	sim.update(1.0 / 60.0, _inp({"clicked": true, "wx": 0.0, "wy": -900.0}))
+	eq(sim.pirates.size(), 0, "hp ≤ 0 → the pirate splices (TS:490)")
+	eq(sim.pirateTtl.size(), 0, "the ttl row splices (TS:491)")
+	eq(rec["toasts"][rec["toasts"].size() - 1], [tr("Pirate destroyed! +30 DNA"), "good", "💥"],
+		"the kill toast (TS:492)")
+	eq(int(ctx.dna), 30, "addDna(30) on the kill (TS:493)")
+	# the kill frame's audio: zap + boom
+	var zap_i := -1
+	var boom_i := -1
+	for i in rec["audio"].size():
+		if String(rec["audio"][i][0]) == "zap":
+			zap_i = i
+		if String(rec["audio"][i][0]) == "boom":
+			boom_i = i
+	ok(zap_i >= 0, "audio zap 0.7 on every hit (TS:487)")
+	ok(boom_i >= 0, "audio boom 0.6 on the kill (TS:495)")
+	# the kill frame fired the 20-particle death burst
+	var death_bursts := 0
+	for b in rec["bursts"]:
+		if int(b[2]) == 20:
+			death_bursts += 1
+	eq(death_bursts, 1, "the death burst n 20 (TS:494)")
+
+	# the clickD < 60 STRICT boundary (TS:484): a click 60 units away misses
+	# and is NOT consumed
+	sim.pirates = [{"x": 0.0, "y": -900.0, "vx": 0.0, "vy": 0.0, "hp": 140.0, "gait": 0.0}]
+	sim.pirateTtl = [40.0]
+	var inp_edge: Dictionary = _inp({"clicked": true, "wx": 60.0, "wy": -900.0})
+	sim.update(1.0 / 60.0, inp_edge)
+	eq(float(sim.pirates[0]["hp"]), 140.0, "clickD exactly 60 → no hit (strict <, TS:484)")
+	eq(bool(inp_edge.get("take_click", false)), false, "the miss is NOT consumed (TS:486 not reached)")
+	sim.update(1.0 / 60.0, _inp({"clicked": true, "wx": 59.9, "wy": -900.0}))
+	eq(float(sim.pirates[0]["hp"]), 106.0, "clickD 59.9 → hit (TS:484)")
+
+
+# ---- black holes (TS:436-452 + spawn :840-849) -------------------------------------------
+
+func test_black_holes() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var ctx: Variant = m["ctx"]
+	sim.invuln = 0.0
+	sim.sx = 0.0
+	sim.sy = -900.0
+
+	# spawnBlackHole: ring 1000, the vx/vy range(−12,12) pair, ttl 45 (TS:840-849)
+	var probe: Variant = _probe(sim)
+	var ea: float = probe.next() * TAU
+	var evx: float = probe.range(-12.0, 12.0)
+	var evy: float = probe.range(-12.0, 12.0)
+	sim.spawn_black_hole()
+	eq(sim.blackHoles.size(), 1, "one hole spawned (TS:842)")
+	approx(float(sim.blackHoles[0]["x"]), 0.0 + cos(ea) * 1000.0, "hole ring x 1000 (TS:843)")
+	approx(float(sim.blackHoles[0]["y"]), -900.0 + sin(ea) * 1000.0, "hole ring y 1000 (TS:844)")
+	approx(float(sim.blackHoles[0]["vx"]), evx, "hole vx range(−12,12) (TS:845)")
+	approx(float(sim.blackHoles[0]["vy"]), evy, "hole vy range(−12,12) (TS:846)")
+	eq(float(sim.blackHoles[0]["ttl"]), 45.0, "hole ttl 45 (TS:847)")
+	eq(int(sim.rng.state()), int(probe.state()), "the spawn consumed angle + 2 velocity draws")
+
+	# the PULL at pinned distances (TS:438-443): d 500 → 24000/500 = 48
+	sim.blackHoles = [{"x": 500.0, "y": -900.0, "vx": 0.0, "vy": 0.0, "ttl": 45.0}]
+	sim.svx = 0.0
+	sim.svy = 0.0
+	sim.update(0.5, _inp())
+	approx(float(sim.svx), (24000.0 / 500.0) * 0.5, "pull at d 500: (24000/500)·dt toward the hole (TS:440-442)")
+	eq(float(sim.svy), 0.0, "no lateral pull (the hole sits on the x axis)")
+
+	# the max(80, d) clamp: d 79 → 24000/80 = 300 (TS:440)
+	sim.blackHoles = [{"x": 79.0, "y": -900.0, "vx": 0.0, "vy": 0.0, "ttl": 45.0}]
+	sim.svx = 0.0
+	sim.update(0.5, _inp())
+	approx(float(sim.svx), (24000.0 / 80.0) * 0.5, "pull at d 79 clamps to 24000/80 (TS:440)")
+
+	# the d < 600 STRICT boundary (TS:439)
+	sim.blackHoles = [{"x": 600.0, "y": -900.0, "vx": 0.0, "vy": 0.0, "ttl": 45.0}]
+	sim.svx = 0.0
+	sim.update(0.5, _inp())
+	eq(float(sim.svx), 0.0, "d = 600 → NO pull (strict <, TS:439)")
+
+	# the d > 0.001 guard: a hole AT the ship pulls nothing but still damages
+	# (the damage branch has no such guard, TS:444) — dt 1/60 keeps the hurtT
+	# set observable past the decay (max(0, 1 − 3/60) = 0.95)
+	sim.blackHoles = [{"x": 0.0, "y": -900.0, "vx": 0.0, "vy": 0.0, "ttl": 45.0}]
+	sim.svx = 0.0
+	sim.shp = 100.0
+	sim.hurtT = 0.0
+	sim.update(1.0 / 60.0, _inp())
+	eq(float(sim.svx), 0.0, "d 0 → no pull (the 0.001 guard, TS:439)")
+	approx(float(sim.shp), 100.0 - 60.0 / 60.0, "d 0 < 40 → shp −60·dt (TS:445)")
+	approx(float(sim.hurtT), 0.95, "hurtT set 1, decayed 3/60 (TS:446→:606)")
+
+	# the d < 40 STRICT boundary (TS:444)
+	sim.blackHoles = [{"x": 40.0, "y": -900.0, "vx": 0.0, "vy": 0.0, "ttl": 45.0}]
+	sim.shp = 100.0
+	sim.update(0.5, _inp())
+	eq(float(sim.shp), 100.0, "d = 40 → NO damage (strict <, TS:444)")
+	sim.blackHoles = [{"x": 39.9, "y": -900.0, "vx": 0.0, "vy": 0.0, "ttl": 45.0}]
+	sim.shp = 100.0
+	sim.update(0.5, _inp())
+	approx(float(sim.shp), 100.0 - 30.0, "d 39.9 → damage (TS:444)")
+
+	# the invuln gate covers BOTH the pull and the damage; the drift/ttl are
+	# UNGATED (TS:439/444 vs :448-450)
+	sim.blackHoles = [{"x": 100.0, "y": -900.0, "vx": 12.0, "vy": -5.0, "ttl": 1.0}]
+	sim.invuln = 2.0
+	sim.svx = 0.0
+	sim.shp = 100.0
+	sim.update(0.5, _inp())
+	eq(float(sim.svx), 0.0, "invuln → no pull (TS:439)")
+	eq(float(sim.shp), 100.0, "invuln → no damage (TS:444)")
+	approx(float(sim.blackHoles[0]["x"]), 106.0, "the drift runs ungated (TS:448)")
+	approx(float(sim.blackHoles[0]["ttl"]), 0.5, "the ttl decays ungated (TS:450)")
+	sim.invuln = 0.0
+
+	# the ttl filter (TS:452): ttl ≤ 0 → the hole is gone
+	sim.blackHoles = [{"x": 0.0, "y": -900.0, "vx": 12.0, "vy": -5.0, "ttl": 0.3}]
+	sim.update(0.4, _inp())
+	eq(sim.blackHoles.size(), 0, "ttl ≤ 0 → filtered out (TS:452)")
+	sim.blackHoles = [{"x": 0.0, "y": -900.0, "vx": 0.0, "vy": 0.0, "ttl": 0.3}]
+	sim.update(0.2, _inp())
+	eq(sim.blackHoles.size(), 1, "ttl > 0 → the hole survives (TS:452)")
+
+
+# ---- ship death (TS:584-602) --------------------------------------------------------------
+
+func test_ship_death() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	var ctx: Variant = m["ctx"]
+	sim.sx = 500.0
+	sim.sy = 500.0
+	sim.svx = 30.0
+	sim.svy = 40.0
+	sim.shp = 0.0
+	sim.invuln = 0.0
+	ctx.dna = 100
+	var cargo_row: Dictionary = {"genome": GenomeLib.default_genome(), "name": "Keeper"}
+	sim.cargo = [cargo_row, cargo_row, cargo_row]
+	sim.pirates = [{"x": 0.0, "y": 0.0, "vx": 0.0, "vy": 0.0, "hp": 1.0, "gait": 0.0},
+		{"x": 1.0, "y": 1.0, "vx": 0.0, "vy": 0.0, "hp": 2.0, "gait": 0.0}]
+	sim.pirateTtl = [10.0, 11.0]
+	sim.blackHoles = [
+		{"x": 0.0, "y": -900.0, "vx": 0.0, "vy": 0.0, "ttl": 45.0},    # d 0 from the respawn
+		{"x": 0.0, "y": -1700.0, "vx": 0.0, "vy": 0.0, "ttl": 45.0},   # d 800 → kept
+		{"x": 700.0, "y": -900.0, "vx": 0.0, "vy": 0.0, "ttl": 45.0},  # d 700 → culled (strict >)
+	]
+	ctx.flags.erase("spaceWorld")
+	sim.update(0.1, _inp())
+	# the respawn + bill (TS:585-594)
+	eq(float(sim.shp), 50.0, "shp = shpMax·0.5 (TS:586)")
+	eq(int(ctx.dna), 85, "lost = round(dna·0.15) = 15 (TS:587-588)")
+	eq(rec["toasts"][0], ["%s %d DNA" % [tr("Ship destroyed! Lost"), 15], "bad", "💀"],
+		"the death toast (TS:591)")
+	eq(float(sim.sx), 0.0, "respawn sx 0 (TS:592)")
+	eq(float(sim.sy), -900.0, "respawn sy −900 (TS:592)")
+	eq(float(sim.svx), 0.0, "svx zeroed (TS:593)")
+	eq(float(sim.svy), 0.0, "svy zeroed (TS:593)")
+	approx(float(sim.invuln), 4.0 - 0.1, "invuln 4 (TS:594), then the :605 decay in the same frame (4−dt)")
+	# the cull radius 700 (TS:595-597 — must exceed the 600 pull radius or the
+	# killing hole chain-kills the respawn)
+	eq(sim.blackHoles.size(), 1, "holes ≤ 700 from the respawn are CULLED (b1 d 0, b3 d 700 strict >)")
+	approx(float(sim.blackHoles[0]["y"]), -1700.0, "the d-800 hole survived")
+	eq(sim.pirates.size(), 0, "pirates cleared (TS:598)")
+	eq(sim.pirateTtl.size(), 0, "ttls cleared (TS:599)")
+	eq(sim.cargo.size(), 3, "cargo SURVIVES — deleting specimens blocked seeding → the ending (TS:589-590)")
+	eq(rec["audio"][0], ["boom", 1.0, 0.0], "audio boom 1 (TS:600)")
+	eq(rec["shakes"][0], [10.0, 0.8], "camShakeFor(10, 0.8) (TS:601)")
+	eq(ctx.flags.has("spaceWorld"), false, "the death block does NOT persist (no TS persist call)")
+
+	# the Math.round curve: 30·0.15 = 4.5 → 5 (round half up)
+	sim.shp = 0.0
+	sim.invuln = 0.0
+	ctx.dna = 30
+	sim.update(0.1, _inp())
+	eq(int(ctx.dna), 25, "lost = round(4.5) = 5 (TS:587)")
+
+	# POST-ENDING: no DNA bill — you already won (TS:584/587)
+	sim.endingDone = true
+	sim.shp = 0.0
+	sim.invuln = 0.0
+	ctx.dna = 100
+	sim.update(0.1, _inp())
+	eq(int(ctx.dna), 100, "endingDone → lost 0 — the no-bill pin (TS:587 ternary)")
+	eq(rec["toasts"][rec["toasts"].size() - 1], ["%s %d DNA" % [tr("Ship destroyed! Lost"), 0], "bad", "💀"],
+		"the toast still reads 'Lost 0 DNA' (TS:591)")
+	eq(float(sim.shp), 50.0, "the respawn still runs post-ending (TS:586)")
+	sim.endingDone = false
+
+
+# ---- the ff e2e through a REAL eco + the 5 s persist cadence (TS:306-325 + :609-613) ------
+
+func test_ff_e2e_real_eco_and_persist_cadence() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	var ctx: Variant = m["ctx"]
+	# a REAL eco with a doomed carnivore: pop 8 single-species → cap = 0.18·pop
+	# (biomass-derived) → the dt·26 tick collapses it below the 0.4 floor.
+	# Frame 1 (dt·1) only dents it — the extinction lands exactly on frame 2.
+	var eco: Variant = EcoScript.new(RngLib.new_from(777))
+	eco.flora_cap = 140.0
+	eco.flora = 0.0
+	var doomed_genome: Dictionary = GenomeLib.clamp_genome(GenomeLib.default_genome())
+	doomed_genome["diet"] = "carnivore"
+	eco.add_species(doomed_genome, 8.0)
+	sim.planets[0]["eco"] = eco
+	sim.planets[0]["colony"] = {"pop": 1.0, "generations": 0.0}
+	sim.planets[0]["scanned"] = true
+	sim.planets[1]["eco"] = null
+	sim.planets[2]["eco"] = null
+	sim.planets[4]["eco"] = null
+	sim.invuln = 0.0
+	var doomed: Dictionary = eco.species[0]
+	ctx.world_stats["extinctions"] = 0
+	ctx.flags.erase("spaceWorld")
+
+	# frame 1: timeScale pre-reads ffHold 0 → tick dt·1 (TS:306/315)
+	sim.update(1.0, _inp({"keys_held": ["KeyF"]}))
+	eq(bool(doomed["extinct"]), false, "frame 1 (dt·1): the carnivore survives")
+	approx(float(doomed["pop"]), 8.0 + (0.5 * 8.0 * (1.0 - 8.0 / maxf(1.0, 8.0 * 1.0 * 0.18))
+		- 8.0 * 0.02) * (1.0 / 60.0), "frame 1 pop decay (the eco valve math, m = dt/60)")
+	approx(float(sim.planets[0]["colony"]["generations"]), 1.0 / 30.0, "generations += dt·1/30 (TS:323)")
+	var pop_a: float = 1.0 + 1.0 * 1.0 * 0.08 * (1.0 + 1.0 * 0.01) * maxf(0.0, 1.0 - 1.0 / 120.0)
+	approx(float(sim.planets[0]["colony"]["pop"]), pop_a, "colony growth ×ts 1 (TS:306/372)")
+
+	# frame 2: timeScale 26 → tick dt·26 → EXTINCTION through the REAL tick
+	sim.update(1.0, _inp({"keys_held": ["KeyF"]}))
+	eq(bool(doomed["extinct"]), true, "frame 2 (dt·26): the carnivore goes extinct (pop < 0.4)")
+	approx(float(doomed["pop"]), 0.0, "the dead line's pop clamps to 0")
+	eq(int(ctx.world_stats["extinctions"]), 1, "bump_extinction rode the REAL extinction (TS:317)")
+	eq(rec["toasts"][0], ["%s went extinct on %s" % [String(doomed["name"]), String(sim.planets[0]["name"])],
+		"chaos", "💀"], "the extinction toast through the real tick (TS:318)")
+	approx(float(sim.planets[0]["colony"]["generations"]), (1.0 + 26.0) / 30.0,
+		"generations += dt·26/30 (TS:323)")
+	var pop_b: float = pop_a + 1.0 * 26.0 * 0.08 * (1.0 + pop_a * 0.01) * maxf(0.0, 1.0 - pop_a / 120.0)
+	approx(float(sim.planets[0]["colony"]["pop"]), pop_b, "colony growth ×26 (TS:306/372)")
+
+	# frame 3: released — timeScale pre-read 26 but ffHold decays to 0 → no tick
+	sim.update(1.0, _inp())
+	eq(bool(doomed["extinct"]), true, "frame 3: no ff tick (the part-1 pre-read pin)")
+	# frames 4-5: idle — persistT 4, 5 (still not > 5)
+	sim.update(1.0, _inp())
+	sim.update(1.0, _inp())
+
+	# the persist cadence (TS:609-613): strict > 5 — 5.0 does NOT fire
+	eq(ctx.flags.has("spaceWorld"), false, "persistT 5.0 → NOT yet (strict >, TS:611)")
+	eq(float(sim.persistT), 5.0, "persistT accumulated 5·dt 1")
+	sim.update(1.0, _inp())
+	eq(float(sim.persistT), 0.0, "persistT reset to 0 after the fire (TS:612)")
+	ok(ctx.flags.has("spaceWorld"), "persistT > 5 → persistColonies (TS:613)")
+
+
+# ---- the R/G/V keys + tribute (TS:500-517, :851-870) ---------------------------------------
+
+func test_keys_and_tribute() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	var ctx: Variant = m["ctx"]
+	sim.invuln = 0.0
+
+	# V with no demand → nothing (TS:515)
+	sim.update(1.0 / 60.0, _inp({"keys_pressed": ["KeyV"]}))
+	eq(rec["toasts"], [], "V with tributeDemand 0 → nothing (TS:515 gate)")
+	eq(int(ctx.dna), 40, "no dna moved")
+
+	# demandTribute (TS:851-859)
+	sim.demand_tribute(50.0)
+	eq(float(sim.tributeDemand), 50.0, "the demand stored (TS:852)")
+	eq(rec["banners"][0], {"title": "THE VOID EMPIRE DEMANDS TRIBUTE",
+		"subtitle": "pay 50 DNA (press V) or face the raid", "kind": "danger", "ttl": 8},
+		"the demand banner (TS:853-857)")
+	eq(rec["audio"][0], ["alarm", 1.0, 0.0], "audio alarm 1 (TS:858)")
+
+	# V pays when dna ≥ demand (TS:861-866)
+	ctx.dna = 100
+	sim.update(1.0 / 60.0, _inp({"keys_pressed": ["KeyV"]}))
+	eq(int(ctx.dna), 50, "the tribute deducted (TS:864)")
+	eq(float(sim.tributeDemand), 0.0, "the demand zeroed (TS:866)")
+	eq(rec["toasts"][0], [tr("Tribute paid. The Void Empire is satisfied… for now."), "info", "📦"],
+		"the paid toast (TS:865)")
+
+	# V refuses when dna < demand (TS:867-869)
+	sim.tributeDemand = 50.0
+	ctx.dna = 30
+	sim.update(1.0 / 60.0, _inp({"keys_pressed": ["KeyV"]}))
+	eq(int(ctx.dna), 30, "no deduction on the refusal")
+	eq(float(sim.tributeDemand), 50.0, "the demand STANDS on the refusal")
+	eq(rec["toasts"][1], [tr("Not enough DNA — the raid is coming!"), "bad", "⚔️"],
+		"the raid-is-coming toast (TS:868)")
+
+	# payTribute with no demand → early return (TS:862)
+	sim.tributeDemand = 0.0
+	var st0: int = int(sim.rng.state())
+	sim.pay_tribute()
+	eq(rec["toasts"].size(), 2, "no demand → no toast (TS:862)")
+	eq(int(sim.rng.state()), st0, "the early return drew nothing")
+
+
+# ---- the chaos ctx WITH onEnd + the cooldown decay (TS:519-550) -----------------------------
+
+func test_chaos_ctx_and_on_end() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	var ctx: Variant = m["ctx"]
+	sim.invuln = 0.0
+	var chaos_rec: ChaosRec = ChaosRec.new()
+	sim.chaos = chaos_rec
+
+	# the FULL ctx (TS:520-525) — the same shape as civ + the storyteller
+	# hooks at their neutral defaults
+	sim.update(0.5, _inp())
+	eq(chaos_rec.calls.size(), 1, "chaos.update ran (TS:520)")
+	var call: Dictionary = chaos_rec.calls[0]
+	approx(float(call["dt"]), 0.5, "the dt passthrough")
+	approx(float(call["ctx"]["chaos"]), 0.15, "ctx.chaos (TS:521)")
+	approx(float(call["ctx"]["karma"]), 0.0, "ctx.karma (TS:521)")
+	approx(float(call["ctx"]["stageTime"]), 0.5, "ctx.stageTime = sim.time (TS:521)")
+	approx(float(call["ctx"]["gapMult"]), 1.0, "gapMult = chaosGapMult·gapBias at the defaults (TS:522)")
+	eq(String(call["ctx"]["mood"]), "test", "mood at the neutral default (TS:523)")
+	approx(float(call["ctx"]["warnScale"]), 1.0, "warnScale at the neutral default (TS:524)")
+	ok(call["hooks"].has("onWarn") and call["hooks"].has("onApply") and call["hooks"].has("onEnd"),
+		"the hooks carry onWarn + onApply + onEnd (TS:526-547)")
+
+	# the storyteller hooks bend the ctx (the civ pattern)
+	m["hooks"]["get_gap_bias"] = func(): return 2.0
+	m["hooks"]["get_mood"] = func(): return "grim"
+	m["hooks"]["get_warn_scale"] = func(): return 1.5
+	sim.update(0.5, _inp())
+	var call2: Dictionary = chaos_rec.calls[1]
+	approx(float(call2["ctx"]["gapMult"]), 2.0, "gapBias hook rode gapMult (TS:522)")
+	eq(String(call2["ctx"]["mood"]), "grim", "the mood hook (TS:523)")
+	approx(float(call2["ctx"]["warnScale"]), 1.5, "the warnScale hook (TS:524)")
+
+	# onWarn (TS:526-530): a warned def banners danger + alarm; an unwarned
+	# def is silent
+	var hooks: Dictionary = call["hooks"]
+	hooks["onWarn"].call({"id": "x", "warn": "Something glows beneath the void"})
+	eq(rec["banners"][0], {"title": "Something glows beneath the void", "kind": "danger", "ttl": 2.4},
+		"onWarn banner (TS:528)")
+	eq(rec["audio"][0], ["alarm", 0.5, 0.0], "onWarn alarm 0.5 (TS:529)")
+	var banners_n: int = rec["banners"].size()
+	hooks["onWarn"].call({"id": "y"})
+	eq(rec["banners"].size(), banners_n, "an unwarned def → no banner (TS:527 gate)")
+
+	# onApply (TS:532-538): the chaos banner + addChaos(0.03) + the note
+	hooks["onApply"].call({"id": "z", "name": "Meteor Storm"})
+	eq(rec["banners"][banners_n], {"title": "Meteor Storm", "kind": "chaos"},
+		"onApply banner (TS:533)")
+	approx(float(ctx.chaos), 0.18, "addChaos(0.03) (TS:534)")
+	eq(rec["notes"], [0.0], "noteChaosEvent(playtime) (TS:537)")
+
+	# onEnd — THE TRIBUTE RULE (TS:539-547): an unpaid demand → 3 pirates +
+	# the demand zeroed
+	sim.tributeDemand = 5.0
+	var probe: Variant = _probe(sim)
+	probe.next()
+	probe.next()
+	probe.next()
+	hooks["onEnd"].call({"id": "tribute"})
+	eq(sim.pirates.size(), 3, "unpaid tribute → spawnPirates(3) (TS:543)")
+	eq(float(sim.tributeDemand), 0.0, "the demand zeroed (TS:544)")
+	eq(int(sim.rng.state()), int(probe.state()), "the spawn consumed exactly the 3 angle draws")
+	# a paid-up tribute end spawns nothing
+	probe = _probe(sim)
+	hooks["onEnd"].call({"id": "tribute"})
+	eq(sim.pirates.size(), 3, "demand 0 → no pirates (TS:542 gate)")
+	eq(int(sim.rng.state()), int(probe.state()), "no draw without the demand")
+	# a non-tribute end never touches the rule
+	sim.tributeDemand = 7.0
+	hooks["onEnd"].call({"id": "nebula_flip"})
+	eq(float(sim.tributeDemand), 7.0, "a non-tribute end leaves the demand (TS:540 gate)")
+	eq(sim.pirates.size(), 3, "no pirates from a non-tribute end")
+
+	# the resurveyCd decay with the floor (TS:550)
+	sim.resurveyCd = 9.0
+	sim.update(0.5, _inp())
+	approx(float(sim.resurveyCd), 8.5, "resurveyCd −dt (TS:550)")
+	sim.resurveyCd = 0.2
+	sim.update(0.5, _inp())
+	eq(float(sim.resurveyCd), 0.0, "the decay floors at 0 (TS:550 max)")
+
+
+# ---- the finale / ending state machine (TS:552-582) ------------------------------------------
+
+func test_finale_and_ending() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	var ctx: Variant = m["ctx"]
+	sim.invuln = 0.0
+	_isolate_planet(sim, -1)  # keep −1 → EVERY planet out to orbit 5000
+
+	# thrival gate: two thriving + one at 19.9 → NO finale (TS:553-554)
+	for i in 3:
+		sim.planets[i]["colony"] = {"pop": 20.0 if i < 2 else 19.9, "generations": 0.0}
+	sim.update(1.0 / 60.0, _inp())
+	eq(sim.finale, null, "2 thriving + 19.9 → no finale (the pop ≥ 20 gate)")
+	# the third crosses 20 → the core awakens (TS:554-559)
+	sim.planets[2]["colony"]["pop"] = 20.0
+	sim.update(1.0 / 60.0, _inp())
+	var fin: Dictionary = sim.finale
+	ok(fin != null, "3 thriving → the finale spawned (TS:556)")
+	eq(float(fin["x"]), 0.0, "finale x 0 (TS:556)")
+	eq(float(fin["y"]), -1900.0, "finale y −1900 (TS:556)")
+	eq(bool(fin["active"]), true, "finale active (TS:556)")
+	# the spawn frame ALREADY advances t (TS:556 set → :560 `if (finale)` same
+	# frame): t = dt on the awakening frame
+	approx(float(fin["t"]), 1.0 / 60.0, "finale t = dt after the spawn frame (TS:556/561)")
+	eq(rec["banners"][0], {"title": "THE CHAOS CORE AWAKENS",
+		"subtitle": "something pulses beyond the outer light", "kind": "chaos", "ttl": 6},
+		"the AWAKENS banner (TS:557)")
+	eq(rec["audio"][0], ["ascend", 1.0, 0.0], "audio ascend 1 (TS:558)")
+	# the bearing fired the SAME frame (ship at (0,−900) → d 1000 → up)
+	eq(rec["objectives"][0], "THE CHAOS CORE PULLS — fly 1000px up to the storm",
+		"the per-update bearing: d rounded + up/down (TS:566-568)")
+	# no re-trigger while the finale exists (TS:554 !this.finale)
+	sim.update(1.0 / 60.0, _inp())
+	eq(rec["banners"].size(), 1, "no re-trigger while the finale lives (TS:554)")
+	approx(float(fin["t"]), 2.0 / 60.0, "finale.t += dt again (TS:561)")
+
+	# the DOWN bearing: the ship below the core (finale.y > sy)
+	sim.sx = 0.0
+	sim.sy = -2000.0
+	sim.update(1.0 / 60.0, _inp())
+	eq(rec["objectives"][rec["objectives"].size() - 1], "THE CHAOS CORE PULLS — fly 100px down to the storm",
+		"the ship below the core → 'down' (TS:568 ternary)")
+
+	# the d < 60 ENDING (TS:569-573): the win hits disk immediately
+	sim.sx = 0.0
+	sim.sy = -1850.0  # d 50
+	ctx.flags.erase("spaceWorld")
+	var audio_n: int = rec["audio"].size()
+	sim.update(1.0 / 60.0, _inp())
+	eq(bool(sim.endingDone), true, "d < 60 → endingDone (TS:569-570)")
+	eq(rec["audio"].size(), audio_n + 1, "the ending ascend (TS:571)")
+	ok(ctx.flags.has("spaceWorld"), "the win state persisted immediately (TS:572)")
+	eq(bool(JSON.parse_string(String(ctx.flags["spaceWorld"]))["endingDone"]), true,
+		"the persisted blob carries endingDone (TS:572)")
+	# the objective on the flip frame still showed the PULL line (the write
+	# precedes the flip, TS:566 before :569)
+	eq(rec["objectives"][rec["objectives"].size() - 1].find("THE CHAOS CORE PULLS") >= 0, true,
+		"the flip frame's objective was the pull line (the TS write order)")
+	# the post-ending calm line (TS:566-567)
+	sim.update(1.0, _inp())
+	eq(rec["objectives"][rec["objectives"].size() - 1], tr("the core sleeps — the sandbox is yours"),
+		"post-ending → the calm line (TS:567)")
+	# endingT started on the FLIP frame (the same-frame :575 +=): 1/60, +1 now
+	approx(float(sim.endingT), 1.0 + 1.0 / 60.0, "endingT += dt (TS:576; the flip frame seeded 1/60)")
+
+	# the DISMISS rule (TS:578-581): any unconsumed click or key hands the
+	# sandbox back; dismissT = endingT AT the dismiss frame
+	sim.update(1.0, _inp({"clicked": true}))
+	eq(bool(sim.endingDismissed), true, "an unconsumed click dismisses (TS:578-579)")
+	approx(float(sim.dismissT), 2.0 + 1.0 / 60.0, "dismissT = endingT at the dismiss frame (TS:580)")
+
+	# anyKeyPressed also dismisses (TS:578) — a fresh run
+	var m2 := _mk_sim()
+	var sim2: Variant = m2["sim"]
+	sim2.endingDone = true
+	sim2.update(1.0, _inp({"keys_pressed": ["KeyW"]}))
+	eq(bool(sim2.endingDismissed), true, "anyKeyPressed dismisses (TS:578)")
+	approx(float(sim2.dismissT), 1.0, "dismissT after one dt-1 frame")
+
+	# a PANEL-CONSUMED click does NOT dismiss (the takeClick chain, TS:416
+	# before :578): the ship sits near a scanned planet whose re-survey is on
+	# cooldown — the enabled scan rect eats the click
+	var m3 := _mk_sim()
+	var sim3: Variant = m3["sim"]
+	var rec3: Dictionary = m3["rec"]
+	_place_planet(sim3, 0, 0.0, -1850.0, 50.0)
+	_isolate_planet(sim3, 0)
+	sim3.planets[0]["scanned"] = true
+	sim3.resurveyCd = 9.0
+	sim3.panel_rects = [_rect("scan", true, 700.0, 100.0, 200.0, 40.0)]
+	sim3.endingDone = true
+	sim3.finale = {"x": 0.0, "y": -1900.0, "active": true, "t": 0.0}
+	sim3.sx = 0.0
+	sim3.sy = -1850.0
+	sim3.update(1.0, _inp({"clicked": true, "mx": 750.0, "my": 110.0}))
+	eq(bool(sim3.endingDismissed), false, "a panel-consumed click does NOT dismiss (TS:578 read-after-take)")
+	ok(_toasted(rec3, "Survey instruments recharging"), "the panel really consumed the click (the dispatch ran)")
+	# a later unconsumed click dismisses
+	sim3.update(1.0, _inp({"clicked": true, "mx": 0.0, "my": 0.0}))
+	eq(bool(sim3.endingDismissed), true, "the free click dismisses (TS:578)")
+
+	# endingDone blocks a re-trigger + a re-flip (TS:554/569 gates)
+	var m4 := _mk_sim()
+	var sim4: Variant = m4["sim"]
+	var rec4: Dictionary = m4["rec"]
+	sim4.endingDone = true
+	for i in 3:
+		sim4.planets[i]["colony"] = {"pop": 20.0, "generations": 0.0}
+	sim4.update(1.0 / 60.0, _inp())
+	eq(sim4.finale, null, "endingDone → no new finale on 3 thriving (TS:554)")
+	eq(rec4["banners"].size(), 0, "no AWAKENS replay (TS:554)")
+	# a live finale + endingDone: d < 60 does NOT re-flip or re-persist
+	sim4.finale = {"x": 0.0, "y": -1900.0, "active": true, "t": 0.0}
+	sim4.sx = 0.0
+	sim4.sy = -1900.0
+	var audio_n4: int = rec4["audio"].size()
+	sim4.update(1.0 / 60.0, _inp())
+	eq(rec4["audio"].size(), audio_n4, "d < 60 post-ending → no second ascend (TS:569 gate)")
+
+
+# ---- scanPlanet + repairHull (TS:1233-1272) ---------------------------------------------------
+
+func test_scan_and_repair() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	var rec: Dictionary = m["rec"]
+	var ctx: Variant = m["ctx"]
+	sim.invuln = 0.0
+	var p0: Dictionary = _place_planet(sim, 0, 1000.0, 0.0, 50.0)
+	_isolate_planet(sim, 0)
+	sim.sx = 900.0
+	sim.sy = 0.0
+
+	# repairHull at full hull → early return (TS:1234)
+	sim.shp = 100.0
+	ctx.dna = 100
+	sim.repair_hull()
+	eq(int(ctx.dna), 100, "full hull → no spend (TS:1234)")
+	eq(rec["toasts"], [], "no toast at full hull")
+
+	# the spend refusal (TS:1235-1238)
+	sim.shp = 50.0
+	ctx.dna = 49
+	sim.repair_hull()
+	eq(rec["toasts"][0], [tr("Not enough DNA"), "bad", "🧬"], "dna 49 → 'Not enough DNA' (TS:1236)")
+	eq(float(sim.shp), 50.0, "hull unchanged on the refusal")
+
+	# the repair (TS:1239-1241)
+	ctx.dna = 100
+	sim.repair_hull()
+	eq(float(sim.shp), 100.0, "shp = shpMax (TS:1239)")
+	eq(int(ctx.dna), 50, "the repair spent 50 (TS:1235)")
+	eq(rec["audio"][0], ["heal", 0.9, 0.0], "audio heal 0.9 (TS:1240)")
+	eq(rec["toasts"][1], [tr("Hull fully repaired"), "good", "🔧"], "the repaired toast (TS:1241)")
+
+	# scanPlanet — the fresh scan (TS:1261-1271): discovers EVERY living
+	# species, pays 15, toasts the count. The two species carry DISTINCT
+	# genomes — identical genomes dedup into ONE bestiary hash.
+	var eco: Variant = _craft_eco(sim, 0, [4.0, 2.0])
+	var g2: Dictionary = GenomeLib.clone_genome(eco.species[1]["genome"])
+	g2["flagella"] = 5
+	eco.species[1]["genome"] = g2
+	var sp_names: Array = [String(eco.species[0]["name"]), String(eco.species[1]["name"])]
+	ctx.dna = 0
+	ctx.flags.erase("spaceWorld")
+	sim.scan_planet(p0)
+	eq(bool(p0["scanned"]), true, "scanned latched (TS:1261)")
+	eq(int(ctx.dna), 15, "survey pay 15 (TS:1266)")
+	eq(rec["toasts"][2], ["%s +15" % tr("Scan complete: 2 species on %s" % String(p0["name"])),
+		"good", "📡"], "the scan toast +15 (TS:1267)")
+	eq(rec["audio"][1], ["dna", 0.7, 0.0], "audio dna 0.7 (TS:1271)")
+	for sp_name in sp_names:
+		var found := false
+		for k in ctx.bestiary:
+			if String(ctx.bestiary[k]["name"]) == sp_name:
+				found = true
+		ok(found, "discover rode the scan for '%s' (TS:1263-1264)" % sp_name)
+	eq(ctx.flags.has("spaceWorld"), false, "the FRESH scan does NOT persist (no TS persist call)")
+
+	# the eco-null scan (a barren planet) (TS:1268-1270) — the dna audio plays
+	# OUTSIDE the if/else for BOTH branches (TS:1271)
+	var p3: Dictionary = _place_planet(sim, 3, 1000.0, 0.0, 50.0)
+	_isolate_planet(sim, 3)
+	sim.scan_planet(p3)
+	eq(bool(p3["scanned"]), true, "the barren scan latches too (TS:1261)")
+	eq(rec["toasts"][3], ["Scan complete: %s is lifeless — bring life!" % String(p3["name"]),
+		"info", "📡"], "the lifeless toast (TS:1269)")
+	eq(int(ctx.dna), 15, "no pay for a lifeless rock")
+	eq(rec["audio"][2], ["dna", 0.7, 0.0], "the lifeless branch STILL plays the dna audio (TS:1271)")
+
+	# the RE-SURVEY trickle (TS:1245-1259): cd 0 → pays 3, sets cd 4, the
+	# floatWorld text, dna audio, persists
+	ctx.dna = 0
+	ctx.flags.erase("spaceWorld")
+	sim.scan_planet(p0)
+	eq(float(sim.resurveyCd), 4.0, "resurveyCd 4 (TS:1253)")
+	eq(int(ctx.dna), 3, "the re-survey pays 3 (TS:1254-1255)")
+	eq(rec["floats"][0], [float(p0["x"]), float(p0["y"]) - float(p0["r"]) - 14.0,
+		"+3 %s" % tr("survey"), "#8fd0ff", 12.0], "the floatWorld survey text (TS:1256)")
+	eq(rec["audio"][3], ["dna", 0.4, 0.0], "audio dna 0.4 (TS:1257)")
+	ok(ctx.flags.has("spaceWorld"), "the re-survey persists (TS:1258)")
+
+	# the cooldown gate (TS:1249-1251): cd > 0 → the recharge toast, no pay
+	ctx.dna = 10
+	sim.scan_planet(p0)
+	ok(_toasted(rec, "Survey instruments recharging"), "cd > 0 → the recharge toast (TS:1250)")
+	eq(int(ctx.dna), 10, "no pay under the cooldown")
+	eq(float(sim.resurveyCd), 4.0, "cd untouched by the gated return (TS:1251)")
+
+
+# ---- debug_state extension (the documented bot-parity surface) ---------------------------------
+
+func test_debug_state_part2_fields() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	sim.pirates = [{"x": 1.0, "y": 2.0, "vx": 0.0, "vy": 0.0, "hp": 140.0, "gait": 0.0}]
+	sim.blackHoles = [{"x": 0.0, "y": -900.0, "vx": 0.0, "vy": 0.0, "ttl": 45.0}]
+	sim.beamT = 1.2
+	sim.tributeDemand = 5.0
+	sim.resurveyCd = 3.0
+	sim.pirateLull = true
+	sim.endingDismissed = true
+	sim.dismissT = 7.0
+	sim.endingT = 8.0
+	sim.persistT = 2.0
+	var st: Dictionary = sim.debug_state()
+	# the part-1 fields still ride
+	ok(st.has("planets") and st.has("cargo") and st.has("abductCount"), "the part-1 fields still exposed")
+	# the part-2 machine fields
+	ok(st.has("pirates") and st.has("blackHoles"), "pirates + blackHoles exposed")
+	ok(st.has("beamT") and st.has("tributeDemand") and st.has("resurveyCd"), "beamT/tributeDemand/resurveyCd exposed")
+	ok(st.has("pirateLull") and st.has("persistT"), "pirateLull/persistT exposed")
+	ok(st.has("endingT") and st.has("dismissT"), "endingT/dismissT exposed")
+	eq(int(st["pirates"].size()), 1, "the pirates read")
+	eq(float(st["beamT"]), 1.2, "the beamT read")
+	eq(float(st["tributeDemand"]), 5.0, "the tributeDemand read")
+	eq(bool(st["pirateLull"]), true, "the pirateLull read")
+
