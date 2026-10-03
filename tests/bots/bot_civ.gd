@@ -470,11 +470,19 @@ func civ_tick(game: Variant) -> String:
 			# mil back to 5 through REAL Q taps — one per tick, stopping the
 			# frame mil reaches 5. Regen may already have refilled partway
 			# through the intervening legs (the beats keep firing while
-			# total < output), so the tap COUNT is whatever the seed says —
-			# but the climb stops EXACTLY at 5 (each Q adds 1, each regen
-			# beat adds 1, and total = 5+2+3 = output never overflows), so a
-			# transfer toast can never fire here and the honest-launch
-			# precondition (mil ≥ 5) is re-proven by the launch leg itself.
+			# total < output), so the tap COUNT is whatever the seed says.
+			# The exit enforces mil >= 5, not exactly 5: a 6 s regen beat can
+			# land in the SAME update as a tap (update() order — regen
+			# :309-316 before the slider keys :318-334), double-advancing mil
+			# to 6 with a "+1 mil ← econ" transfer toast. That cannot
+			# false-pass: the honest-launch precondition (mil ≥ 5) still
+			# holds, and a power-10 resolve would net +40 and trip the flight
+			# leg's "+3 influence" read-back LOUDLY. It is deterministic
+			# given the seed, and at the pinned seed it does not fire (both
+			# recorded runs end econ 3.0, mil_before 5 → power 9). A seed
+			# change must re-derive this ordering.
+			if float(sim.mil) < 5.0:
+				_tap(game, KEY_Q, "KeyQ")
 			if float(sim.mil) < 5.0:
 				_tap(game, KEY_Q, "KeyQ")
 			step(game, 1)
@@ -652,7 +660,7 @@ func _flight_tick(game: Variant, sim: Variant, next: String, want_capture: bool)
 				if String(f["text"]) == "+3 influence":
 					floater_ok = true
 		if not floater_ok:
-			return "flight: the '+3 influence' floatWorld never rendered (the net math read-back)"
+			return "flight: the '+3 influence' floatWorld never rendered (the net math read-back; the victory_prep same-frame regen+Q double-advance case would legitimately read '+4 influence' — see that leg's comment)"
 		floater_reads += 1
 		resolves_seen += 1
 		_probe = {}
