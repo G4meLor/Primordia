@@ -569,26 +569,29 @@ func test_restore_cargo_clamp_merge() -> void:
 	eq(sim.cargo.size(), 0, "non-array cargo → [] (TS:247-251)")
 
 
-func test_restore_ledger_and_ending_outside_the_gate() -> void:
+func test_restore_ledger_and_ending_inside_the_gate() -> void:
+	# GATE PLACEMENT (the T1-review AST fact): the abductCount + ending blocks
+	# nest INSIDE the shapes gate (TS:201-265 — the trailing :265 closer closes
+	# the gate; the TS source's 8-space indentation there is a formatting
+	# artifact) — a corrupt/wrong-length blob discards the WHOLE restore incl.
+	# the ledger and the won-run state
 	var m := _mk_sim()
 	var sim: Variant = m["sim"]
 	var ctx: Variant = m["ctx"]
-	# a SHAPES-FAILING blob (planets not an array) — the abductCount ledger and
-	# the ending persistence live OUTSIDE the shapes gate (TS:253-264 are
-	# try-block siblings of the `if (shapesOk...)`, so they restore anyway)
+	# a SHAPES-FAILING blob (planets not an array) restores NOTHING
 	ctx.flags["spaceWorld"] = JSON.stringify(_whitelist_blob("notarray", {
 		"abductCount": {"Glorbus": 3},
 		"endingDone": true, "endingDismissed": true,
 	}))
 	sim.on_enter()
 	eq(sim.planets.size(), 6, "planets untouched by the shapes failure")
-	eq(int(sim.abductCount["Glorbus"]), 3, "abductCount ledger restored DESPITE the shapes failure (TS:253-255)")
-	eq(bool(sim.endingDone), true, "endingDone restored despite the shapes failure (TS:257-264)")
-	eq(bool(sim.endingDismissed), true, "endingDismissed === true restored (TS:259)")
-	eq(float(sim.endingT), 99.0, "dismissed → endingT 99 (TS:260)")
-	eq(float(sim.dismissT), 99.0, "dismissed → dismissT 99 (TS:261)")
-	eq(sim.finale, null, "a dismissed ending sleeps — finale null (TS:263)")
-	# a length mismatch ALSO leaves the planets but restores the ledger
+	eq(sim.abductCount, {}, "corrupt shapes → the ledger is NOT restored (inside the gate, TS:201-265)")
+	eq(bool(sim.endingDone), false, "corrupt shapes → endingDone NOT restored (TS:257)")
+	eq(bool(sim.endingDismissed), false, "corrupt shapes → endingDismissed NOT restored")
+	eq(float(sim.endingT), 0.0, "endingT untouched by the shapes failure")
+	eq(float(sim.dismissT), 0.0, "dismissT untouched by the shapes failure")
+	eq(sim.finale, null, "corrupt shapes → no finale re-arm (TS:263)")
+	# a length mismatch discards the ledger too
 	var m2 := _mk_sim(SEED, m["ctx"])
 	var sim2: Variant = m2["sim"]
 	var gen_r: float = float(sim2.planets[0]["r"])
@@ -596,42 +599,73 @@ func test_restore_ledger_and_ending_outside_the_gate() -> void:
 	ctx.flags["spaceWorld"] = JSON.stringify(_whitelist_blob(rows5, {"abductCount": {"Zor": 1}}))
 	sim2.on_enter()
 	eq(float(sim2.planets[0]["r"]), gen_r, "length mismatch → planets untouched (TS:201)")
-	eq(int(sim2.abductCount["Zor"]), 1, "ledger restored on a length mismatch (TS:253)")
-	# a WON but UNDISMISSED run re-arms the finale orb (TS:257-264)
+	eq(sim2.abductCount, {}, "length mismatch → ledger NOT restored (inside the gate)")
+	# through a VALID shapes gate the ledger + ending restore as before
+	var rows6: Array = [_row({}), _row({}), _row({}), _row({}), _row({}), _row({})]
 	var m3 := _mk_sim(SEED, m["ctx"])
 	var sim3: Variant = m3["sim"]
-	ctx.flags["spaceWorld"] = JSON.stringify(_whitelist_blob("notarray", {
-		"endingDone": true, "endingDismissed": false,
+	ctx.flags["spaceWorld"] = JSON.stringify(_whitelist_blob(rows6, {
+		"abductCount": {"Glorbus": 3},
+		"endingDone": true, "endingDismissed": true,
 	}))
 	sim3.on_enter()
-	eq(bool(sim3.endingDone), true, "endingDone latches")
-	eq(bool(sim3.endingDismissed), false, "endingDismissed false on a non-true saved value (TS:259)")
-	eq(float(sim3.endingT), 0.0, "endingT UNCHANGED when not dismissed (TS:260 ternary)")
-	eq(float(sim3.dismissT), 0.0, "dismissT unchanged when not dismissed (TS:261)")
-	var fin: Dictionary = sim3.finale
+	eq(int(sim3.abductCount["Glorbus"]), 3, "valid shapes → the ledger restores (TS:253-255)")
+	eq(bool(sim3.endingDone), true, "endingDone latches (TS:257-264)")
+	eq(bool(sim3.endingDismissed), true, "endingDismissed === true restored (TS:259)")
+	eq(float(sim3.endingT), 99.0, "dismissed → endingT 99 (TS:260)")
+	eq(float(sim3.dismissT), 99.0, "dismissed → dismissT 99 (TS:261)")
+	eq(sim3.finale, null, "a dismissed ending sleeps — finale null (TS:263)")
+	# a WON but UNDISMISSED run re-arms the finale orb (valid shapes)
+	var m4 := _mk_sim(SEED, m["ctx"])
+	var sim4: Variant = m4["sim"]
+	ctx.flags["spaceWorld"] = JSON.stringify(_whitelist_blob(rows6, {
+		"endingDone": true, "endingDismissed": false,
+	}))
+	sim4.on_enter()
+	eq(bool(sim4.endingDone), true, "endingDone latches")
+	eq(bool(sim4.endingDismissed), false, "endingDismissed false on a non-true saved value (TS:259)")
+	eq(float(sim4.endingT), 0.0, "endingT UNCHANGED when not dismissed (TS:260 ternary)")
+	eq(float(sim4.dismissT), 0.0, "dismissT unchanged when not dismissed (TS:261)")
+	var fin: Dictionary = sim4.finale
 	ok(fin != null, "an undismissed won run re-arms the finale (TS:263)")
 	eq(float(fin["x"]), 0.0, "finale x 0 (TS:263)")
 	eq(float(fin["y"]), -1900.0, "finale y −1900 (TS:263)")
 	eq(bool(fin["active"]), true, "finale active (TS:263)")
 	eq(float(fin["t"]), 0.0, "finale t 0 (TS:263)")
 	# endingDismissed without endingDone → NOTHING (the conjunction, TS:257)
-	var m4 := _mk_sim(SEED, m["ctx"])
-	var sim4: Variant = m4["sim"]
-	ctx.flags["spaceWorld"] = JSON.stringify(_whitelist_blob("notarray", {"endingDismissed": true}))
-	sim4.on_enter()
-	eq(bool(sim4.endingDone), false, "endingDone false without a saved true (TS:257)")
-	eq(sim4.finale, null, "finale stays null (the fresh value)")
-	# a non-object abductCount is rejected; the empty object IS taken
-	# (JS object truthiness — TS:253)
 	var m5 := _mk_sim(SEED, m["ctx"])
 	var sim5: Variant = m5["sim"]
-	sim5.abductCount = {"Keep": 1}
-	ctx.flags["spaceWorld"] = JSON.stringify(_whitelist_blob("notarray", {"abductCount": 5}))
+	ctx.flags["spaceWorld"] = JSON.stringify(_whitelist_blob(rows6, {"endingDismissed": true}))
 	sim5.on_enter()
-	eq(int(sim5.abductCount["Keep"]), 1, "numeric abductCount rejected (TS:253)")
-	ctx.flags["spaceWorld"] = JSON.stringify(_whitelist_blob("notarray", {"abductCount": {}}))
-	sim5.on_enter()
-	eq(sim5.abductCount, {}, "EMPTY abductCount object taken — JS {} is truthy (TS:253)")
+	eq(bool(sim5.endingDone), false, "endingDone false without a saved true (TS:257)")
+	eq(sim5.finale, null, "finale stays null (the fresh value)")
+	# a non-object abductCount is rejected; the empty object IS taken
+	# (JS object truthiness — TS:253; valid shapes)
+	var m6 := _mk_sim(SEED, m["ctx"])
+	var sim6: Variant = m6["sim"]
+	sim6.abductCount = {"Keep": 1}
+	ctx.flags["spaceWorld"] = JSON.stringify(_whitelist_blob(rows6, {"abductCount": 5}))
+	sim6.on_enter()
+	eq(int(sim6.abductCount["Keep"]), 1, "numeric abductCount rejected (TS:253)")
+	ctx.flags["spaceWorld"] = JSON.stringify(_whitelist_blob(rows6, {"abductCount": {}}))
+	sim6.on_enter()
+	eq(sim6.abductCount, {}, "EMPTY abductCount object taken — JS {} is truthy (TS:253)")
+	# the TS shapes predicate admits ARRAY rows (typeof 'object') — the gate
+	# STAYS OPEN: the array row restores nothing per-field, but the Dictionary
+	# rows, cargo and the ledger all still ride (TS:200-201/247)
+	var m7 := _mk_sim(SEED, m["ctx"])
+	var sim7: Variant = m7["sim"]
+	var gen_name1: String = String(sim7.planets[1]["name"])
+	var mixed: Array = [_row({"name": "Valid-1"}), [], _row({}), _row({}), _row({}), _row({})]
+	ctx.flags["spaceWorld"] = JSON.stringify(_whitelist_blob(mixed, {
+		"abductCount": {"Arr": 7}, "cargo": [{"genome": {}, "name": "Rider"}],
+	}))
+	sim7.on_enter()
+	eq(int(sim7.abductCount["Arr"]), 7, "an array row keeps the gate OPEN — the ledger rides (TS:200)")
+	eq(sim7.cargo.size(), 1, "an array row keeps the gate OPEN — cargo rides (TS:247)")
+	eq(String(sim7.cargo[0]["name"]), "Rider", "cargo restored past the array row")
+	eq(String(sim7.planets[1]["name"]), gen_name1, "the array row restores nothing per-field (undefined reads, TS:203)")
+	eq(String(sim7.planets[0]["name"]), "Valid-1", "the Dictionary rows restore normally")
 
 
 # ---- persist (TS:270-297) -----------------------------------------------------------
@@ -700,8 +734,12 @@ func test_persist_shape_and_roundtrip() -> void:
 	sim.on_exit()
 	sim2.on_enter()
 	ok(sim2.planets[3]["eco"] != null, "round-trip: the colonist eco came back as an ecosystem (TS:242-245)")
+	# compare against the DERIVED rebuild expectation — the ORIGINAL sim's
+	# planet 3 eco is null here (only the restore rebuilds it; the T1-review
+	# Important 3: dereferencing the original read Nil and crashed mid-body)
 	eq(String(sim2.planets[3]["eco"].species[0]["name"]),
-		String(sim.planets[3]["eco"].species[0]["name"]), "round-trip: colonist line name")
+		"%s colonists" % String(sim.planets[3]["name"]),
+		"round-trip: colonist line name (the rebuild rule at the RESTORED name, TS:244)")
 
 
 # ---- ship control (TS:327-350) -------------------------------------------------------
@@ -809,38 +847,42 @@ func test_ship_control_keys_and_integration() -> void:
 func test_engine_particles() -> void:
 	var m := _mk_sim()
 	var sim: Variant = m["sim"]
-	var dt := 1.0 / 60.0
-	# thrusting frame: chance(dt·40) decides the spawn; the back-of-ship
-	# velocity jitter draws TWO ranges after the chance (TS:353-361). The probe
-	# replays the frame's draws BEFORE the update (independent derivation).
+	# FORCED-SPAWN leg: dt 1.0 → chance(dt·40) = chance(40) — next() < 40 is
+	# ALWAYS true (next() ∈ [0,1)), so every payload pin runs deterministically
+	# at the pinned seed (the T1-review Important 2: at dt 1/60 they silently
+	# skipped — 2 checks instead of 9). The probe replays the frame's jitter
+	# draws (the forced chance consumes draw 1, the two ranges follow).
+	var dt := 1.0
 	var p: Variant = _probe(sim)
-	var d_spawn: float = p.next()
+	p.next()  # the forced chance draw
 	var d_vx: float = p.next()
 	var d_vy: float = p.next()
 	sim.update(dt, _inp({"keys_held": ["KeyW"]}))
-	var expected_spawn: bool = d_spawn < dt * 40.0
-	eq(m["rec"]["spawns"].size(), 1 if expected_spawn else 0, "engine spawn iff chance(dt·40) (TS:353)")
-	if expected_spawn:
-		var s: Dictionary = m["rec"]["spawns"][0]
-		var back: float = -PI / 2.0 + PI
-		approx(float(s["x"]), 0.0 + cos(back) * 14.0, "spawn x = ship + cos(back)·14 (TS:356)")
-		approx(float(s["y"]), -900.0 + sin(back) * 14.0, "spawn y = ship + sin(back)·14 (TS:356)")
-		approx(float(s["vx"]), cos(back) * 120.0 + (-20.0 + d_vx * 40.0), "spawn vx = cos(back)·120 + rng(−20,20) (TS:357)")
-		approx(float(s["vy"]), sin(back) * 120.0 + (-20.0 + d_vy * 40.0), "spawn vy = sin(back)·120 + rng(−20,20) (TS:358)")
-		eq(float(s["ttl"]), 0.5, "ttl 0.5 (TS:359)")
-		eq(float(s["size"]), 3.0, "size 3 (TS:359)")
-		eq(String(s["kind"]), "dot", "kind dot (TS:359)")
-		eq(String(s["color"]), "hsl(200 100% 70% / 1.00)", "color hsl(200,1,0.7) (TS:359)")
-		eq(float(s["drag"]), 3.0, "drag 3 (TS:360)")
-	# a NON-spawning seeded frame draws only the chance (no ranges) — pin the
-	# stream cadence: the sim's post-frame state equals the probe's state
-	# after the SAME number of draws (d2 already consumed the chance draw)
+	eq(m["rec"]["spawns"].size(), 1, "exactly one engine spawn per thrusting frame (TS:353)")
+	var s: Dictionary = m["rec"]["spawns"][0]
+	# the ship integrates FIRST (accel 420, drag exp(−1.1·dt)) — KeyW: svy
+	# −420 → ·exp(−1.1) → sy −900 − 420·exp(−1.1); sx stays 0 (svx 0)
+	var sy_at_draw: float = -900.0 + (-420.0 * exp(-1.1)) * dt
+	var back: float = -PI / 2.0 + PI
+	approx(float(s["x"]), 0.0 + cos(back) * 14.0, "spawn x = ship + cos(back)·14 (TS:356)")
+	approx(float(s["y"]), sy_at_draw + sin(back) * 14.0, "spawn y = the MOVED ship + sin(back)·14 (TS:356)")
+	approx(float(s["vx"]), cos(back) * 120.0 + (-20.0 + d_vx * 40.0), "spawn vx = cos(back)·120 + rng(−20,20) (TS:357)")
+	approx(float(s["vy"]), sin(back) * 120.0 + (-20.0 + d_vy * 40.0), "spawn vy = sin(back)·120 + rng(−20,20) (TS:358)")
+	eq(float(s["ttl"]), 0.5, "ttl 0.5 (TS:359)")
+	eq(float(s["size"]), 3.0, "size 3 (TS:359)")
+	eq(String(s["kind"]), "dot", "kind dot (TS:359)")
+	eq(String(s["color"]), "hsl(200 100% 70% / 1.00)", "color hsl(200,1,0.7) (TS:359)")
+	eq(float(s["drag"]), 3.0, "drag 3 (TS:360)")
+	# CADENCE leg at dt 1/60: the probe replays the frame's draws BEFORE the
+	# update (independent derivation) — whichever branch the pinned seed
+	# picks, its stream cadence asserts.
 	var m2 := _mk_sim()
 	var sim2: Variant = m2["sim"]
+	var dt2 := 1.0 / 60.0
 	var p2: Variant = _probe(sim2)
 	var d2: float = p2.next()
-	sim2.update(dt, _inp({"keys_held": ["KeyW"]}))
-	if d2 >= dt * 40.0:
+	sim2.update(dt2, _inp({"keys_held": ["KeyW"]}))
+	if d2 >= dt2 * 40.0:
 		eq(int(sim2.rng.state()), int(p2.state()),
 			"no spawn → only the chance draw, no jitter ranges (TS:353-358 cadence)")
 	else:

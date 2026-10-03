@@ -52,9 +52,14 @@
 ##    back to herbivore (herbPull applies to it — :158)
 ##  - the bonus species append AFTER the roster so the diet dial never touches
 ##    them (:161-177)
-##  - the restore's abductCount + ending blocks are try-block SIBLINGS of the
-##    shapes gate (:253/:257 sit outside the `if (shapesOk...)`) — a corrupt
-##    planets array still restores the ledger and the ending
+##  - the restore's abductCount + ending blocks nest INSIDE the shapes gate
+##    (:201-265): the TS source indents them at 8 spaces (try-level-looking) —
+##    a formatting artifact; the trailing :265 closer closes the :201 gate
+##    (AST-verified in the T1 review) — so a corrupt/wrong-length blob
+##    discards the WHOLE restore incl. the ledger and the won-run state
+##  - the shapes predicate admits ARRAY rows (typeof 'object') — the gate
+##    stays open and every raw.* read of such a row is undefined (the port
+##    reads an empty row: identical guard outcomes, nothing restores for it)
 ##  - colony + scanned ride the whitelist — the round-4 numeric hardening
 ##    dropped them and every reload wiped the 3-thriving ending gate (12
 ##    reports, identical repro) (:218-221)
@@ -70,9 +75,11 @@
 ##    for ANY JS object ({} included — JS object truthiness; arrays too,
 ##    typeof 'object'). The port is the type check alone (`is Dictionary or
 ##    is Array`): GDScript's truthy-Dictionary would wrongly reject {}.
-##  - TS `world.cargo` rows with an ARRAY genome pass `typeof === 'object'`
-##    and the spread over an array no-ops → the default genome (the tribe
-##    packGenomes precedent); the port matches.
+##  - TS `world.cargo` rows with an ARRAY genome pass `typeof === 'object'`;
+##    the object spread contributes NO GENE KEYS (indexed '0'/'1'… junk keys
+##    only, which the TS clampGenome carries on the saved genome forever but
+##    no consumer reads) → the net genome is the default (the tribe
+##    packGenomes precedent); the port matches with a clean dict.
 ##  - Math.hypot/vecDist port as sqrt(dx²+dy²) inline (the civ precedent).
 ##  - the engine-particle color is the TS hsl(200,1,0.7) CSS STRING via the
 ##    local _hsl helper (renderer.gd parses it at draw time — the fx pool
@@ -229,18 +236,23 @@ func _restore_world() -> void:
 	if not (parsed is Dictionary):
 		return
 	var world: Dictionary = parsed
-	# TS:200 — shapesOk: an array whose every row is an object
+	# TS:200 — shapesOk: an array whose every row is an object (`typeof === 'object'
+	# && !== null` — a JSON ARRAY row passes too; the gate stays open for it)
 	var planets_v: Variant = world.get("planets")
 	var shapes_ok: bool = planets_v is Array
 	if shapes_ok:
 		for pl in planets_v:
-			if not (pl is Dictionary):
+			if not (pl is Dictionary or pl is Array):
 				shapes_ok = false
 				break
 	if shapes_ok and (planets_v as Array).size() == planets.size():
 		for i in planets.size():
 			var p: Dictionary = planets[i]
-			var raw: Dictionary = planets_v[i]
+			# an ARRAY row keeps the gate open but every raw.* read is
+			# undefined in the TS — the port reads an empty row for it
+			# (identical guard outcomes: nothing restores for that planet)
+			var raw_v: Variant = planets_v[i]
+			var raw: Dictionary = raw_v if raw_v is Dictionary else {}
 			# numeric sanity BEFORE assign — a corrupt field (r:-80,
 			# orbitSpeed:'fast') NaNs the orbit loop and throws in
 			# createRadialGradient every frame, bricking the stage (TS:205-208)
@@ -308,8 +320,9 @@ func _restore_world() -> void:
 			var merged: Array = []
 			for it in cargo_v:
 				# TS filter: an object row whose genome is an object (an ARRAY
-				# genome passes typeof 'object' and the spread no-ops — the
-				# tribe packGenomes precedent: the default genome)
+				# genome passes typeof 'object'; the spread contributes no GENE
+				# keys — indexed junk only — so the default genome; see the
+				# header divergence note)
 				if not (it is Dictionary):
 					continue
 				var genome_v: Variant = it.get("genome")
@@ -323,27 +336,30 @@ func _restore_world() -> void:
 			cargo = merged
 		else:
 			cargo = []
-	# abduct pay-curve ledger — otherwise every reload re-pays +10 "firsts"
-	# (TS:252-255 — OUTSIDE the shapes gate: a try-block sibling, so a corrupt
-	# planets array still restores it)
-	var ac: Variant = world.get("abductCount")
-	# TS `world.abductCount && typeof world.abductCount === 'object'` — any
-	# JS object passes ({} included, JS object truthiness; arrays too). The
-	# port is the type check alone: GDScript's truthy-Dictionary would
-	# wrongly reject {}.
-	if ac is Dictionary or ac is Array:
-		abductCount = ac
-	# a won run stays won — the ending used to re-fire on every reload
-	# (TS:256-264 — also OUTSIDE the shapes gate)
-	var ed: Variant = world.get("endingDone")
-	if ed is bool and bool(ed):
-		endingDone = true
-		endingDismissed = world.get("endingDismissed") is bool \
-				and bool(world.get("endingDismissed"))  # TS strict === true
-		endingT = 99.0 if endingDismissed else endingT
-		dismissT = 99.0 if endingDismissed else dismissT
-		# a dismissed ending sleeps — no stale orb, no AWAKENS replay (TS:262-263)
-		finale = null if endingDismissed else {"x": 0.0, "y": -1900.0, "active": true, "t": 0.0}
+		# abduct pay-curve ledger — otherwise every reload re-pays +10 "firsts"
+		# (TS:252-255). GATE PLACEMENT (the T1-review AST fact): the TS source
+		# indents this + the ending block at 8 spaces (try-level-looking) but
+		# the braces nest them INSIDE the :201 shapes gate — the trailing :265
+		# closer closes the gate — so a corrupt/wrong-length blob discards the
+		# WHOLE restore incl. the ledger and the won-run state.
+		var ac: Variant = world.get("abductCount")
+		# TS `world.abductCount && typeof world.abductCount === 'object'` — any
+		# JS object passes ({} included, JS object truthiness; arrays too). The
+		# port is the type check alone: GDScript's truthy-Dictionary would
+		# wrongly reject {}.
+		if ac is Dictionary or ac is Array:
+			abductCount = ac
+		# a won run stays won — the ending used to re-fire on every reload
+		# (TS:256-264 — inside the gate, same brace fact)
+		var ed: Variant = world.get("endingDone")
+		if ed is bool and bool(ed):
+			endingDone = true
+			endingDismissed = world.get("endingDismissed") is bool \
+					and bool(world.get("endingDismissed"))  # TS strict === true
+			endingT = 99.0 if endingDismissed else endingT
+			dismissT = 99.0 if endingDismissed else dismissT
+			# a dismissed ending sleeps — no stale orb, no AWAKENS replay (TS:262-263)
+			finale = null if endingDismissed else {"x": 0.0, "y": -1900.0, "active": true, "t": 0.0}
 
 
 ## Full world spec so a reload rebuilds the SAME system (planet eco + abduct
