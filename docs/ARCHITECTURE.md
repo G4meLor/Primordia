@@ -1,6 +1,6 @@
-# PRIMORDIA Native — Kiến trúc (Milestone 1–4: sim core + cell + creature + tribe stage)
+# PRIMORDIA Native — Kiến trúc (Milestone 1–5: sim core + cell + creature + tribe + civ stage)
 
-Ngày: 2026-10-01 · Trạng thái: M1 (sim core) + M2 (cell stage parity) + M3 (creature stage parity) + M4 (tribe stage parity) hoàn tất, mọi test xanh — tags `cell-parity-m2`, `creature-parity-m3`, M4 wrap chờ tag `tribe-parity-m4`. Spec tổng: `docs/specs/2026-09-29-native-migration-design.md`. Parity checklist M2: `docs/PARITY-M2.md`; M3: `docs/PARITY-M3.md`; M4: `docs/PARITY-M4.md`.
+Ngày: 2026-10-03 · Trạng thái: M1 (sim core) + M2 (cell stage parity) + M3 (creature stage parity) + M4 (tribe stage parity) + M5 (civ stage parity) hoàn tất, mọi test xanh — tags `cell-parity-m2`, `creature-parity-m3`, `tribe-parity-m4`, M5 wrap chờ tag `civ-parity-m5`. Spec tổng: `docs/specs/2026-09-29-native-migration-design.md`. Parity checklist M2: `docs/PARITY-M2.md`; M3: `docs/PARITY-M3.md`; M4: `docs/PARITY-M4.md`; M5: `docs/PARITY-M5.md`.
 
 ## 1. Tách layer — sim không biết Godot scene tồn tại
 
@@ -31,22 +31,27 @@ Fixtures JSON trong `tests/fixtures/` được sinh **một lần** từ repo TS
 
 ```bash
 cd ~/Desktop/RD/primordia-native
-./tools/test.sh              # headless suite (43 files / 641 tests)
-./tools/ab_test.sh [BASE]    # A-B behavior-identity gate (xem §2; M3: base cell-parity-m2 → IDENTICAL; M4: base creature-parity-m3 → IDENTICAL)
+./tools/test.sh              # headless suite (49 files / 721 tests)
+./tools/ab_test.sh [BASE]    # A-B behavior-identity gate (xem §2; M3: base cell-parity-m2 → IDENTICAL; M4: base creature-parity-m3 → IDENTICAL; M5: base tribe-parity-m4 → IDENTICAL)
 ./tools/test_ab.sh           # A-B fail-open hardening — failure-path test (shell-only)
 ./tools/test_bot.sh          # bot arc cell ×3 seeds ×2 determinism (xvfb)
 ./tools/test_bot_creature.sh # bot creature: landfall + chaos + founding ×2 determinism (xvfb)
 ./tools/test_bot_tribe.sh    # bot tribe: founding → roles → delivery → hut → raid → totem → victory ×2 determinism (xvfb)
+./tools/test_bot_civ.sh      # bot civ: tribe victory thật → refuse rung → sliders → launches → flips → thống nhất → space ×2 determinism (xvfb)
 ./tools/probe_tribe.sh       # 9 econ probes tribe TS-verbatim (headless; cũng nằm trong test.sh)
+./tools/probe_civ.sh         # 14 econ probes civ TS-verbatim (headless; cũng nằm trong test.sh)
 ./tools/test_perf.sh         # perf probe cell 200 ents ≤ 8 ms/tick pure-sim (xvfb)
 ./tools/test_perf_creature.sh # perf probe creature 60 ents: sim tripwire headless + painter draw ≤ 4 ms (xvfb)
 ./tools/test_perf_tribe.sh   # perf probe tribe 60 tribesmen + 6 warriors: sim tripwire headless + render-prep ≤ 4 ms (xvfb)
+./tools/test_perf_civ.sh     # perf probe civ 4 cities + 3 armadas: sim assert ≤ 2 ms headless + render-prep ≤ 4 ms (xvfb)
 ./tools/test_menu.sh         # menu real-click (xvfb)
 ./tools/test_editor_click.sh # editor purchase real-click (xvfb)
 ./tools/test_visual.sh       # pixel-assert cell stage (xvfb)
 ./tools/test_visual_suite.sh # six-moment pixel-assert suite cell (xvfb)
 ./tools/test_visual_creature.sh # pixel-assert creature painter (xvfb)
 ./tools/test_creature_scene.sh  # ten-moment creature visual suite (xvfb)
+./tools/test_tribe_scene.sh  # tribe visual suite (xvfb)
+./tools/test_civ_scene.sh    # civ scene suite: planet render, portrait clip, sliders panel, victory shimmer (xvfb)
 ```
 
 `tests/run.gd` tự viết (không GUT/gdUnit4): discover `tests/test_*.gd`, chạy mọi method `test_*`, instance mới cho mỗi test (isolation state), in FAIL + message từng assertion, **exit 1 khi đỏ**. Chạy phải `cd` vào repo root trước (shell cwd reset). Scene tests (`tests/scenes/*.tscn`) chạy dưới xvfb + Compatibility renderer — bot parity law: mọi progression gate đi qua real input pipeline, không gọi thẳng sim.
@@ -96,6 +101,9 @@ Ràng buộc `-s` mode (không có editor script class cache — fresh clone/CI)
 | `src/game/tribe/tribe_sim.gd` | `src/game/tribe/TribeStage.ts` (sim, :101-1171) | Tribe sim thuần: constructor world-seed (30 trees/26 bushes/1 hut/2 rivals), on_enter (restore/re-found/pack conversion), chief (click-move + WASD, role hotkeys, hut/totem, raid-touch death + respawn safest-of-8), tribesman AI (fight/job/arrive — wood quota even-shift), economy (delivery +8, regrow, sapling, hut build/repair/recruit, totem, festival passive), raid machine (clock, launch, siege, war_graves), beast, fires/lightning, fall/victory go_to — headless-testable |
 | `src/game/tribe/tribe_events.gd` | `src/game/tribe/tribeEvents.ts` | Tribe chaos deck: 5 baseline + 4 gated defs (bold_raid ×1.5 remap, rival_festival bless ×1.3, siege_hoard two-wave, festival mirror face); storm's 2 ex-`Math.random` sites seeded in-stream (header divergence) |
 | `src/game/tribe/tribe_stage.gd` | `src/game/tribe/TribeStage.ts` (:1176-1423 scene) | Scene node: Camera2D rig (rate 4 / zoom 0.95 — tribe numbers), z-sorted painter pool (3-RID contract tái sử dụng), hudRects update-dispatch, toastInset 190, fall/victory cards |
+| `src/game/civ/civ_sim.gd` | `src/game/civ/CivStage.ts` (sim, :17-526) | Civ sim thuần: constructor (capital + 3 rival cities cos/sin ring + rng jitter, rulerGenome = ctx.genome REFERENCE), national sliders (Q/W/E raise-clamp + transfer từ lane lớn nhất, regen 6 s vào lastRaised), armada machine (launch gates theo thứ tự cd → stat → targets → hopeless-refuse, power = stat+4 SNAPSHOT, flight 220, resolve d<14/t>14, rivalDef matrix), tickSecond (production, 3 tính cách rival, hearts, karma drift, flips + revolt by-id), 6 chaos hooks, persist/restore blob + guards, victory go_to + brick hardening — headless-testable |
+| `src/game/civ/civ_events.gd` | `src/game/civ/civEvents.ts` | Civ chaos deck: 4 baseline (quake 0.7, rebellion 0.6 + max(0,−karma)·0.8, goldenAge 0.6 + max(0,karma)·0.9 dur [14,20], worldWar 0.6) + 2 gated (golden_rival khi worldNum growth_mult > 1.2; trade_winds khi calmProxy — bless ×1.3 nằm TRONG weight fn); factory KHÔNG draw từ bất kỳ rng stream nào |
+| `src/game/civ/civ_stage.gd` | `src/game/civ/CivStage.ts` (:530-663 scene) | Scene node: screen-space canvases KHÔNG Cam (§8 — cancel canvas_transform trong _draw), portrait subtree cancel ở NODE transform (bài học T3), drift camera do sim sở hữu, sliders panel + launch hints + victory shimmer, toastInset 150 |
 
 i18n: `tr()`/`tr_key()` (TranslationServer, key = câu EN) cho mọi user-facing string từ M2; CSV VI/EN (`assets/i18n/vi.csv`) đã land ở M2 (454+ key, structural audit trong `tests/test_i18n.gd`). Save: JSON `FileAccess` + `JSON.stringify` full precision tại `user://saves/`, shape-validate chặt (corrupt → start fresh), không migrate save TS. Lưu ý wire-key: **mọi bề mặt save-wire giữ key TS-verbatim camelCase** (`totalDnaEarned`, `killsByPlayer`, `comboFired`…) **trừ eco-species blob** — nó ride key native snake_case (`kills_by_player`, `grudge_t`, `harass_t` — seam naming từ Task 8, xem `ecosystem.gd` `from_json`), vì save native không bao giờ gặp save TS; công cụ save sau này đừng assum uniform camelCase.
 
@@ -224,3 +232,86 @@ về 0 ở MỌI stage switch, TRƯỚC on_exit/on_enter — port tại `game.gd
   sim tick recorded (llvmpipe contention), stage render-prep pass ≤ **4 ms**
   assert (pooled-item sync + hudRects + queues), frame window recorded
   (rasterization llvmpipe — rig caveat như §6).
+
+## 8. Civ stage — kiến trúc riêng (M5)
+
+### Sim/scene tách + hằng số per-stage
+
+`civ_sim.gd` (RefCounted, hooks-Dictionary, `update(dt, inp)` M2 snapshot)
+tiếp pattern creature/tribe. Hằng số TS-verbatim (CivStage.ts:56-63, :235-236,
+:327, :344, :351-355, :368): national output **10** (3 slider clamp 0..10, tổng
+cap qua transfer), regen **6 s** vào lane `lastRaised`, armada speed **220**,
+resolve khi **d < 14 || t > 14**, launchCd **5**, spend **2**, power =
+**stat + 4 SNAPSHOT** (chụp lúc launch — slider giảm giữa flight không đổi
+net), rivalDef matrix (rival 6 / non-rival 3; chaos +3 / peaceful −1 —
+MỘT nguồn truth cho cả launch gate lẫn resolve), net = (power − rivalDef)·10,
+planet r = min(vw,vh)·0.42, map→screen ×0.62 + pan·0.5. Constructor: capital
+`{id 'you', {player_name}grad, influence 100, pop 8}` + 3 rival cities trên
+vòng cos/sin + rng jitter (thứ tự draw x-then-y là sacred — pin replay);
+`rulerGenome` là **ctx.genome REFERENCE** (không clone — portrait đọc theo).
+Chaos scheduler dựng trên **rng.branch() THỨ HAI** tại đúng stream position
+TS:109; deck từ `civ_events.gd` (factory không draw).
+
+### Hooks surface
+
+Sim nhận hooks dict (mặc định rộng hơn tribe: các hook storyteller inline):
+`hud_toast / hud_banner / hud_toast_inset / hud_show_objective /
+hud_float_world / hud_set_abilities / audio_play / audio_set_mood /
+cam_shake / fx_spawn / go_to / save_all / get_gap_bias / get_mood /
+get_warn_scale / storyteller_note_chaos_event`. Civ wiring chỉ truyền
+`{onWarn, onApply}` — **không onEnd** (missing-hook no-op, TS-true).
+Mọi audio site là no-op hook với TS call site/params pin trong comment
+(audio core — standing deferral, §8 PARITY-M5).
+
+### Screen-space render: KHÔNG Cam + fakeCam
+
+Civ là stage đầu tiên **không đụng Camera2D rig chút nào** (rig stays
+menu-state): toàn bộ vẽ qua **StageCanvas screen-space** — mỗi canvas
+cancel live viewport `canvas_transform` BÊN TRONG `_draw`
+(`affine_inverse` của transform ĐÃ áp — cùng cơ chế §6, creature).
+World map projection là thuần toán: `map_to_screen(mx, my, camX, camY)` —
+scale **×0.62**, pan `·0.5`; **fakeCam** (`civ_stage.gd` FakeCam) là
+shape-tối giản cho backdrop parallax ×0.3 (backdrop.ts contract — TS cũng
+không dùng camera thật cho planet). Hệ quả: camX/camY là **sim-owned drift
+camera** (TS:279-287 — trôi về armada cuối `min(1, dt·1.2)`, decay về 0
+`dt·0.5`), stage chỉ ĐỌC để chiếu; không node nào di chuyển.
+
+### NODE-transform cancellation (bài học T3 —doctrine node-level)
+
+Canvas đơn cancel camera transform trong `_draw` là đủ. Nhưng **một node
+SUBTREE** (portrait: `PortraitItem` clip-group + `PortraitCreature` con vẽ
+bằng painter RIDs) **không thể cancel trong `_draw` của riêng nó** — RID
+draw calls không kế thừa draw transform của canvas item, và clip_children
+composite cả subtree qua NODE transform của item. Nên portrait cancel ở
+**node transform**: `portrait_item.transform = _screen_inv()` re-arm MỖI
+render() (`civ_stage.gd::render` — cùng chỗ sync panel/clip rects + pose).
+Đây là PATH B thứ hai của M3 screen-space doctrine (M3 Part B: cancel trong
+_draw; civ: cancel ở node khi có subtree/clip) — đặt node ở world-space
+camera transform sẽ làm portrait trôi theo camera.
+
+### Debug cheats surface (bot parity law exception)
+
+- `debug_state()` — read-only board snapshot (cities/rivals/armadas/sliders/cds).
+- `debug_set_influence(index, value)` — SET tuyệt đối (mutator DUY NHẤT bot
+  dùng: grant influence rồi để tick hearts thật chạy flip + victory —
+  không bao giờ set owner trực tiếp).
+- `debug_clear_chaos()` — dọn actives + ledger + gap clock cho determinism legs.
+
+### Brick-hardening gate
+
+`on_enter`: nếu restore về một thế giới ĐÃ thống nhất (`victoryFired` +
+`_all_owned()`) → bắn ngay `go_to('space', 'THE BLACK OCEAN')` — vá softlock
+cổ danh tiếng: CONTINUE vào civ đã thắng mà space chưa register thì đứng im
+vĩnh viễn (TS:123-128). Victory path thường cũng latch `victoryFired` +
+`save_all` flush trước khi chuyển (tránh undo bằng quit).
+
+### Perf instrument (M5 wrap)
+
+- `tools/perf_civ_sim.gd` — **headless** (contention-immune, primary):
+  4 cities (constructor board) + 3 live armadas (park xa — flight loop chạy
+  cả cửa sổ) × 300 ticks; §5.4 civ budget ≤ 2 ms **ASSERT trực tiếp**:
+  0.026–0.029 ms avg (5 runs) — nhẹ hơn tribe ~30× (4 cities vs 60 job-AI).
+- `tests/scenes/test_perf_civ.gd` — xvfb: real game, metrics SPLIT:
+  sim tick recorded (llvmpipe contention ~1.2 ms), stage render-prep pass
+  (portrait re-sync + canvas queue sweep) ≤ **4 ms** assert (đo ~0.05 ms),
+  frame window recorded (rasterization llvmpipe — rig caveat như §6).

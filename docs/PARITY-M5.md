@@ -1,11 +1,12 @@
 # PRIMORDIA Native — M5 parity checklist (civ stage)
 
-Datum: 2026-10-03 · Tag: `civ-parity-m5` (task-7 wrap pending) · Spec: [`docs/specs/2026-09-29-native-migration-design.md`](specs/2026-09-29-native-migration-design.md) §5.4 (the §5.3 gate shape, civ flavor)
+Datum: 2026-10-03 · Tag: `civ-parity-m5` (controller review + tag pending) · Spec: [`docs/specs/2026-09-29-native-migration-design.md`](specs/2026-09-29-native-migration-design.md) §5.4 (the §5.3 gate shape, civ flavor)
 
-**Status: feature-complete through task 6 (the QC gates — probes + moment
-inventory + this list). Task 7 (the wrap) owns the A-B behavior-identity
-run, the civ perf probe, ARCHITECTURE/README, the final whole-branch review
-and the tag; the two wrap rows in the checklist are marked task-7 scope.**
+**Status: WRAP COMPLETE (task 7) — the A-B behavior-identity run is
+IDENTICAL (§10), the §5.4 perf budgets are measured and MET with the split
+metrics (§11), ARCHITECTURE/README carry the civ surfaces, and the full
+suite is green on the wrap tree (§5.4 checklist). Remaining: the
+controller's final whole-branch review, then the `civ-parity-m5` tag.**
 Every civ-stage feature of the frozen TS build has a native pin. One item is
 the explicit, spec-sanctioned deferral (audio synth — the M1/M4 ruling
 carries); it is not a civ-stage behavior gap.
@@ -16,14 +17,17 @@ frozen 2026-10-01). Native pins reference `tests/` test methods
 (`file::test_name`), scene suites under `tests/scenes/`, the task-6 probes,
 and the bot (`tests/bots/bot_civ.gd`).
 
-**Headline numbers (task-6 gate, the committed tree):** headless suite →
-**49 files, 721 tests, 19548 checks, 0 failures** (baseline 48/707/19415 at
-4c84f6c + exactly this task's probe file). Probes: `tools/probe_civ.sh` →
-**14 tests / 133 checks / 0 failures** (also inside the full suite). Scene
-suite under xvfb: `tools/test_civ_scene.sh` → **VISUAL_TEST_OK, 40
-structural asserts, exit 0** (§7). Bot: `tools/test_bot_civ.sh` →
-**BOT_CIV_ALL_OK ×2 determinism** (task 5; re-verified at the wrap). Audio
-hooks stay no-op with TS call sites/params pinned (the standing deferral).
+**Headline numbers (the task-7 wrap, re-run on the wrap tree):** headless
+suite → **49 files, 721 tests, 19548 checks, 0 failures** (the task-6 gate
+numbers re-verified — the wrap commits are rider deletions/comment fixes,
+perf probes and docs only; no sim or suite file changed the counts). Probes:
+`tools/probe_civ.sh` → **14 tests / 133 checks / 0 failures** (also inside
+the full suite). Scene suite under xvfb: `tools/test_civ_scene.sh` →
+**VISUAL_TEST_OK, 40 structural asserts, exit 0** (§7). Bot:
+`tools/test_bot_civ.sh` → **BOT_CIV_ALL_OK ×2 determinism per pass, three
+recorded runs** (task 5 ×2; the task-7 wrap's third run after the
+T6-review guard deletion). Audio hooks stay no-op with TS call sites/params
+pinned (the standing deferral).
 
 Legend: ✅ pinned · ⏸ spec-sanctioned deferral.
 
@@ -89,7 +93,7 @@ Legend: ✅ pinned · ⏸ spec-sanctioned deferral.
 
 | Feature | Native pin | Status |
 |---|---|---|
-| The full arc through the REAL input pipeline (bot law audited 1:1 against the sim's documented debug surface — the only sim call is `debug_set_influence`, 3 sites): the REUSED bot_tribe legs' real victory lands civ → the Digit1 refuse rung observed (no armada) → the full-board Q transfer toast → 2+ honest launches (spend, SNAPSHOT, cd 5, lastRaised, the power-9 toast) each resolved on the REAL clock with the net-math read-back (+3 influence floaters) → the regen refills (lastRaised lane, exactly 2) → the cheat grants → the far flips through the REAL tick_second hearts path → ONE real Digit1 flips the nearest at the clamped resolve → victoryFired → the exact space card → the unregistered-space no-op with the civ stage remaining | scene `test_bot_civ.gd` → BOT_CIV_ALL_OK ×2 (LCG 777 / world 0xBEEF); the bot-law audit in `task-5-review.md` | ✅ |
+| The full arc through the REAL input pipeline (bot law audited 1:1 against the sim's documented debug surface — the only sim call is `debug_set_influence`, 3 sites): the REUSED bot_tribe legs' real victory lands civ → the Digit1 refuse rung observed (no armada) → the full-board Q transfer toast → 2+ honest launches (spend, SNAPSHOT, cd 5, lastRaised, the power-9 toast) each resolved on the REAL clock with the net-math read-back (+3 influence floaters) → the regen refills (lastRaised lane, exactly 2) → the cheat grants → the far flips through the REAL tick_second hearts path → ONE real Digit1 flips the nearest at the clamped resolve → victoryFired → the exact space card → the unregistered-space no-op with the civ stage remaining | scene `test_bot_civ.gd` → BOT_CIV_ALL_OK ×2 determinism per pass (LCG 777 / world 0xBEEF) — **three recorded green runs**: task 5 ×2, the task-7 wrap's third run after the T6-review guard deletion (the quantized end-fingerprint field-identical across all three: victory true, 4/4 cities 'you', dna 107900); the bot-law audit in `task-5-review.md` | ✅ |
 | Same seed → same run path: quantized CIV end-state fingerprints field-identical across the two passes (exact key set pinned) + the per-600-frame sweep trace as first-divergence triage; the stage-named reads (the `game.current` decoy pin) | `test_bot_civ_pins.gd::test_bot_composition_shares_one_lcg_stream`, `::test_civ_fingerprint_is_stage_named_and_exact`, `::test_nearest_unowned_scan_mirrors_the_launch_filter`, `::test_sweep_trace_cadence_is_600` | ✅ |
 
 ## 6. Probes (§5.4(c) — task 6)
@@ -162,24 +166,96 @@ moment, so no probe-side additions were needed and none were duplicated):
 | Audio core (the synth port) | standing deferral §8 — its own task after parity |
 | T10 moment pin-gaps ×2 (editor preview body, sun/moon disc) | M3 §17 carry-forward — cheap probe candidates |
 
+## 10. A-B behavior-identity (task 7 — the M5 window)
+
+`tools/ab_test.sh tribe-parity-m4` → **IDENTICAL, 0 diff lines** (exit 0).
+Both sides dump sha256 `ea35920b…` — the SAME sha the M2 gate first
+recorded and the M3/M4 wraps re-verified: the standing cell+creature dump
+did not move one bit from `cell-parity-m2` across the whole creature, tribe
+AND civ windows (the civ stage is additive, as the M4 wrap predicted; the
+boot-order rng branch joins the replay pin without touching the dump).
+Ruled lines: none needed. Record: verdict=IDENTICAL, last_diff.txt 0 bytes,
+base_commit=tribe-parity-m4, head_commit=c38c0e9 (the wrap's commits after
+it are riders/instruments/tests/docs only, no sim file). The evidence
+fixture (`tests/fixtures/ab/evidence.txt`) is harness SCRATCH — rewritten
+on every harness run — and deliberately stays at its previous (M4)
+snapshot at the wrap; the durable M5 record is this section + the task-7
+report.
+
+## 11. Perf (the M4 §12-analog — task 7, split metrics from day one)
+
+**Metric integrity (the T10 lesson carried):** the civ probe was born SPLIT —
+the pure sim tick carries the asserted budget (headless,
+contention-immune), the stage render pass carries the painter-side budget
+(scene-side), the full frame wall-window is recorded, never asserted.
+
+**Civ sim tick @ 4 cities + 3 live armadas (the §5.4 civ budget: ≤ 2 ms,
+asserted directly) — MET:**
+
+| Measurement | Number |
+|---|---|
+| `tools/perf_civ_sim.gd` (headless, contention-immune — the primary instrument; the constructor board verbatim, 3 launch-shaped armadas parked ~8400 units out so the flight loop holds them alive the whole window — no resolve/flip churn; chaos silenced gap 1e9; 300 ticks) | **0.026–0.029 ms avg over 5 runs** (max spikes 0.047–0.170 ms) |
+| Cost shape | 4 cities vs tribe's 60-sim job-AI world (M4: 0.71–1.00 ms) — the civ hot loop is the lightest of the arc (armada flight + tickSecond personalities on 5 in-window seconds + the abilities payload) |
+| Scene-side cross-check (`tests/scenes/test_perf_civ.gd`, xvfb) | sim avg 1.163 / 1.190 ms over 2 runs — inflated by llvmpipe contention (the recorded number, not the asserted one) |
+
+**Stage render pass @ 4 cities + 3 armadas + portrait + sliders panel (the
+M3 painter-side budget shape: ≤ 4 ms) — MET, asserted in the scene probe:**
+
+| Measurement | Number |
+|---|---|
+| Stage `render()` pass (portrait fixture re-sync + the canvas queue_redraw sweep — the GDScript-side render-prep cost the game controls; the deferred canvas `_draw` lands in the frame window) | **0.048 / 0.054 ms avg over 2 runs** (maxes 0.173/1.459) — asserted ≤ 4 ms |
+| Full frame wall-window under llvmpipe (sim + render prep + deferred `_draw` + real rasterization) | **28.6 / 27.9 ms avg** (maxes 77.0/101.7) — rasterization-dominated; no GDScript-side change moves it |
+
+The rig caveat (M2/M3/M4 precedent, restated): llvmpipe is the WORST-case
+rasterizer the probe intentionally runs on — the frame budget targets a real
+GPU, which is faster by orders of magnitude on this draw set; llvmpipe's
+frame window is recorded informationally. The standing tripwires (cell 8 ms,
+creature 4 ms, tribe 4 ms headless + 4 ms scene render) carry unchanged —
+re-verified green in the wrap sweep (§5.4 checklist, full suite row).
+
 ## §5.4 criteria checklist
 
 | Criterion | Evidence pointer | Verdict |
 |---|---|---|
 | (a) Every TS civ feature present | §1–§4 — every row pinned or explicitly deferred with a spec citation (audio synth only, spec-sanctioned: §8) | ✅ |
-| (b) Bot headless full civ arc through the real UI, ×determinism | `tools/test_bot_civ.sh` → BOT_CIV_ALL_OK ×2 (LCG 777 / world 0xBEEF): the real tribe victory landing → the refuse rung → the honest launches + flight captures + the net-math read-back → the regen refills → the cheat grants → the real flips → the victory card → the unregistered-space no-op; fingerprints field-identical across passes (§5) | ✅ |
+| (b) Bot headless full civ arc through the real UI, ×determinism | `tools/test_bot_civ.sh` → BOT_CIV_ALL_OK ×2 (LCG 777 / world 0xBEEF), **three green runs** (task 5 ×2 + the wrap's third run after the T6-review guard deletion): the real tribe victory landing → the refuse rung → the honest launches + flight captures + the net-math read-back → the regen refills → the cheat grants → the real flips → the victory card → the unregistered-space no-op; fingerprints field-identical across passes AND across all three runs (§5) | ✅ |
 | (c) Econ probes TS-verbatim | `tools/probe_civ.sh` → **14 tests / 133 checks / 0 failures** (§6; formulas cited to the frozen TS lines in each probe's provenance comment; cloned-stream + replayed-accumulation derivations at pinned seeds); also inside the full headless suite | ✅ |
 | (d) Pixel-assert suite, civ moments | the civ scene suite under xvfb (**40 structural asserts** over the six moments, `tools/visual_check_civ_scene.py`, §7) — every moment ≥ 3 PIL-checked structural asserts over a live viewport capture | ✅ |
-| Full suite green | headless suite → **49 files / 721 tests / 19548 checks / 0 failures** (the task-6 gate on the committed tree); all xvfb entries exit 0 (incl. the civ scene suite and the task-5 bot ×2) | ✅ |
-| A-B behavior-identity + perf budgets | **task-7 scope** (the wrap): the A-B run tribe-parity-m4 → HEAD (the civ stage is additive — the boot-order rng branch joins the replay pin) and the civ perf probe (sim tick ≤ 2 ms expected ≪ at 4 cities; painter pass ≤ 4 ms; the split-metric shape) | ⏳ task 7 |
+| Full suite green | headless suite → **49 files / 721 tests / 19548 checks / 0 failures** re-verified on the wrap tree (the task-6 gate numbers exact — the wrap commits are rider deletions/comment fixes, perf instruments and docs only); the full xvfb sweep (17 entries incl. bot_civ and the new perf_civ) all rc=0 at the wrap — the per-entry table in the task-7 report and the completion note below | ✅ |
+| A-B behavior-identity + perf budgets | **§10**: `tools/ab_test.sh tribe-parity-m4` → IDENTICAL, 0 diff lines (the standing dump sha `ea35920b…` unmoved since the M2 gate — the civ stage is additive); **§11**: civ sim tick ≤ 2 ms MET (0.026–0.029 ms headless @ 4 cities + 3 live armadas, asserted directly), stage render-prep ≤ 4 ms MET (0.048–0.054 ms, asserted in the scene probe), frame window recorded with the rig caveat | ✅ |
 
-## Completion note (spec §5.4 — task-6 state)
+## Completion note (spec §5.4 — the task-7 wrap, 2026-10-03)
 
-Tasks 1–6 are complete: the four §5.4 feature gates (a)–(d) hold with the
-evidence above, the bot determinism gate is ×2, the probes are TS-verbatim
-with independent derivations at pinned seeds, and the full suite is green
-(headless + every xvfb entry). Remaining for task 7 (the wrap): the A-B
-behavior-identity run, the civ perf probe with the split metrics,
-ARCHITECTURE.md/README rows, the exit RID-leak baseline comparison, the
-final whole-branch review, then the `civ-parity-m5` tag per the binding
-scope split.
+M5's seven tasks are complete. Milestone arc `e367148..HEAD` (plan → sim
+core → chaos deck → stage scene → wiring → bot → probes + parity list →
+the wrap's riders/perf/docs): the four §5.4 feature gates (a)–(d) hold
+with the evidence above (§1–§7), the A-B behavior-identity gate is
+IDENTICAL across the whole milestone window (§10 — the standing dump sha
+`ea35920b…` unmoved since the M2 gate), the §5.4 civ perf budgets are
+measured and MET with the split metrics (§11), and the full suite is green
+on the wrap tree — headless **49 files / 721 tests / 19548 checks /
+0 failures** plus the xvfb sweep **17/17 rc=0** (boot, bot, bot_creature,
+bot_tribe, bot_civ, editor_click, menu, visual ×2, visual_suite,
+creature_scene, tribe_scene, civ_scene, perf ×4 — the plan's "perf ×2"
+predates the tribe/civ probes; the per-entry table lives in the task-7
+report).
+
+Wrap riders (the T6 review, landed first): the duplicated Q-tap guard pair
+in bot_civ victory_prep is DELETED (`fix: drop duplicated Q-tap guard…`,
+5587098 — restoring the task-5 report's comment-only claim) and the third
+BOT_CIV_ALL_OK run landed post-deletion with the end fingerprint
+field-identical across all three recorded runs (§5). The T6 minors folded
+at the wrap (a76e98d): the probe header's "two stream-position literals"
+is one (the 0xC176 burning draw — the task-6 report note corrected with a
+wrap marker), and the §6 seed range includes 0xC180.
+
+Accepted carry-forward: the exit RID-leak baseline comparison (§9 — the
+clean-baseline suite run at tribe-parity-m4 vs HEAD, the 152 → 215
+provenance) goes to the M6 plan per §9's sanctioned split ("task 7 or the
+M6 plan picks it up") — the leak itself is already pinned pre-existing and
+the civ files construct zero nodes (§9 row); the wrap's gate list (A-B,
+perf, the 17-entry sweep on the committed tree) took the window.
+
+Remaining: the controller's final whole-branch review, then the
+`civ-parity-m5` tag per the binding scope split (not done at the wrap —
+the tree is left tag-ready and clean).
