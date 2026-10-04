@@ -92,6 +92,10 @@ const PauseScript := preload("res://src/ui/pause.gd")
 
 ## TS:892 — drawSpaceBackdrop's seed argument on the space call (civ used 42).
 const BACKDROP_SEED := 7.0
+## TS:912-913 — the black-hole 3-stop gradient's mid stop rides 0.4 OF the
+## [2, 90] span (the T4 review's 37.2 math; hoisted out of the per-frame
+## per-hole recompute — T4-review Nit 2).
+const BLACK_HOLE_MID_R := 2.0 + 0.4 * (90.0 - 2.0)
 
 var sim: Variant = null           # SpaceSim (RefCounted sim core)
 var fx: Variant = null            # stage Particles pool (TS `new Fx(1300)`)
@@ -481,10 +485,9 @@ func _draw_world(ci: CanvasItem) -> void:
 	# band's solid core repaints over it — radial_disc is solid inside r0)
 	for bh in sim.blackHoles:
 		var bp := Vector2(float(bh["x"]), float(bh["y"]))
-		var mid_r := 2.0 + 0.4 * (90.0 - 2.0)
-		RendererScript.radial_disc(ci, bp, mid_r, 90.0,
+		RendererScript.radial_disc(ci, bp, BLACK_HOLE_MID_R, 90.0,
 				RendererScript.css_color("rgba(80,40,160,0.8)"), Color(0.0, 0.0, 0.0, 0.0))
-		RendererScript.radial_disc(ci, bp, 2.0, mid_r,
+		RendererScript.radial_disc(ci, bp, 2.0, BLACK_HOLE_MID_R,
 				Color("#000000"), RendererScript.css_color("rgba(80,40,160,0.8)"))
 		# the rotating arc — r 46 + sin(time·5)·5, from time to time+4
 		ci.draw_arc(bp, 46.0 + sin(sim.time * 5.0) * 5.0, sim.time, sim.time + 4.0, 48,
