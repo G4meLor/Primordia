@@ -4,9 +4,10 @@
 ## Def shape = the M1 ChaosScheduler's (camelCase TS keys): id / name / warn? /
 ## weight (Callable on the ctx Dictionary) / duration [lo, hi] / cooldown /
 ## apply (sim, rng) / end? (sim). No tick defs (TS has none).
-## PIRATE_LULL CARRIES THE PORT'S FIRST END HOOK: chaos.gd dispatches the def's
-## end Callable with the stage when the event expires (the tribe beast
-## precedent) — begin raises sim.pirateLull, end clears it.
+## PIRATE_LULL CARRIES THE SPACE DECK'S FIRST END HOOK (cell glitch M1 and
+## tribe beast M2 carry end hooks — this is not the port's first): chaos.gd
+## dispatches the def's end Callable with the stage when the event expires —
+## begin raises sim.pirateLull, end clears it.
 ## THE TRIBUTE DECK/CTX SPLIT (spaceEvents.ts:45 vs SpaceStage.ts:539-547): the
 ## def carries NO end — its apply only demands; the STAGE ctx's onEnd (wired in
 ## space_sim.gd update_chaos) punishes an unpaid demand with 3 pirates.

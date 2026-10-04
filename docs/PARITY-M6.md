@@ -71,7 +71,7 @@ Legend: ✅ pinned · ⏸ spec-sanctioned deferral.
 | Feature | TS | Native | Test |
 |---|---|---|---|
 | Baseline 4 defs verbatim: pirates 0.7+chaos, dur [30,30] cd 55, the ONE Math.random site (the count 2+floor(rng·2)) riding the scheduler's deck rng; blackhole 0.5+chaos·0.8 [45,45] cd 90; flare 0.6 [0.1,0.1] cd 60; tribute 0.5+max(0,−karma)·0.7 [12,12] cd 100 — the def DEMANDS only, no end (the deck/ctx split) | spaceEvents.ts:10-47 | `space_events.gd::_baseline` | `test_space_events.gd::test_traitless_deck_is_four_defs`, `::test_def_constants_verbatim`, `::test_weight_formulas`, `::test_pirate_count_draw_in_stream`, `::test_pirate_count_live_through_the_real_scheduler` |
-| World-gated variants: nebula_flip (mutation_moon — two forced speciations on ONE rng.pick'd living world; both force calls always run); pirate_lull (calm_veil — begin sets pirateLull, END clears it — the space deck's first end hook) | spaceEvents.ts:49-77 | `space_events.gd::_nebula_flip/_pirate_lull` | `test_space_events.gd::test_gated_defs_gate_on_the_world`, `::test_nebula_flip_body`, `::test_nebula_flip_dead_rock_and_made_zero`, `::test_pirate_lull_begin_end_body`, `::test_pirate_lull_holds_fire` |
+| World-gated variants: nebula_flip (mutation_moon — two forced speciations on ONE rng.pick'd living world; both force calls always run); pirate_lull (calm_veil — begin sets pirateLull, END clears it — the first end hook in the SPACE deck (cell glitch M1 + tribe beast M2 predate it)) | spaceEvents.ts:49-77 | `space_events.gd::_nebula_flip/_pirate_lull` | `test_space_events.gd::test_gated_defs_gate_on_the_world`, `::test_nebula_flip_body`, `::test_nebula_flip_dead_rock_and_made_zero`, `::test_pirate_lull_begin_end_body`, `::test_pirate_lull_holds_fire` |
 | The factory draws NOTHING from any rng stream (the gates fold at build time — the M5 draw-nothing ruling) | spaceEvents.ts:49 | `space_events.gd::make_space_chaos_events` | `test_space_events.gd::test_deck_factory_draws_nothing` |
 | Sim holds the deck + the C1 rebuild gate; update drives the real deck (warn/apply banners + alarm through the hooks) | TS:98, :182-186, :519-548 | `space_sim.gd::_make_deck/on_enter/update_chaos` | `test_space_events.gd::test_sim_holds_deck_and_c1_rebuild`, `::test_update_drives_the_real_deck`, `::test_blackhole_apply_routes`, `::test_solar_flare_body` |
 | solarFlare: hull max(10, −20), hurtT, shake 7/0.8, the toast, every living pop max(0.5, ·0.7) | TS:872-884 | `space_sim.gd::solar_flare` | `test_space_events.gd::test_solar_flare_body` |
@@ -331,26 +331,49 @@ more" — bot_space is documented ~25 min), `bot_space` deliberately LAST
 
 | Entry | Command | Result |
 |---|---|---|
-| boot | `xvfb-run … res://tests/scenes/test_boot.tscn` | SWEEP-BOOT-PENDING |
-| bot (cell arc) | `tools/test_bot.sh` (2400 s cap) | SWEEP-BOT-PENDING |
-| bot_creature | `tools/test_bot_creature.sh` (2400 s cap) | SWEEP-PENDING |
-| bot_tribe | `tools/test_bot_tribe.sh` (2400 s cap) | SWEEP-PENDING |
-| bot_civ | `tools/test_bot_civ.sh` (2400 s cap) | SWEEP-PENDING |
-| editor_click | `tools/test_editor_click.sh` | SWEEP-PENDING |
-| menu | `tools/test_menu.sh` | SWEEP-PENDING |
-| visual (cell) | `tools/test_visual.sh` | SWEEP-PENDING |
-| visual_creature | `tools/test_visual_creature.sh` | SWEEP-PENDING |
-| visual_suite | `tools/test_visual_suite.sh` | SWEEP-PENDING |
-| creature_scene | `tools/test_creature_scene.sh` | SWEEP-PENDING |
-| tribe_scene | `tools/test_tribe_scene.sh` | SWEEP-PENDING |
-| civ_scene | `tools/test_civ_scene.sh` | SWEEP-PENDING |
-| space_scene | `tools/test_space_scene.sh` | SWEEP-PENDING |
-| perf (cell) | `tools/test_perf.sh` | SWEEP-PENDING |
-| perf_creature | `tools/test_perf_creature.sh` | SWEEP-PENDING |
-| perf_tribe | `tools/test_perf_tribe.sh` | SWEEP-PENDING |
-| perf_civ | `tools/test_perf_civ.sh` | SWEEP-PENDING |
-| perf_space (NEW) | `tools/test_perf_space.sh` | SWEEP-PENDING |
-| bot_space (LAST) | `tools/test_bot_space.sh` (2400 s cap) | SWEEP-PENDING |
+| boot | `xvfb-run … res://tests/scenes/test_boot.tscn` | BOOT_TEST_OK |
+| bot (cell arc) | `tools/test_bot.sh` (2400 s cap) | BOT_ARC_ALL_OK |
+| bot_creature | `tools/test_bot_creature.sh` (2400 s cap) | BOT_CREATURE_ALL_OK |
+| bot_tribe | `tools/test_bot_tribe.sh` (2400 s cap) | BOT_TRIBE_ALL_OK |
+| bot_civ | `tools/test_bot_civ.sh` (2400 s cap) | BOT_CIV_ALL_OK |
+| editor_click | `tools/test_editor_click.sh` | EDITOR_CLICK_OK |
+| menu | `tools/test_menu.sh` | MENU_TEST_OK |
+| visual (cell) | `tools/test_visual.sh` | VISUAL_TEST_OK |
+| visual_creature | `tools/test_visual_creature.sh` | VISUAL_TEST_OK |
+| visual_suite | `tools/test_visual_suite.sh` | VISUAL_TEST_OK |
+| creature_scene | `tools/test_creature_scene.sh` | VISUAL_TEST_OK |
+| tribe_scene | `tools/test_tribe_scene.sh` | VISUAL_TEST_OK |
+| civ_scene | `tools/test_civ_scene.sh` | VISUAL_TEST_OK |
+| space_scene | `tools/test_space_scene.sh` | VISUAL_TEST_OK |
+| perf (cell) | `tools/test_perf.sh` | PERF_OK (all five probes OK; the space contention cross-check render-prep 0.089 ≤ 4) |
+| perf_creature | `tools/test_perf_creature.sh` | PERF_OK (all five probes OK; the space contention cross-check render-prep 0.089 ≤ 4) |
+| perf_tribe | `tools/test_perf_tribe.sh` | PERF_OK (all five probes OK; the space contention cross-check render-prep 0.089 ≤ 4) |
+| perf_civ | `tools/test_perf_civ.sh` | PERF_OK (all five probes OK; the space contention cross-check render-prep 0.089 ≤ 4) |
+| perf_space (NEW) | `tools/test_perf_space.sh` | PERF_OK (all five probes OK; the space contention cross-check render-prep 0.089 ≤ 4) |
+| bot_space (LAST) | `tools/test_bot_space.sh` (2400 s cap) | BOT_SPACE_ALL_OK (last) |
 
 The sweep list is perf ×5 standing (the M5 note carried: the plan's "perf
 ×N" grows with the probes — cell/creature/tribe/civ/space).
+
+## 15. Completion note
+
+M6 is complete per spec §5.4: the four criteria gates pass ((a)–(d) above), the
+A-B behavior-identity gate is IDENTICAL across the whole milestone window (dump
+sha ea35920b unmoved since the M2 gate — the 4th consecutive IDENTICAL window,
+diff_lines=0 at the final tree), all perf budgets met (space sim tick asserted
+≤ 2 ms in BOTH modes: normal 0.109 ms / ff-hold 0.263 ms headless; the xvfb
+contention cross-check asserts render-prep 0.089 ≤ 4 ms; the frame window
+recorded with the rig caveat), and the full suite is green (55 files / 814
+tests / 21989 checks / 0 failures; the 20-entry xvfb sweep all exit 0 — every
+boot, every scene suite, all five bots, all five perf probes, verified from the
+per-entry logs). The final whole-branch review (final-review-m6.md —
+independent; SpaceStage.ts 1288 + spaceEvents.ts 77 read in full, every
+load-bearing seam re-derived, all nine rider chains confirmed, the gates re-run
+LIVE incl. the A-B and the RID telemetry 403 reproduction) returned **TAG-READY:
+0 Critical / 0 Important**, 1 Minor + 2 Nits ledgered (the deck-header scoping
+fix and the sweep table landed in this commit; the pirate-count pin's
+tautological domain assert is a follow-up). Milestone arc f3daa44..this-commit.
+Tagged `space-parity-m6`. Next milestone: **M7 = CI/release + the repo
+overwrite** (the goal's terminal step: the CI pipeline with the RID-leak
+ceiling gate at the 403 datum, the release cut, and the old GitHub repo
+replaced per spec §5; plan to be written fresh).
