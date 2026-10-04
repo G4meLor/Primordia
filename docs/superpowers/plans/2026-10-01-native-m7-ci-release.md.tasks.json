@@ -3,14 +3,14 @@
     {
       "id": 1,
       "subject": "Task 1: CI workflow — the suite as the repo's contract",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [],
       "description": "**Goal:** CI workflow (headless suite + RID-leak ceiling 403). Full AC in plan Task 1.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\".github/workflows/ci.yml\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"ci.yml push/PR triggers, Godot 4.2.2 pinned\", \"suite step verbatim + RID gate hard at 403\", \"local rehearsal matches the datum\", \"xvfb families documented out-of-scope\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 2: Release workflow + export presets",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         1
       ],
