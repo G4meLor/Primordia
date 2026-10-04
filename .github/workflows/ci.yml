@@ -3,10 +3,18 @@
 # command is the LOCAL gate, verbatim; the runner's zero-check + script-error
 # guards run here too).
 #
-# NO xvfb suites in CI — the headless suite is the gate and CI stays lean.
-# The xvfb families (boot, the five bots, visuals, scene suites, perf probes)
-# are the LOCAL/wrap sweep's contract: docs/PARITY-M6.md §15
+# NO xvfb SUITES in CI — the headless suite is the gate and CI stays lean; the
+# xvfb FAMILIES (boot, the five bots, visuals, scene suites, perf probes) are
+# the LOCAL/wrap sweep's contract: docs/PARITY-M6.md §15
 # (tools/wrap_sweep_m6.sh, the strictly sequential 20-entry sweep).
+#
+# The one xvfb-run wrapper below is NOT a visual suite. The runner's two-pass
+# script-error guard re-executes the suite as a worker subprocess whose args
+# (OS.get_cmdline_args) DROP the engine-consumed --headless flag — the worker
+# boots a display server, so on a display-less host it dies instantly
+# ("Unable to create DisplayServer" — the 2026-10-04 first CI run). xvfb-run
+# restores the display-backed telemetry the 403 RID datum was calibrated on:
+# byte-verified on a clean checkout, no DISPLAY: 55/814/21989/0 + RID 403.
 
 name: CI
 
@@ -44,7 +52,7 @@ jobs:
       - name: Run the headless suite (the two-pass script-error guard included)
         run: |
           set -o pipefail
-          godot --headless -s res://tests/run.gd --path . 2>&1 | tee ci-suite.log
+          xvfb-run -a godot --headless -s res://tests/run.gd --path . 2>&1 | tee ci-suite.log
 
       - name: RID-leak ceiling gate (the PARITY-M6 §11 / T8-review condition)
         run: |

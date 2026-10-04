@@ -63,6 +63,11 @@ jobs:
       # Windows first, zipped BEFORE the Linux export runs: with Godot's
       # default embed_pck=false both presets write a sidecar pck named
       # build/PRIMORDIA.pck — the second export would overwrite the first's.
+      # export_presets.cfg sets application/modify_resources=false: stamping
+      # Windows resources (product name/icon) needs rcedit (+Wine on Linux),
+      # which the runner doesn't have — enabled, the export fails its config
+      # check ("The rcedit tool must be configured"); the binaries ship with
+      # Godot's stub metadata instead.
       - name: Export Windows (release)
         run: |
           set -euo pipefail
