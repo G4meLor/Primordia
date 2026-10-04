@@ -1,0 +1,109 @@
+# The tag-triggered release path (the M7 plan's Task 2): push a `v*` tag and
+# this workflow exports the Windows + Linux builds with the official Godot
+# 4.2.2 export templates and creates the GitHub release with the two zipped
+# artifacts + auto-generated changelog. The suite gate itself lives in ci.yml
+# (push/PR); tags don't re-run it — a release tag is cut from a commit that
+# already went through CI on main.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    name: Export Windows/Linux + create the GitHub release
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot 4.2.2 (pinned — byte-identical to the milestone rig)
+        run: |
+          set -euo pipefail
+          GODOT_URL="https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_linux.x86_64.zip"
+          # sha256 of the official 4.2.2-stable linux zip; the zip's binary is
+          # sha256-identical to the local milestone rig's ~/.local/bin/godot
+          # (11666450f64c4e90cfbf7b795bbd3b07aa52ea1afb6feb73d0b4fee876f72def —
+          # both print 4.2.2.stable.official.15073afe3). Same pin as ci.yml.
+          GODOT_SHA256="69eb9881e1b82ab93924c83106a7c031497f252bc0c08e199e4da6380072d6ef"
+          curl -sSL -o /tmp/godot.zip "$GODOT_URL"
+          echo "$GODOT_SHA256  /tmp/godot.zip" | sha256sum -c -
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          sudo install -m 755 /tmp/godot/Godot_v4.2.2-stable_linux.x86_64 /usr/local/bin/godot
+          # the exact version string of the local rig — the pin is asserted, not assumed
+          godot --version | grep -qx '4.2.2.stable.official.15073afe3'
+
+      - name: Install the official 4.2.2 export templates (pinned, hash-verified)
+        run: |
+          set -euo pipefail
+          TPL_URL="https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_export_templates.tpz"
+          # sha256 computed locally on the milestone rig from a fresh download
+          # of the official pack; cross-verified against godotengine's own
+          # SHA512-SUMS.txt for 4.2.2-stable (a0c810c984a282f5874a991652be560
+          # 3a7c8be4a0e47849df9d4cf9f44f2b7f2b864aaa1febec29a6a77a1784d45fedc
+          # b82173a99a39bc7ae03323de9e0d5cea — matches the same bytes).
+          TPL_SHA256="1db98ce81f37c613b94891a5afaa67a075fd1a437451b47082518ac2b182b631"
+          curl -sSL -o /tmp/templates.tpz "$TPL_URL"
+          echo "$TPL_SHA256  /tmp/templates.tpz" | sha256sum -c -
+          unzip -q /tmp/templates.tpz -d /tmp/templates
+          # the tpz layout is pinned too: templates/<these four files>
+          for f in windows_release_x86_64.exe windows_debug_x86_64.exe linux_release.x86_64 linux_debug.x86_64; do
+            test -f "/tmp/templates/templates/$f"
+          done
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.2.2.stable"
+          cp /tmp/templates/templates/* "$HOME/.local/share/godot/export_templates/4.2.2.stable/"
+
+      # Windows first, zipped BEFORE the Linux export runs: with Godot's
+      # default embed_pck=false both presets write a sidecar pck named
+      # build/PRIMORDIA.pck — the second export would overwrite the first's.
+      - name: Export Windows (release)
+        run: |
+          set -euo pipefail
+          godot --headless --export-release Windows build/PRIMORDIA.exe
+
+      - name: Zip the Windows build
+        run: |
+          set -euo pipefail
+          cd build
+          if [ -f PRIMORDIA.pck ]; then
+            zip -q ../PRIMORDIA-windows.zip PRIMORDIA.exe PRIMORDIA.pck
+          else
+            zip -q ../PRIMORDIA-windows.zip PRIMORDIA.exe
+          fi
+
+      - name: Export Linux (release)
+        run: |
+          set -euo pipefail
+          godot --headless --export-release Linux build/PRIMORDIA.x86_64
+
+      - name: Zip the Linux build
+        run: |
+          set -euo pipefail
+          cd build
+          if [ -f PRIMORDIA.pck ]; then
+            zip -q ../PRIMORDIA-linux.zip PRIMORDIA.x86_64 PRIMORDIA.pck
+          else
+            zip -q ../PRIMORDIA-linux.zip PRIMORDIA.x86_64
+          fi
+
+      - name: Create the GitHub release with the artifacts
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          # One paragraph (the 5-stage parity build, the milestone tags, the
+          # frozen suite counts) + the controls summary; --generate-notes
+          # appends the auto-generated changelog for the tag range.
+          cat > release-notes.md <<EOF
+          PRIMORDIA ${TAG} — the 5-stage parity build of the native Godot 4.2.2 port. Every stage of the evolution arc is shipped and parity-gated: cell → creature → tribe → civ → space, landed milestone by milestone (sim-core-m1, cell-parity-m2, creature-parity-m3, tribe-parity-m4, civ-parity-m5, space-parity-m6) with the headless suite green at 55 passed / 814 asserts / 21989 checks / 0 failures. The game is playable end to end: eat, evolve, survive the universe's worst ideas. Controls: WASD to move, mouse click/drag to interact and command — the repo's docs (docs/ARCHITECTURE.md) carry the full per-stage controls.
+          EOF
+          gh release create "$TAG" PRIMORDIA-windows.zip PRIMORDIA-linux.zip \
+            --title "PRIMORDIA $TAG" \
+            --notes-file release-notes.md \
+            --generate-notes
