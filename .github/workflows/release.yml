@@ -82,6 +82,7 @@ jobs:
       - name: Export Windows (release)
         run: |
           set -euo pipefail
+          mkdir -p build   # Godot 4.2 does not create the output dir (the runner-fresh build/ is absent; the 3rd release red)
           godot --headless --export-release Windows build/PRIMORDIA.exe
 
       - name: Zip the Windows build
