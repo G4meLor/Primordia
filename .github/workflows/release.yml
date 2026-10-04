@@ -75,7 +75,9 @@ jobs:
           if [ -f PRIMORDIA.pck ]; then
             zip -q ../PRIMORDIA-windows.zip PRIMORDIA.exe PRIMORDIA.pck
           else
-            zip -q ../PRIMORDIA-windows.zip PRIMORDIA.exe
+            # fail closed — a bare-exe release would ship silently broken
+            echo "FATAL: build/PRIMORDIA.pck missing — refusing to ship a bare-exe release." >&2
+            exit 1
           fi
 
       - name: Export Linux (release)
@@ -90,7 +92,9 @@ jobs:
           if [ -f PRIMORDIA.pck ]; then
             zip -q ../PRIMORDIA-linux.zip PRIMORDIA.x86_64 PRIMORDIA.pck
           else
-            zip -q ../PRIMORDIA-linux.zip PRIMORDIA.x86_64
+            # fail closed — a bare-exe release would ship silently broken
+            echo "FATAL: build/PRIMORDIA.pck missing — refusing to ship a bare-exe release." >&2
+            exit 1
           fi
 
       - name: Create the GitHub release with the artifacts
@@ -101,7 +105,7 @@ jobs:
           # frozen suite counts) + the controls summary; --generate-notes
           # appends the auto-generated changelog for the tag range.
           cat > release-notes.md <<EOF
-          PRIMORDIA ${TAG} — the 5-stage parity build of the native Godot 4.2.2 port. Every stage of the evolution arc is shipped and parity-gated: cell → creature → tribe → civ → space, landed milestone by milestone (sim-core-m1, cell-parity-m2, creature-parity-m3, tribe-parity-m4, civ-parity-m5, space-parity-m6) with the headless suite green at 55 passed / 814 asserts / 21989 checks / 0 failures. The game is playable end to end: eat, evolve, survive the universe's worst ideas. Controls: WASD to move, mouse click/drag to interact and command — the repo's docs (docs/ARCHITECTURE.md) carry the full per-stage controls.
+          PRIMORDIA ${TAG} — the 5-stage parity build of the native Godot 4.2.2 port. Every stage of the evolution arc is shipped and parity-gated: cell → creature → tribe → civ → space, landed milestone by milestone (sim-core-m1, cell-parity-m2, creature-parity-m3, tribe-parity-m4, civ-parity-m5, space-parity-m6) with the headless suite green at 55 passed / 814 asserts / 21989 checks / 0 failures. The game is playable end to end: eat, evolve, survive the universe's worst ideas. Controls: WASD to move, mouse click/drag to interact and command — the README's [Controls](https://github.com/G4meLor/Primordia#controls) section carries the full per-stage controls.
           EOF
           gh release create "$TAG" PRIMORDIA-windows.zip PRIMORDIA-linux.zip \
             --title "PRIMORDIA $TAG" \

@@ -1,5 +1,7 @@
 # PRIMORDIA — Native
 
+[![CI](https://github.com/G4meLor/Primordia/actions/workflows/ci.yml/badge.svg)](https://github.com/G4meLor/Primordia/actions/workflows/ci.yml) · [![Release](https://github.com/G4meLor/Primordia/actions/workflows/release.yml/badge.svg)](https://github.com/G4meLor/Primordia/actions/workflows/release.yml)
+
 **Eat. Evolve. Survive the universe's worst ideas.** PRIMORDIA là evolution god-game lấy cảm hứng từ arc 5 stage của Spore — nhưng thế giới procedural hoàn toàn, food chain sống thật (overhunting phá vĩnh viễn chuỗi thức ăn), và một Chaos engine liên tục viết lại luật trong khi bạn chơi. Mọi thứ sinh từ seed lúc runtime: không art asset, không audio file, không dependency runtime nào bên thứ ba. *(Bản TS gốc: `~/Desktop/RD/Spore` — frozen; tài liệu thiết kế song ngữ nằm ở đó.)*
 
 ## Trò chơi
@@ -10,6 +12,20 @@
 - **Civ** — grand-strategy-lite: 3 slider đầu ra quốc gia (military/culture/economy), armada attack/charm/trade với power snapshot, lật thành phố rival bằng influence, chaos deck riêng (động đất, nổi dậy, thời kỳ hoàng kim, chiến tranh thế giới); thống nhất hành tinh → Space.
 - **Space** — finale + sandbox: lái tàu giữa hệ mặt trời 6 hành tinh (mỗi hành tinh một hệ sinh thái sống riêng), trộm loài bằng beam (abduct), gieo giống hành tinh chết (seed), pha gene trong lab (splice), cướp và hố đen của Void Empire, **fast-forward tiến hóa** cả hành tinh, phục hồi tàn tích; 3 thuộc địa thịnh vượng đánh thức **Chaos Core** — kết thúc rồi sandbox vẫn mở.
 - Giữa các stage: **world genome** riêng mỗi seed (traits/temperament), **storyteller** điều nhịp bless/twist, **chaos engine** (volcano, stampede, night raid, mutation storm…) nghe theo tính cách thế giới chứ không theo script.
+
+## Điều khiển
+
+<a id="controls"></a>
+
+Input là physical-keycode pipeline của Godot — đúng phím vật lý bất kể layout OS. Toàn cục: **Esc** pause, **M** mute; editor loài mở bằng **E** (cell) / **E** hoặc **Tab** (creature), đóng bằng **E**/**Tab**, wheel cuộn parts trong editor. Menu và pause điều khiển bằng click.
+
+| Stage | Điều khiển |
+|---|---|
+| **Cell** | **WASD**/mũi tên hoặc **giữ chuột** — bơi theo con trỏ; **Space**/**Shift** — dash (cần part jet, hồi 3s); **1** — toxin burst (cần toxin); **2** — electro burst (cần electro); **E** — species editor |
+| **Creature** | **WASD**/mũi tên hoặc **giữ chuột** — di chuyển; **Space** — nhảy (cao hơn với wings); **giữ F** — charm sinh vật gần đó / ăn bụi cây & xương (giữ F cạnh sinh vật để thu phục thay vì bị cắn); **E**/**Tab** — editor |
+| **Tribe** | **WASD** hoặc click — di chuyển chief; **1**/**2**/**3** — chuyển role gather/hunt/warrior; **R** — dựng hut; **T** — Great Totem |
+| **Civ** | **Q**/**A** — military tăng/giảm; **W**/**S** — culture tăng/giảm; **E**/**D** — econ tăng/giảm; **1**/**2**/**3** — phóng armada attack/charm/trade |
+| **Space** | **WASD**/mũi tên hoặc **giữ chuột** — lái tàu theo con trỏ (deadzone 20px); **giữ F** — fast-forward tiến hóa cả hành tinh; **R** — beam abduct; **G** — splice gene lab (cần ≥2 cargo); **V** — trả tribute của Void Empire; **click** — bắn pirate (click trúng pirate, panel HUD ưu tiên hơn) |
 
 ## Vì sao native?
 
