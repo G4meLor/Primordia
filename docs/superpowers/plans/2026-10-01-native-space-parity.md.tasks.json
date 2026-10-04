@@ -3,14 +3,14 @@
     {
       "id": 1,
       "subject": "Task 1: Space sim core — state, system generation, per-planet ecosystems, persist/restore",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [],
       "description": "**Goal:** Space sim core part 1 (state, system gen, planet ecosystems, restore whitelist, ship physics). Full AC in plan Task 1.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"src/game/space/space_sim.gd\", \"tests/test_space_sim.gd\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"constructor + generateSystem pins\", \"makePlanetEco diet dial + bonus-species ordering\", \"restore whitelist every guard\", \"persistColonies blob\", \"ship physics + sun/colony regen + ff timeScale\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 2: Space sim core — interactions, gene lab, hazards, finale",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         1
       ],
@@ -19,7 +19,7 @@
     {
       "id": 3,
       "subject": "Task 3: Space chaos events deck",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         2
       ],
@@ -28,7 +28,7 @@
     {
       "id": 4,
       "subject": "Task 4: Space stage scene — world render",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         3
       ],
@@ -37,7 +37,7 @@
     {
       "id": 5,
       "subject": "Task 5: Space stage scene — screen HUD, planet panel, xvfb suite",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         4
       ],
@@ -46,7 +46,7 @@
     {
       "id": 6,
       "subject": "Task 6: Wiring — registration, spaceWorld save/continue, civ-victory landing, i18n",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         5
       ],
@@ -55,7 +55,7 @@
     {
       "id": 7,
       "subject": "Task 7: Space bot + flow integration",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         6
       ],
@@ -64,7 +64,7 @@
     {
       "id": 8,
       "subject": "Task 8: Space probes + visual moments + PARITY-M6",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         7
       ],
