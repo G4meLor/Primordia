@@ -66,5 +66,5 @@ Date: 2026-10-04 · The spec §5.6 terminal step: **the arc is DONE.**
 
 «hoàn thành repo đi» — **MET**: the native Godot 4.2.2 port of PRIMORDIA
 (all five playable stages — cell, creature, tribe, civ, space — parity-pinned
-against the frozen TypeScript authority across seven milestone tags, 814
+against the frozen TypeScript authority across six milestone tags (sim-core-m1 … space-parity-m6) plus v0.6.0 and ci-release-m7, 814
 tests), with CI, a live release, and the old repo overwritten per spec §5.6.

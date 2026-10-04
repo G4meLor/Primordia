@@ -19,7 +19,7 @@
     {
       "id": 3,
       "subject": "Task 3: The repo overwrite — the remote becomes the native port",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         2
       ],
@@ -28,7 +28,7 @@
     {
       "id": 4,
       "subject": "Task 4: M7 wrap — the final review, the completion, the tag",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [
         3
       ],
