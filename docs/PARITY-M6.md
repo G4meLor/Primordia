@@ -1,13 +1,13 @@
 # PRIMORDIA Native — M6 parity checklist (space stage)
 
-Datum: 2026-10-04 · Tag: `space-parity-m6` (wrap + review pending, task 9) · Spec: [`docs/specs/2026-09-29-native-migration-design.md`](specs/2026-09-29-native-migration-design.md) §5.4 (the §5.3 gate shape, space flavor)
+Datum: 2026-10-04 · Tag: `space-parity-m6` (pending-controller — the wrap is done, the final whole-branch review owns the tag) · Spec: [`docs/specs/2026-09-29-native-migration-design.md`](specs/2026-09-29-native-migration-design.md) §5.4 (the §5.3 gate shape, space flavor)
 
-**Status: task 8 complete (probes + the RID-leak rider + this list). Remaining:
-the task-9 wrap (A-B, perf, ARCHITECTURE/README) and the controller's final
-whole-branch review, then the `space-parity-m6` tag.** Every space-stage
-feature of the frozen TS build has a native pin. One item is the explicit,
-spec-sanctioned deferral (audio synth — the M1/M4/M5 ruling carries); it is
-not a space-stage behavior gap.
+**Status: task 9 (the WRAP) complete — A-B IDENTICAL (§13), perf both modes
+asserted (§14), the full 20-entry xvfb sweep green (§15). Remaining: the
+controller's final whole-branch review, then the `space-parity-m6` tag.**
+Every space-stage feature of the frozen TS build has a native pin. One item
+is the explicit, spec-sanctioned deferral (audio synth — the M1/M4/M5 ruling
+carries); it is not a space-stage behavior gap.
 
 **Source of truth:** the TS contract (the feature surface of
 `Spore/src/game/space/SpaceStage.ts` 1288 lines + `spaceEvents.ts` 77 lines,
@@ -15,16 +15,18 @@ both frozen 2026-10-04). Native pins reference `tests/` test methods
 (`file::test_name`), scene suites under `tests/scenes/`, the task-8 probes,
 and the bot (`tests/bots/bot_space.gd`).
 
-**Headline numbers (task 8, on the probes commit `de4f8b9` + docs):**
-headless suite → **55 files, 814 tests, 21989 checks, 0 failures** (54/801/21697
-at the task-7 gate + exactly this task's probe file: +1 file, +13 tests, +292
-checks). Probes: `tools/probe_space.sh` → **13 tests / 292 checks / 0
-failures** (also inside the full suite). Scene suite under xvfb:
-`tools/test_space_scene.sh` → **VISUAL_TEST_OK + VISUAL_CHECK_OK, 46
-structural asserts over 9 moments, exit 0** (§7). Bot:
-`tools/test_bot_space.sh` → BOT_SPACE_ALL_OK ×2 (task 7; not re-run for this
-docs/test-only task — no sim file changed). Audio hooks stay no-op with TS
-call sites/params pinned (the standing deferral).
+**Headline numbers (re-verified at the task-9 wrap, 2026-10-04, on the final
+committed tree's executable content `579d989` — the wrap's later commits are
+docs + the sweep script only, no suite-discovered file):**
+headless suite → **55 files, 814 tests, 21989 checks, 0 failures** (the
+task-8 gate numbers EXACT, re-run at the wrap). Probes:
+`tools/probe_space.sh` → **13 tests / 292 checks / 0 failures** (also inside
+the full suite). Scene suite under xvfb: `tools/test_space_scene.sh` →
+**VISUAL_TEST_OK + VISUAL_CHECK_OK, 46 structural asserts over 9 moments,
+exit 0** (§7 — re-run green in the wrap sweep §15). Bot:
+`tools/test_bot_space.sh` → BOT_SPACE_ALL_OK ×2 (task 7) **re-run green in
+the wrap sweep** (the §15 table). Audio hooks stay no-op with TS call
+sites/params pinned (the standing deferral).
 
 Legend: ✅ pinned · ⏸ spec-sanctioned deferral.
 
@@ -216,6 +218,13 @@ long-standing out-of-tree scene-test teardown family — not a sim or stage
 behavior gap; carried as known noise (the M7 CI gate may assert a ceiling
 rather than zero). Worktree removed after the capture.
 
+**M7 rider (the T8-review ceiling condition, recorded at the wrap): M7's CI
+must gate a RID-leak CEILING — 403 CanvasItem RIDs (this §11's HEAD exit
+telemetry) is the entry datum; per-file narrowing is the ideal.** Zero is
+the wrong gate for this family (the mechanism above — un-freed out-of-tree
+boots, not a sim leak); the CI assert keeps the count from growing
+unnoticed.
+
 ## 12. M7 deferred (recorded at task 8)
 
 | Item | Provenance |
@@ -232,8 +241,116 @@ rather than zero). Worktree removed after the capture.
 | Criterion | Evidence pointer | Verdict |
 |---|---|---|
 | (a) Every TS space feature present | §1–§6 — every row pinned or explicitly deferred with a spec citation (audio synth only, spec-sanctioned: §10) | ✅ |
-| (b) Bot headless full space arc through the real UI, ×determinism | `tools/test_bot_space.sh` → BOT_SPACE_ALL_OK ×2, six walks across three invocations → ONE end state (the 62-key fingerprint identical; §7) — re-run at the task-9 wrap per the sweep | ✅ |
+| (b) Bot headless full space arc through the real UI, ×determinism | `tools/test_bot_space.sh` → BOT_SPACE_ALL_OK ×2, six walks across three invocations → ONE end state (the 62-key fingerprint identical; §7) — re-run green in the wrap sweep (§15, the LAST entry) | ✅ |
 | (c) Econ probes TS-verbatim | `tools/probe_space.sh` → **13 tests / 292 checks / 0 failures** (§8; formulas cited to the frozen TS lines in each probe's provenance comment; cloned-stream + composed-recurrence + twin-eco derivations at pinned seeds 0x5CAC1-0x5CACD; the red-check recorded); also inside the full headless suite | ✅ |
 | (d) Pixel-assert suite, space moments | the space scene suite under xvfb (**46 structural asserts over 9 moments**, `tools/visual_check_space_scene.py`, §9) — every moment ≥ 3 PIL-checked structural asserts over a live viewport capture | ✅ |
-| Full suite green | headless suite → **55 files / 814 tests / 21989 checks / 0 failures** (the headline numbers, captured on this task's tree; the docs commit is docs-only — the task-8 verify re-runs the gate on the final committed tree and the task-9 wrap re-verifies again) | ✅ |
-| A-B behavior-identity + perf budgets | the task-9 wrap: `tools/ab_test.sh civ-parity-m5` (the standing cell dump must not move — space is additive, the 5th boot branch joins the replay pin) + the split perf metrics (sim tick ≤ 2 ms at 6 planets, ff-hold AND normal rows; render ≤ 4 ms; the frame window recorded) | task-9 (the wrap's gate) |
+| Full suite green | headless suite → **55 files / 814 tests / 21989 checks / 0 failures** re-run at the wrap on the final committed tree's executable content `579d989` (the headline numbers, the task-8 gate numbers EXACT) + the FULL 20-entry xvfb sweep green (§15 — every entry incl. boot, every stage's scene suite, all bots) | ✅ |
+| A-B behavior-identity + perf budgets | `tools/ab_test.sh civ-parity-m5` → **IDENTICAL, 0 diff lines** (§13 — the standing dump `ea35920b…` unmoved since M2, the 4th consecutive IDENTICAL window) + the split perf metrics asserted in BOTH modes (§14: sim tick ≤ 2 ms at 6 planets normal AND ff-hold — 0.050–0.053 / 0.222–0.243 ms; render ≤ 4 ms — 0.085 ms; the frame window recorded ~23 ms with the rig caveat) | ✅ |
+
+## 13. A-B behavior-identity (the wrap — §10 of PARITY-M5's shape)
+
+`tools/ab_test.sh civ-parity-m5` → **IDENTICAL, 0 diff lines** (exit 0),
+run 2026-10-04 at the wrap.
+
+- base dump sha256 = `ea35920ba80ee7553ed056797680ebc95cc6224fe2d1fd9074c8911ef83ddfcf`
+- head dump sha256 = `ea35920ba80ee7553ed056797680ebc95cc6224fe2d1fd9074c8911ef83ddfcf`
+  (SAME sha — unmoved since the M2 gate first recorded it; re-verified at the
+  M3, M4 and M5 wraps; the space window is the FOURTH consecutive IDENTICAL
+  milestone window — the space stage is additive, and the 5th boot-order
+  branch (the stage rng branch the space constructor/scene draw) joins the
+  replay pin without touching the dump, the M5/M6-T1 precedent:
+  stage-constructor branches don't move the dump)
+- diff_lines=0, no ruled lines needed
+- Record: base_commit=civ-parity-m5, head_commit=579d989 (the last code
+  commit — the perf probes; the wrap's later commits are docs + the sweep
+  script only, no executable file).
+- Evidence routing: the M5 §10 ruling carried — the A-B harness's
+  `tests/fixtures/ab/evidence.txt` is per-run SCRATCH, restored to its
+  previous snapshot via `git checkout --` after the run; the durable M6
+  record lives here + the task-9 report. The fixture is rewritten on every
+  harness run; this section is the record.
+
+## 14. Perf (the wrap — §11 of PARITY-M5's shape, the split metrics, BOTH ff rows)
+
+Machine: the dev box, the wrap runs 2026-10-04 (the M2/M3/M4/M5 contention
+lesson applies to every number). Stocking (documented probe seams,
+`tools/perf_space_sim.gd` header): 6 constructor planets — the KINDS ring
+gives **4 live ecos** (TS:128 builds an eco on every non-barren; the plan's
+"3 with live ecosystems" estimate is UNDERSHOT by the real ring — the ≤ 2 ms
+assert is conservative), 3 colonies (the `debug_seed_colonies` documented
+cheat — the bot-law's one sim call), 5 live pirates (the TS cap, far-parked
+at ring 4200 — the chase loop holds them ALIVE the whole window, the damage
+gate never grazes), 2 far black holes (the ungated drift + ttl decay runs),
+chaos silenced (gap 1e9 — the econ-probe seam).
+
+| Metric | Budget | Measured | Verdict |
+|---|---|---|---|
+| Space sim tick NORMAL mode @ 6 planets + 4 live ecos + 3 colonies + 5 chasing pirates + 2 drifting holes — headless `tools/perf_space_sim.gd` (pure `sim.update`, 300 ticks) | **≤ 2 ms, ASSERTED directly** | **0.050–0.053 ms avg over 5 runs** (max spikes 1.06–1.28 ms) | **MET** — ~38× under the budget |
+| Space sim tick FF-HOLD mode (keys_held KeyF every frame — the ff block ticks EVERY live eco at dt·26 in ONE update, TS:306-325; the first held frame ticks dt·1 via the TS:306 pre-read, measured as-coded) | **≤ 2 ms, ASSERTED directly** (the wrap tasking: BOTH modes) | **0.222–0.243 ms avg over 5 runs** (max spikes 1.27–5.21 ms) | **MET** — ~9× under the budget; eco.tick ×4 planets at ×26 dt dominates the normal-mode cost ~4.5× |
+| Space sim tick, scene-side cross-check (`tests/scenes/test_perf_space.gd`, xvfb, normal mode) | — (recorded only; llvmpipe contention inflates it) | 2.122 / 2.184 ms over the pre-commit runs; the sweep entry's number in §15 | recorded, consistent with the civ cross-check shape (civ: ~1.2 ms) |
+| Stage render pass (`render()` prep: the beam/cargo/panel syncs + the six-canvas queue sweep; deferred `_draw` lands in the frame window), xvfb | **≤ 4 ms, ASSERTED in the scene probe** | **0.085 / 0.085 ms** (maxes 0.472/0.195) | **MET** |
+| Full frame wall-window under llvmpipe (sim + render prep + deferred `_draw` + real rasterization) | (targets a real GPU) | 23.1 / 23.3 ms avg (maxes 68.1/65.8) | recorded — the M2 rig caveat: llvmpipe is the worst case |
+| Standing tripwires | cell ≤ 8 ms; creature + tribe ≤ 4 ms; painter passes ≤ 4 ms | all re-verified green in the sweep (§15: PERF, PERF_CREATURE, PERF_TRIBE, PERF_CIV, PERF_SPACE entries) | standing |
+
+Committed in `579d989`: `tools/perf_space_sim.gd` (headless, the assert in
+BOTH modes), `tests/scenes/test_perf_space.gd` + `.tscn` +
+`tools/test_perf_space.sh` (xvfb, born SPLIT — sim recorded, render asserted
+≤ 4 ms, frame recorded).
+
+## 15. The wrap (task 9, 2026-10-04) — riders, the sweep, tag pending-controller
+
+Milestone arc `f3daa44..HEAD` (the plan commit through the wrap). Wrap
+commits in order: `7939682` (chore: task tracker sync 1-8), `9ce60a4` (fix:
+the black-hole mid-band const hoist), `579d989` (test: the perf probes),
+then the wrap docs commit (this file, ARCHITECTURE §9, README, the sweep
+script — docs + script only, no executable file). **The tree is left CLEAN
+and TAG-READY; the `space-parity-m6` tag is controller scope after the final
+whole-branch review.**
+
+**Riders landed FIRST (they gate everything):**
+
+1. **Rider 1 (the T6-review minor): the sweep is COMPLETE — no skipped
+   entries.** The register() hide change (`38bf9fb`) touches every stage's
+   boot, so the wrap sweep runs ALL 20 entries: boot + ALL five bots (bot,
+   bot_creature, bot_tribe, bot_civ, bot_space) + editor_click + menu + the
+   three cell visuals + creature/tribe/civ/SPACE scene suites + ALL FIVE
+   perf probes. Every result recorded below.
+2. **Rider 2 (the T8-review ceiling condition): recorded in §11** — M7's CI
+   must gate a RID-leak ceiling, 403 CanvasItem RIDs as the entry datum,
+   per-file narrowing the ideal.
+3. **Rider 3 (the T4-review nit carry): `9ce60a4`** — the black-hole
+   `mid_r` hoisted to a const alongside BACKDROP_SEED (the 37.2 derivation
+   kept visible in the const expression; value unchanged — the T5 visual
+   suite's 37.2 mid-stop pin untouched). Trivial, landed.
+
+**The full xvfb sweep** — `tools/wrap_sweep_m6.sh` (committed with this
+doc): strictly sequential, one godot instance at a time, per-entry cap
+1200 s (≥ the 900 s floor), the five BOTS capped 2400 s (the brief's "bots
+more" — bot_space is documented ~25 min), `bot_space` deliberately LAST
+(the milestone bot; nothing follows it, the M5 bot_civ-last pattern).
+
+| Entry | Command | Result |
+|---|---|---|
+| boot | `xvfb-run … res://tests/scenes/test_boot.tscn` | SWEEP-BOOT-PENDING |
+| bot (cell arc) | `tools/test_bot.sh` (2400 s cap) | SWEEP-BOT-PENDING |
+| bot_creature | `tools/test_bot_creature.sh` (2400 s cap) | SWEEP-PENDING |
+| bot_tribe | `tools/test_bot_tribe.sh` (2400 s cap) | SWEEP-PENDING |
+| bot_civ | `tools/test_bot_civ.sh` (2400 s cap) | SWEEP-PENDING |
+| editor_click | `tools/test_editor_click.sh` | SWEEP-PENDING |
+| menu | `tools/test_menu.sh` | SWEEP-PENDING |
+| visual (cell) | `tools/test_visual.sh` | SWEEP-PENDING |
+| visual_creature | `tools/test_visual_creature.sh` | SWEEP-PENDING |
+| visual_suite | `tools/test_visual_suite.sh` | SWEEP-PENDING |
+| creature_scene | `tools/test_creature_scene.sh` | SWEEP-PENDING |
+| tribe_scene | `tools/test_tribe_scene.sh` | SWEEP-PENDING |
+| civ_scene | `tools/test_civ_scene.sh` | SWEEP-PENDING |
+| space_scene | `tools/test_space_scene.sh` | SWEEP-PENDING |
+| perf (cell) | `tools/test_perf.sh` | SWEEP-PENDING |
+| perf_creature | `tools/test_perf_creature.sh` | SWEEP-PENDING |
+| perf_tribe | `tools/test_perf_tribe.sh` | SWEEP-PENDING |
+| perf_civ | `tools/test_perf_civ.sh` | SWEEP-PENDING |
+| perf_space (NEW) | `tools/test_perf_space.sh` | SWEEP-PENDING |
+| bot_space (LAST) | `tools/test_bot_space.sh` (2400 s cap) | SWEEP-PENDING |
+
+The sweep list is perf ×5 standing (the M5 note carried: the plan's "perf
+×N" grows with the probes — cell/creature/tribe/civ/space).

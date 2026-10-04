@@ -1,6 +1,6 @@
-# PRIMORDIA Native — Kiến trúc (Milestone 1–5: sim core + cell + creature + tribe + civ stage)
+# PRIMORDIA Native — Kiến trúc (Milestone 1–6: sim core + cell + creature + tribe + civ + space stage)
 
-Ngày: 2026-10-03 · Trạng thái: M1 (sim core) + M2 (cell stage parity) + M3 (creature stage parity) + M4 (tribe stage parity) + M5 (civ stage parity) hoàn tất, mọi test xanh — tags `cell-parity-m2`, `creature-parity-m3`, `tribe-parity-m4`, M5 wrap chờ tag `civ-parity-m5`. Spec tổng: `docs/specs/2026-09-29-native-migration-design.md`. Parity checklist M2: `docs/PARITY-M2.md`; M3: `docs/PARITY-M3.md`; M4: `docs/PARITY-M4.md`; M5: `docs/PARITY-M5.md`.
+Ngày: 2026-10-04 · Trạng thái: M1 (sim core) + M2 (cell stage parity) + M3 (creature stage parity) + M4 (tribe stage parity) + M5 (civ stage parity) + M6 (space stage parity) hoàn tất, mọi test xanh — tags `cell-parity-m2`, `creature-parity-m3`, `tribe-parity-m4`, `civ-parity-m5`, M6 wrap chờ tag `space-parity-m6`. Spec tổng: `docs/specs/2026-09-29-native-migration-design.md`. Parity checklist M2: `docs/PARITY-M2.md`; M3: `docs/PARITY-M3.md`; M4: `docs/PARITY-M4.md`; M5: `docs/PARITY-M5.md`; M6: `docs/PARITY-M6.md`.
 
 ## 1. Tách layer — sim không biết Godot scene tồn tại
 
@@ -31,19 +31,22 @@ Fixtures JSON trong `tests/fixtures/` được sinh **một lần** từ repo TS
 
 ```bash
 cd ~/Desktop/RD/primordia-native
-./tools/test.sh              # headless suite (49 files / 721 tests)
-./tools/ab_test.sh [BASE]    # A-B behavior-identity gate (xem §2; M3: base cell-parity-m2 → IDENTICAL; M4: base creature-parity-m3 → IDENTICAL; M5: base tribe-parity-m4 → IDENTICAL)
+./tools/test.sh              # headless suite (55 files / 814 tests)
+./tools/ab_test.sh [BASE]    # A-B behavior-identity gate (xem §2; M3: base cell-parity-m2 → IDENTICAL; M4: base creature-parity-m3 → IDENTICAL; M5: base tribe-parity-m4 → IDENTICAL; M6: base civ-parity-m5 → IDENTICAL)
 ./tools/test_ab.sh           # A-B fail-open hardening — failure-path test (shell-only)
 ./tools/test_bot.sh          # bot arc cell ×3 seeds ×2 determinism (xvfb)
 ./tools/test_bot_creature.sh # bot creature: landfall + chaos + founding ×2 determinism (xvfb)
 ./tools/test_bot_tribe.sh    # bot tribe: founding → roles → delivery → hut → raid → totem → victory ×2 determinism (xvfb)
 ./tools/test_bot_civ.sh      # bot civ: tribe victory thật → refuse rung → sliders → launches → flips → thống nhất → space ×2 determinism (xvfb)
+./tools/test_bot_space.sh    # bot space: victory civ thật → bay/trail → abduct → seed/splice → ff → siege → finale + ending ×2 determinism (xvfb)
 ./tools/probe_tribe.sh       # 9 econ probes tribe TS-verbatim (headless; cũng nằm trong test.sh)
 ./tools/probe_civ.sh         # 14 econ probes civ TS-verbatim (headless; cũng nằm trong test.sh)
+./tools/probe_space.sh       # 13 probes space TS-verbatim (headless; cũng nằm trong test.sh)
 ./tools/test_perf.sh         # perf probe cell 200 ents ≤ 8 ms/tick pure-sim (xvfb)
 ./tools/test_perf_creature.sh # perf probe creature 60 ents: sim tripwire headless + painter draw ≤ 4 ms (xvfb)
 ./tools/test_perf_tribe.sh   # perf probe tribe 60 tribesmen + 6 warriors: sim tripwire headless + render-prep ≤ 4 ms (xvfb)
 ./tools/test_perf_civ.sh     # perf probe civ 4 cities + 3 armadas: sim assert ≤ 2 ms headless + render-prep ≤ 4 ms (xvfb)
+./tools/test_perf_space.sh   # perf probe space 6 planets + 3 colonies + 5 pirates + 2 holes: sim assert ≤ 2 ms CẢ HAI mode (normal + ff-hold) headless + render-prep ≤ 4 ms (xvfb)
 ./tools/test_menu.sh         # menu real-click (xvfb)
 ./tools/test_editor_click.sh # editor purchase real-click (xvfb)
 ./tools/test_visual.sh       # pixel-assert cell stage (xvfb)
@@ -52,6 +55,7 @@ cd ~/Desktop/RD/primordia-native
 ./tools/test_creature_scene.sh  # ten-moment creature visual suite (xvfb)
 ./tools/test_tribe_scene.sh  # tribe visual suite (xvfb)
 ./tools/test_civ_scene.sh    # civ scene suite: planet render, portrait clip, sliders panel, victory shimmer (xvfb)
+./tools/test_space_scene.sh  # space scene suite: 9 moments / 46 structural asserts (xvfb)
 ```
 
 `tests/run.gd` tự viết (không GUT/gdUnit4): discover `tests/test_*.gd`, chạy mọi method `test_*`, instance mới cho mỗi test (isolation state), in FAIL + message từng assertion, **exit 1 khi đỏ**. Chạy phải `cd` vào repo root trước (shell cwd reset). Scene tests (`tests/scenes/*.tscn`) chạy dưới xvfb + Compatibility renderer — bot parity law: mọi progression gate đi qua real input pipeline, không gọi thẳng sim.
@@ -104,6 +108,9 @@ Ràng buộc `-s` mode (không có editor script class cache — fresh clone/CI)
 | `src/game/civ/civ_sim.gd` | `src/game/civ/CivStage.ts` (sim, :17-526) | Civ sim thuần: constructor (capital + 3 rival cities cos/sin ring + rng jitter, rulerGenome = ctx.genome REFERENCE), national sliders (Q/W/E raise-clamp + transfer từ lane lớn nhất, regen 6 s vào lastRaised), armada machine (launch gates theo thứ tự cd → stat → targets → hopeless-refuse, power = stat+4 SNAPSHOT, flight 220, resolve d<14/t>14, rivalDef matrix), tickSecond (production, 3 tính cách rival, hearts, karma drift, flips + revolt by-id), 6 chaos hooks, persist/restore blob + guards, victory go_to + brick hardening — headless-testable |
 | `src/game/civ/civ_events.gd` | `src/game/civ/civEvents.ts` | Civ chaos deck: 4 baseline (quake 0.7, rebellion 0.6 + max(0,−karma)·0.8, goldenAge 0.6 + max(0,karma)·0.9 dur [14,20], worldWar 0.6) + 2 gated (golden_rival khi worldNum growth_mult > 1.2; trade_winds khi calmProxy — bless ×1.3 nằm TRONG weight fn); factory KHÔNG draw từ bất kỳ rng stream nào |
 | `src/game/civ/civ_stage.gd` | `src/game/civ/CivStage.ts` (:530-663 scene) | Scene node: screen-space canvases KHÔNG Cam (§8 — cancel canvas_transform trong _draw), portrait subtree cancel ở NODE transform (bài học T3), drift camera do sim sở hữu, sliders panel + launch hints + victory shimmer, toastInset 150 |
+| `src/game/space/space_sim.gd` | `src/game/space/SpaceStage.ts` (sim, :55-632 + :644-870 + :1233-1287) | Space sim thuần: constructor (rng từ CALLER — nhánh boot thứ 5; chaos scheduler trên rng.branch() THỨ HAI tại TS:98; deckSeed = world seed), generateSystem (6 planet ring kinds verbatim, mọi draw theo TS order), makePlanetEco (diet dial từ world genome — herbPull/carnPull, volcanic/ocean force, ONE flip chance — short-circuit JS; titan/swarm bonus SAU roster), on_enter (C1 deck-rebuild gate + restore whitelist), persistColonies (full world blob → flags.spaceWorld), ship control (cursor thrust 20-deadzone + WASD, accel 420, drag exp(−1.1dt)), ff block (timeScale pre-reads ffHold — ×26 post-release frame; ONE ecoMods snapshot feed MỌI eco), orbit + colony logistic (cap 120), sun danger/regen, black holes (pull 24000/max(80,d), ttl drift UNGATED), pirates (chase 300, cap 5, click-to-shoot −34), tryAbduct/finishAbduct (pay ledger 10/3 per '{planet}:{species}', pop-1 → extinct + bump_extinction), seedNearest/mergeCargo (crossover opts)/borrowedFleshGraft, tribute (demand/pay + onEnd unpaid → raid), finale/ending state machine, ship death (cull 700 >), resurvey cd 4/+3 — headless-testable |
+| `src/game/space/space_events.gd` | `src/game/space/spaceEvents.ts` | Space chaos deck: 4 baseline (pirates 0.7+chaos — ONE Math.random site đếm cướp, blackhole 0.5+chaos·0.8, flare 0.6 dur 0.1, tribute 0.5+max(0,−karma)·0.7 — def CHỈ demand, không end) + 2 gated (nebula_flip mutation_moon — 2 force speciation trên MỘT world pick; pirate_lull calm_veil — begin/end cặp, END hook ĐẦU TIÊN của deck); factory KHÔNG draw từ bất kỳ rng stream nào |
+| `src/game/space/space_stage.gd` | `src/game/space/SpaceStage.ts` (:885-1231 scene) | Scene node: REAL-cam world render (§9 — rig BẬT, world canvas identity, sky cancel _draw), screen layer sau cam.end (chip/ff-tint/vignette/hull/cargo clip slots/planet panel/ending veil), TWO fx pools (§9), panel_rects write-back mỗi frame TRƯỚC update (§9), zoom 0.85 / follow rate 5 (SPACE numbers, per-stage constraint) |
 
 i18n: `tr()`/`tr_key()` (TranslationServer, key = câu EN) cho mọi user-facing string từ M2; CSV VI/EN (`assets/i18n/vi.csv`) đã land ở M2 (454+ key, structural audit trong `tests/test_i18n.gd`). Save: JSON `FileAccess` + `JSON.stringify` full precision tại `user://saves/`, shape-validate chặt (corrupt → start fresh), không migrate save TS. Lưu ý wire-key: **mọi bề mặt save-wire giữ key TS-verbatim camelCase** (`totalDnaEarned`, `killsByPlayer`, `comboFired`…) **trừ eco-species blob** — nó ride key native snake_case (`kills_by_player`, `grudge_t`, `harass_t` — seam naming từ Task 8, xem `ecosystem.gd` `from_json`), vì save native không bao giờ gặp save TS; công cụ save sau này đừng assum uniform camelCase.
 
@@ -315,3 +322,123 @@ vĩnh viễn (TS:123-128). Victory path thường cũng latch `victoryFired` +
   sim tick recorded (llvmpipe contention ~1.2 ms), stage render-prep pass
   (portrait re-sync + canvas queue sweep) ≤ **4 ms** assert (đo ~0.05 ms),
   frame window recorded (rasterization llvmpipe — rig caveat như §6).
+
+## 9. Space stage — kiến trúc riêng (M6)
+
+### Sim/scene tách + hằng số per-stage
+
+`space_sim.gd` (RefCounted, hooks-Dictionary, `update(dt, inp)` M2 snapshot)
+tiếp pattern civ. Constructor: **rng từ CALLER** (`ctx.rng.branch()` — nhánh
+boot-order THỨ 5, pin `test_hud_civ.gd::test_boot_order_branch_pin` exactly-5)
+và **chaos scheduler trên rng.branch() THỨ HAI** tại đúng stream position
+TS:98; deck từ `space_events.gd` (factory không draw). Hằng số TS-verbatim:
+accel **420**, drag **exp(−1.1dt)**, sun r **130**/danger +60, regen +8dt
+trong r+150 (KHÔNG invuln gate), cargo cap **4**, beam **1.4** (KHÔNG clamp
+khi đếm ngược — land negative), resurvey cd **4**/+**3**, colony logistic cap
+**120**, pirate cap **5**/chase **300**/drag exp(−1.4dt)/hp 140/ttl 40, black
+hole pull **24000/max(80,d)** trong d<600, cull respawn **700 strict >**
+(phải vượt 600 pull), respawn (0,−900), ff timeScale **26**. KINDS ring cố
+định `["lush","ocean","volcanic","barren","lush","barren"]` → MỌI thế giới
+constructor sinh sẵn **4 eco sống** (mọi planet non-barren, TS:128).
+
+### REAL-cam world render — đối phản với civ screen-space
+
+Space là stage **thứ hai bật Camera2D rig** (sau creature — civ là điểm
+nghỉ screen-space KHÔNG Cam): `on_enter` bật rig, `on_exit` tắt (menu/cell
+vẽ absolute screen space). Hệ quả chia hai lớp:
+
+- **World canvases** (ship/fx/beam-specimen): vẽ ở **identity transform**
+  trong world coordinates — viewport áp camera transform (follow(sx, sy, dt,
+  **5**) + zoom **0.85** — số SPACE, KHÔNG chia sẻ tribe 4/0.95 hay creature
+  5/1.15 — plan Global Constraint per-stage).
+- **Sky canvas**: backdrop là screen-space (TS vẽ ngoài cam.begin/end) —
+  cancel live viewport `canvas_transform` BÊN TRONG `_draw`
+  (`affine_inverse`, cơ chế §6).
+- **Screen layer SAU cam.end** (TS :1027-1122 + panel :1195-1231): ui/panel
+  canvases cũng cancel trong `_draw` (`draw_set_transform_matrix(_screen_inv())`);
+  **cargo-slot node subtrees** (clip painter children) cancel ở **NODE
+  transform** trong `render()` — bài học civ portrait T3: một node SUBTREE
+  không thể cancel trong `_draw` của riêng nó.
+
+Khác civ: world map là **toàn bộ hệ mặt trời thật** (6 orbit + sun + hazard)
+vẽ qua camera thật — camX/camY KHÔNG phải drift camera sim-owned như civ mà
+là camera rig bám con tàu; `wx/wy` world-coords của frame TRƯỚC feed snapshot
+input (TS-identical).
+
+### TWO fx pools (TS:53/:622-623/:1023-1024)
+
+Stage sở hữu **pool riêng** `fx = Fx(1300)`: engine trail (sim `fx_spawn` ở
+thrust-gated chance(dt·40) — frame idle KHÔNG draw từ stream) + pirate/zap
+bursts đến qua hooks `fx_spawn`/`fx_burst` (sim replay draw rng của TS burst
+— precedent cell_sim). **Đồng thời** pool dùng chung `game.fx` vẫn chạy:
+update mỗi frame TRƯỚC stage pool (TS:622) và render SAU ship (TS:1024).
+Hai pool, hai bước update, một draw order — không pool nào nuốt pool nào.
+
+### panel_rects write-back (TS:1192)
+
+Sim SỞ HỮU hit-test + dispatch **trong update** nhưng KHÔNG sở hữu geometry:
+**stage viết `sim.panel_rects` MỖI frame TRƯỚC `sim.update`** (sync render-side
+`_sync_panel_view` — TS renderPlanetPanel tính rect lúc draw); sim chỉ ĐỌC.
+Một frame positional lag, TS-identical. Out of range panel ngừng vẽ (view
+gate đóng) nhưng rows STALE-KEEP — sim vẫn dispatch trên rects cũ nếu click
+zô (TS-true). Row shape `{action, enabled, r}`; disabled button VẪN sở hữu
+click của nó (không fall-through thành thrust — TS:412-414), uiHold chỉ viết
+trên click frame.
+
+### Restore whitelist doctrine
+
+`_restore_world` là whitelist TỪNG guard (TS:190-267): parse-null = catch TS;
+`shapesOk` (typeof-object chấp nhận ARRAY rows — gate mở, row đọc undefined);
+length gate; `num(v, min)` type-check-then-float strict > min, KHÔNG max (hue
+2000 restore được); per-field r/orbitR/orbitSpeed/angle/hue/name/kind/ring;
+colony/scanned ride whitelist; eco instanceof → null + ALWAYS-take-saved +
+colonist rebuild; cargo clamp merge (junk drop, 'specimen'). **Ledger +
+ending blocks nest BÊN TRONG shapes gate** — blob hỏng vứt TOÀN BỘ restore
+(fact AST của T1-review). persistColonies ghi full world blob (per-planet
+geometry/kind/ring/scanned/colony/eco-toJSON, không x/y) + cargo +
+abductCount + ending* → `flags.spaceWorld`.
+
+### register() hide — mô hình boot registry (38bf9fb)
+
+`game.register()` giờ **ẩn stage ngay lúc add** (`_set_stage_visible(stage,
+false)`): stage cuối cùng trong boot registry vẽ MỘT shot opaque khi vào tree
+và layer one-shot đó composite TRÊN mọi stage đăng ký trước nó mãi mãi —
+backdrop space che landing CONTINUE của civ (proven TS-verbatim ở T6 review:
+TS immediate-mode chỉ redraw stage sống; native persistent children cần hide).
+`switch_stage` hiện stage nó làm current. Factory rebuild
+(`resetStagesForNewRun`) vẫn xây instance mới — hai list, một mô hình.
+
+### Debug cheats surface (bot parity law exception)
+
+- `debug_state()` — read-only snapshot (planets/cargo/beamT/finale/ending*/
+  pirates/blackHoles/tributeDemand/resurveyCd/ffHold/persistT…).
+- `debug_seed_colonies()` (TS:1275-1287) — seed colony trên 3 planet
+  non-barren ĐẦU TIÊN theo planet ORDER (docstring TS nói 'nearest' — SAI,
+  pin as-coded). Là **sim call DUY NHẤT** của bot_space (bot-law audit
+  task-7); mọi gate khác đi real input pipeline.
+
+### In-stage finale
+
+Finale/ending là **state machine CỦA SIM** (TS:552-602): thriving ≥ 3 &&
+!endingDone → core (0,−1900) + AWAKENS banner + bearing per-frame; approach
+d<60 → endingDone + persist ngay; endingT += dt; dismiss (click/key không
+consume) → endingDismissed + dismissT = endingT (+= TRƯỚC latch — quirk
+TS-verbatim); endingDone chặn re-trigger/re-bill (death post-ending không
+trừ DNA). Stage chỉ vẽ: veil `min(1, endingT/2)` in / `max(0, 1−(endingT−
+dismissT)/1.5)` out + card + sandbox line. Cờ ending* đi full round-trip
+persist/restore (won-run-stays-won, dismissed-sleeps — E2E test_hud_space).
+
+### Perf instrument (M6 wrap)
+
+- `tools/perf_space_sim.gd` — **headless** (contention-immune, primary):
+  6 planets constructor (4 eco sống — ring thật; ước lượng "3 eco" của plan
+  THẤP hơn thực tế, assert bảo thủ) + 3 colonies (debug cheat) + 5 pirates
+  (cap, park xa 4200 — chase cả cửa sổ, không damage churn) + 2 black holes
+  (park 3200 — drift/ttl ungated chạy) × 300 ticks **CẢ HAI mode**: normal
+  và ff-hold (ff tick MỌI eco ở dt·26 MỘT update). §5.4 ≤ 2 ms **ASSERT trực
+  tiếp cả hai**: normal 0.050–0.053 ms, ff 0.222–0.243 ms (5 runs, 2026-10-04).
+- `tests/scenes/test_perf_space.gd` — xvfb: real game, metrics SPLIT:
+  sim tick recorded (llvmpipe contention ~2.1 ms), stage render-prep pass
+  (beam/cargo/panel syncs + queue sweep 6 canvas) ≤ **4 ms** assert (đo
+  ~0.085 ms), frame window recorded (rasterization llvmpipe ~23 ms — rig
+  caveat như §6).
