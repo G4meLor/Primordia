@@ -25,9 +25,11 @@
 ##   resolve's +30 crosses; an economy-rival −2 buy proc cannot starve it),
 ##   real Q taps refilling mil to 5 (whatever the seed's regen already did),
 ##   then ONE real Digit1 launch flips it → all owned → victoryFired → the
-##   space placeholder transition captured ({next 'space', 'THE BLACK OCEAN',
-##   'a planet was never going to be enough'} — the unregistered-space switch
-##   no-ops, the civ stage remains, the test_hud_civ.gd:301 premise).
+##   space transition captured ({next 'space', 'THE BLACK OCEAN',
+##   'a planet was never going to be enough'}) and — M6 task 6, space
+##   REGISTERED — the card lands the REAL SpaceStage (the M5
+##   unregistered-no-op leg upgraded; Task 7 rebuilds the arc's continuation
+##   from this landing).
 ##
 ## TS AUTHORITY: no civ bot test exists in the frozen repo (Spore/tests/
 ## holds bot/bot-arc/bot-creature only). The cheat set mirrors the M4 family:
@@ -331,8 +333,8 @@ func _trail_asserts(game: Variant) -> String:
 
 # ---- the civ arc (one tick per scene frame, post bot_tribe's OK) --------------------
 ## Returns "OK" when the full civ arc completed (the unification victory
-## fired the space transition, it ran its course, and the civ stage
-## remained), "" while still walking, else the failure reason. _frames is
+## fired the space transition, it ran its course, and the REGISTERED space
+## stage landed), "" while still walking, else the failure reason. _frames is
 ## the leg-local tick counter, incremented once per tick at the top.
 func civ_tick(game: Variant) -> String:
 	_frames += 1
@@ -519,12 +521,13 @@ func civ_tick(game: Variant) -> String:
 						str(near_c["owner"]), str(near_c["influence"]), sim.armadas.size()]
 		"victory_land":
 			# the transition runs its course (out 0.55 + card 2.2 + in 0.6 —
-			# no clicks injected, the card auto-advances); space is
-			# UNREGISTERED: the switch no-ops and the civ stage remains
+			# no clicks injected, the card auto-advances); M6 task 6: space is
+			# REGISTERED — the card lands the REAL SpaceStage (the M5
+			# placeholder leg upgraded; Task 7 rebuilds the arc's continuation)
 			_civ_wait_step(game)
 			if game.transition == null:
-				if String(game.context.stage) != "civ" or game.current.id != "civ":
-					return "victory_land: the civ stage did not remain (stage %s current %s)" % [
+				if String(game.context.stage) != "space" or game.current.id != "space":
+					return "victory_land: the space stage did not land (stage %s current %s)" % [
 							str(game.context.stage), str(game.current.id)]
 				if not bool(sim.victoryFired):
 					return "victory_land: victoryFired never latched"

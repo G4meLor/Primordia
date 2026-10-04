@@ -11,9 +11,10 @@
 # asserts only), the resolves observed (the influence jump + the sim's own
 # net math read back), regen refilling the lastRaised lane between launches,
 # then the victory leg: the documented debug_set_influence grants + ONE real
-# Digit1 launch completing unification → victoryFired → the space placeholder
-# transition ({'THE BLACK OCEAN' / 'a planet was never going to be enough'})
-# with the civ stage remaining (space unregistered — test_hud_civ.gd:301).
+# Digit1 launch completing unification → victoryFired → the space transition
+# ({'THE BLACK OCEAN' / 'a planet was never going to be enough'}) landing the
+# REGISTERED SpaceStage (M6 task 6 — the M5 unregistered-placeholder leg
+# upgraded; the arc's post-landing continuation is Task 7's).
 #
 # Phases: per pass in [1, 2]: one game — arrival ticks → founding ticks →
 # tribe ticks → civ ticks → asserts + fingerprint → next pass. Both passes
@@ -40,6 +41,7 @@ const CellStageScript := preload("res://src/game/cell/cell_stage.gd")
 const CreatureStageScript := preload("res://src/game/creature/creature_stage.gd")
 const TribeStageScript := preload("res://src/game/tribe/tribe_stage.gd")
 const CivStageScript := preload("res://src/game/civ/civ_stage.gd")
+const SpaceStageScript := preload("res://src/game/space/space_stage.gd")
 const BotCivScript := preload("res://tests/bots/bot_civ.gd")
 const BotCreatureScript := preload("res://tests/bots/bot_creature.gd")  # the WORLD_SEED pin lives on the arrival/founding legs
 
@@ -205,10 +207,10 @@ func _first_trace_divergence() -> String:
 
 
 ## The REAL composition the bot flows through (main.gd's boot minus the
-## factory): menu + cell + creature + tribe + civ registered at boot —
-## main.gd parity since M5 (the tribe victory lands the REGISTERED civ
-## stage; 'space' stays unregistered until its milestone) — manual stepping
-## ONLY (the real _process would add wall-clock-clamped phantom steps).
+## factory): menu + cell + creature + tribe + civ + space registered at boot —
+## main.gd parity since M6 (the civ victory lands the REGISTERED space stage)
+## — manual stepping ONLY (the real _process would add wall-clock-clamped
+## phantom steps).
 func _build_game() -> Variant:
 	var ctx: Variant = ContextScript.new(BotCreatureScript.WORLD_SEED)
 	var game: Variant = GameScript.new(ctx)
@@ -220,6 +222,7 @@ func _build_game() -> Variant:
 	game.register(CreatureStageScript.new(game))
 	game.register(TribeStageScript.new(game))
 	game.register(CivStageScript.new(game))
+	game.register(SpaceStageScript.new(game))
 	game.start()
 	return game
 

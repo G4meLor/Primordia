@@ -1,18 +1,20 @@
-# Civ game-level wiring — M5 task 4. The registration contract (main.gd BOTH
-# lists, boot order cell → creature → tribe → civ, the constructor's
-# context-rng branch joining the boot-order pin), the hud.toast_inset 150
-# lifecycle (CivStage.ts:120 arms 150 in on_enter; game.ts:213 zeroes it on
-# every stage switch — game.gd:262), the M4 bot test's placeholder assert
-# UPGRADED (with civ registered, the tribe victory go_to('civ', THE FIRST
-# CITY) lands the REAL CivStage — no double banner: the title comes from the
-# tribe side), the victory → space placeholder (THE BLACK OCEAN card
-# swallowed by the unregistered-'space' no-op, the M3 placeholder ruling
-# pattern), the brick-hardening CONTINUE E2E (a unified save auto-fires the
-# space transition — the old silent softlock, TS:123-128), and the civ-surface
-# i18n 1:1 (the T8 standard: the 12 t() sites of CivStage.ts ↔ vi.csv ↔ the
-# TS VI object; the raw composed/unwrapped sites pinned absent from BOTH).
-# civState save/continue + the guards E2E live in test_world_creature_pins.gd
-# (the worldStage pin file, per the M4 task-5 file split).
+# Civ game-level wiring — M5 task 4, M6 task 6 upgrades. The registration
+# contract (main.gd BOTH lists, boot order cell → creature → tribe → civ →
+# space, the constructor's context-rng branch joining the boot-order pin —
+# the exactly-5 draw), the hud.toast_inset 150 lifecycle (CivStage.ts:120
+# arms 150 in on_enter; game.ts:213 zeroes it on every stage switch —
+# game.gd:262), the M4 bot test's placeholder assert UPGRADED (with civ
+# registered, the tribe victory go_to('civ', THE FIRST CITY) lands the REAL
+# CivStage — no double banner: the title comes from the tribe side), the
+# M5 victory → space placeholder UPGRADED in turn (with space REGISTERED the
+# civ victory lands the REAL SpaceStage — the M6 task-6 landing flow), the
+# brick-hardening CONTINUE E2E (a unified save auto-fires the space
+# transition — the old silent softlock, TS:123-128 — and now LANDS space),
+# and the civ-surface i18n 1:1 (the T8 standard: the 12 t() sites of
+# CivStage.ts ↔ vi.csv ↔ the TS VI object; the raw composed/unwrapped sites
+# pinned absent from BOTH). civState save/continue + the guards E2E live in
+# test_world_creature_pins.gd; the space-surface flows (ending, spaceWorld
+# continue, i18n) live in test_hud_space.gd (the M6 task-6 file split).
 # Headless -s boot: the test_hud_tribe out-of-tree pattern (run.gd drives
 # tests synchronously inside _initialize; stage _ready is invoked ONCE
 # manually — the game node is not in the tree in -s mode).
@@ -25,6 +27,7 @@ const CellStageScript := preload("res://src/game/cell/cell_stage.gd")
 const CreatureStageScript := preload("res://src/game/creature/creature_stage.gd")
 const TribeStageScript := preload("res://src/game/tribe/tribe_stage.gd")
 const CivStageScript := preload("res://src/game/civ/civ_stage.gd")
+const SpaceStageScript := preload("res://src/game/space/space_stage.gd")
 const MainScript := preload("res://src/main.gd")
 const I18nScript := preload("res://src/core/i18n.gd")
 
@@ -35,19 +38,21 @@ const VICTORY_POLL := 2400  # the honest totem ride ~21 s + victoryT 2.5 s
 const OBJECTIVE := "UNIFY THE PLANET — slider keys Q/W/E · launch armadas with 1/2/3"
 const SPACE_TITLE := "THE BLACK OCEAN"
 const SPACE_SUB := "a planet was never going to be enough"
+const SPACE_OBJECTIVE := "SEED 3 WORLDS, GROW EACH TO POP 20 — awaken the Chaos Core · R abduct · F evolve"
+const SPACE_KINDS := ["lush", "ocean", "volcanic", "barren", "lush", "barren"]
 const SCRATCH_CFG := "user://test_hud_civ_settings.cfg"
 
 
 # ---- boot -----------------------------------------------------------------------
 
-## The real composition main.gd boots (menu + the four gameplay stages in
+## The real composition main.gd boots (menu + the five gameplay stages in
 ## main.gd's register order — menu LAST, exactly main.gd), minus cell for the
 ## flows that never visit it (test_hud_tribe precedent) and minus the factory
 ## (no NEW LIFE mid-run). Manual stepping only. `order` reshuffles the
 ## gameplay-stage register order for the boot-order branch pin.
 func _boot(seed_v: int = SEED, with_cell := false, order: Array = []) -> Variant:
 	var gameplay: Array = order if not order.is_empty() \
-			else ["cell", "creature", "tribe", "civ"]
+			else ["cell", "creature", "tribe", "civ", "space"]
 	var ctx: Variant = ContextScript.new(seed_v)
 	var g: Variant = GameScript.new(ctx)
 	g.set_process(false)
@@ -71,6 +76,8 @@ func _boot(seed_v: int = SEED, with_cell := false, order: Array = []) -> Variant
 				st = TribeStageScript.new(g)
 			"civ":
 				st = CivStageScript.new(g)
+			"space":
+				st = SpaceStageScript.new(g)
 		g.register(st)
 		st._ready()  # the tree would normally fire this at register time
 	g.register(MenuStageScript.new(g))
@@ -111,57 +118,68 @@ func _feed_key(g: Variant, keycode: Key) -> void:
 ## The M4 task-5 pin shape (test_tribe_scene.test_main_registers_tribe_stage):
 ## source-text pins on main.gd — the preload, the boot register AND the
 ## quit-to-title fresh-instance list (the drifter rule: gameplay stages only,
-## the menu persists), in the boot order cell → creature → tribe → civ.
+## the menu persists), in the boot order cell → creature → tribe → civ →
+## space (the M6 task-6 growth — space in BOTH lists, the drifter rule).
 func test_main_registers_civ_stage() -> void:
 	var src: String = (MainScript as Script).source_code
 	ok(src.find("res://src/game/civ/civ_stage.gd") >= 0, "main preloads the civ stage")
 	ok(src.find("game.register(CivStageScript.new(game))") >= 0,
 			"main registers CivStage at boot")
-	ok(src.find("TribeStageScript.new(game), CivStageScript.new(game)]") >= 0,
-			"the NEW LIFE factory rebuilds the civ stage too (after tribe)")
-	# the boot register order cell → creature → tribe → civ (the branch-draw
-	# order every stage constructor's context-rng branch follows)
+	ok(src.find("res://src/game/space/space_stage.gd") >= 0, "main preloads the space stage")
+	ok(src.find("game.register(SpaceStageScript.new(game))") >= 0,
+			"main registers SpaceStage at boot (M6)")
+	# the M6 factory tail: the list wraps, so the space entry ends it on its
+	# own line (the M5 'TribeStageScript.new(game), CivStageScript.new(game)]'
+	# shape grew a tail — see test_tribe_scene's matching update)
+	ok(src.find("SpaceStageScript.new(game)]") >= 0,
+			"the NEW LIFE factory rebuilds the space stage too (after civ)")
+	# the boot register order cell → creature → tribe → civ → space (the
+	# branch-draw order every stage constructor's context-rng branch follows)
 	var i_cell := src.find("game.register(CellStageScript.new(game))")
 	var i_creature := src.find("game.register(CreatureStageScript.new(game))")
 	var i_tribe := src.find("game.register(TribeStageScript.new(game))")
 	var i_civ := src.find("game.register(CivStageScript.new(game))")
-	ok(i_cell >= 0 and i_cell < i_creature and i_creature < i_tribe and i_tribe < i_civ,
-			"boot register order cell → creature → tribe → civ")
+	var i_space := src.find("game.register(SpaceStageScript.new(game))")
+	ok(i_cell >= 0 and i_cell < i_creature and i_creature < i_tribe
+			and i_tribe < i_civ and i_civ < i_space,
+			"boot register order cell → creature → tribe → civ → space")
 
 
-## The constructor's context-rng branch joins the boot-order pin (CivStage.ts
+## The constructor's context-rng branch joins the boot-order pin (every stage
 ## constructor `this.rng = game.context.rng.branch()`): the boot draws EXACTLY
-## four branches — cell, creature, tribe, civ, in register order — the same
-## order a fresh same-seed context replays. Pinned behaviorally: same order →
-## identical branch states (determinism); a reshuffled order shifts exactly
-## the stages whose branch POSITION moved.
+## five branches — cell, creature, tribe, civ, space, in register order — the
+## same order a fresh same-seed context replays. Pinned behaviorally: same
+## order → identical branch states (determinism); a reshuffled order shifts
+## exactly the stages whose branch POSITION moved.
 func test_boot_order_branch_pin() -> void:
 	var g1: Variant = _boot(SEED, true)
 	var states := {}
-	for id in ["cell", "creature", "tribe", "civ"]:
+	for id in ["cell", "creature", "tribe", "civ", "space"]:
 		var st: Variant = g1.stages[id]
 		ok(st.sim != null, "%s stage built its sim at boot" % id)
 		states[id] = int(st.sim.rng.state())
-	# the boot consumed EXACTLY four context branches (the 4th is the civ
-	# constructor's — one per gameplay stage _ready, nothing else draws)
+	# the boot consumed EXACTLY five context branches (the 5th is the space
+	# constructor's — one per gameplay stage _ready, nothing else draws; the
+	# space sim's INTERNAL draws — chaos deck, planet ecos — ride the STAGE
+	# branch, not the context stream)
 	var ref: Variant = ContextScript.new(SEED)
-	for i in 4:
+	for i in 5:
 		ref.rng.branch()
 	eq(int(g1.context.rng.state()), int(ref.rng.state()),
-			"boot drew exactly 4 context branches (cell/creature/tribe/civ)")
+			"boot drew exactly 5 context branches (cell/creature/tribe/civ/space)")
 	_drop(g1)
 	# same order, same seed → identical branch states
 	var g2: Variant = _boot(SEED, true)
-	for id in ["cell", "creature", "tribe", "civ"]:
+	for id in ["cell", "creature", "tribe", "civ", "space"]:
 		eq(int(g2.stages[id].sim.rng.state()), states[id],
 				"same boot order → identical %s branch state" % id)
 	_drop(g2)
 	# the order is LOAD-BEARING: swapping civ and tribe moves exactly their
-	# two branches (cell stays 1st, creature stays 2nd — cell-first in BOTH
-	# boots on purpose: the creature sim bootstraps ctx.eco on its first
-	# construction, so a civ-first boot would change its constructor PATH,
-	# not just its branch position — a confound, not the pin)
-	var g3: Variant = _boot(SEED, true, ["cell", "creature", "civ", "tribe"])
+	# two branches (cell stays 1st, creature stays 2nd, space keeps the 5th —
+	# cell-first in BOTH boots on purpose: the creature sim bootstraps ctx.eco
+	# on its first construction, so a civ-first boot would change its
+	# constructor PATH, not just its branch position — a confound, not the pin)
+	var g3: Variant = _boot(SEED, true, ["cell", "creature", "civ", "tribe", "space"])
 	ok(int(g3.stages["civ"].sim.rng.state()) != states["civ"],
 			"the civ/tribe swap shifts the civ branch (3rd, not 4th)")
 	ok(int(g3.stages["tribe"].sim.rng.state()) != states["tribe"],
@@ -170,7 +188,19 @@ func test_boot_order_branch_pin() -> void:
 			"cell keeps the 1st branch under the swap")
 	eq(int(g3.stages["creature"].sim.rng.state()), states["creature"],
 			"creature keeps the 2nd branch under the swap")
+	eq(int(g3.stages["space"].sim.rng.state()), states["space"],
+			"space keeps the 5th branch under the swap")
 	_drop(g3)
+	# and the 5th position itself is load-bearing: swapping civ and space
+	# moves exactly their two branches (tribe keeps the 3rd)
+	var g4: Variant = _boot(SEED, true, ["cell", "creature", "tribe", "space", "civ"])
+	ok(int(g4.stages["space"].sim.rng.state()) != states["space"],
+			"the civ/space swap shifts the space branch (4th, not 5th)")
+	ok(int(g4.stages["civ"].sim.rng.state()) != states["civ"],
+			"the civ/space swap shifts the civ branch (5th, not 4th)")
+	eq(int(g4.stages["tribe"].sim.rng.state()), states["tribe"],
+			"tribe keeps the 3rd branch under the swap")
+	_drop(g4)
 
 
 # ---- AC2: the toast inset lifecycle (TS:120 arm / game.ts:213 reset) -------------
@@ -288,17 +318,20 @@ func test_tribe_victory_lands_registered_civ() -> void:
 	_drop(g)
 
 
-# ---- AC5: the victory → space placeholder (the M3 ruling pattern) ----------------
+# ---- AC5: the civ victory → the REAL space landing (the M5 placeholder ------
+# ---- assert, upgraded in M6 task 6) ---------------------------------------------
 
 ## Unify through the documented cheat surface (debug_set_influence grants + a
 ## tick — the sim header's documented bot victory leg), the victory fires
-## save_all + go_to('space', {THE BLACK OCEAN …}); space is UNREGISTERED (its
-## milestone owns the registration) so switch_stage no-ops, the civ stage
-## remains, and the card title/sub are SWALLOWED — not crashed.
-func test_victory_to_space_placeholder() -> void:
+## save_all + go_to('space', {THE BLACK OCEAN …}); with space REGISTERED the
+## card lands the REAL SpaceStage — on_enter arms the objective, the C1 gate
+## no-ops on the same world, the constructor 6-planet system stands, and the
+## outgoing civ hud was zeroed by the game-level switch reset (space never
+## re-arms an inset — TS space has no set_toast_inset).
+func test_victory_lands_registered_space() -> void:
 	_wipe_saves()
 	var g: Variant = _boot()
-	ok(not g.stages.has("space"), "space is unregistered (the placeholder premise)")
+	ok(g.stages.has("space"), "space is REGISTERED (the landing premise)")
 	g.switch_stage("civ")
 	g.step_for_testing(5, DT)
 	var sim: Variant = g.current.sim
@@ -339,17 +372,35 @@ func test_victory_to_space_placeholder() -> void:
 		var disk: Variant = JSON.parse_string(String(parsed["flags"]["civState"]))
 		ok(disk is Dictionary and bool(disk["victoryFired"]),
 				"the disk blob carries victoryFired")
-	# ride the card + fade out: the space switch no-ops, the civ stage remains
+	# ride the card + fade out: the REGISTERED SpaceStage lands
 	var steps2 := 0
-	while g.transition != null and steps2 < TRANSITION_POLL:
+	while not (String(g.context.stage) == "space" and g.transition == null) \
+			and steps2 < TRANSITION_POLL:
 		g.step_for_testing(1, DT)
 		steps2 += 1
-	eq(g.transition, null, "the swallowed space card completed (%d steps)" % steps2)
-	eq(String(g.context.stage), "civ", "the civ stage remains (space unregistered → no-op)")
-	eq(String(g.current.id), "civ", "the live stage is still civ")
-	eq(bool(sim.victoryFired), true, "the latch holds after the ride")
-	g.current.render()  # the stage still draws after the swallowed card (no crash)
-	ok(true, "civ render() after the swallowed space card")
+	eq(String(g.context.stage), "space", "the REGISTERED SpaceStage landed (%d steps)" % steps2)
+	eq(String(g.current.id), "space", "the live stage is the space stage")
+	eq(bool(sim.victoryFired), true, "the civ latch holds after the ride")
+	# the arrival hooks rode on_enter through the REAL stage hooks
+	eq(String(g.current.hud_inst.show_objective), SPACE_OBJECTIVE,
+			"arrival armed the space objective (SpaceStage.ts:188)")
+	eq(float(g.current.hud_inst.toast_inset), 0.0,
+			"space arms NO inset (TS space has no set_toast_inset — the reset default holds)")
+	eq(float(g.stages["civ"].hud_inst.toast_inset), 0.0,
+			"game.ts:213 zeroed the outgoing civ hud (its 150 never comes back)")
+	# the constructor 6-planet system stands (no spaceWorld blob on a first
+	# landing → nothing restored)
+	eq(g.current.sim.planets.size(), 6, "the constructor system stands (6 planets, TS:106)")
+	for i in 6:
+		eq(String(g.current.sim.planets[i]["kind"]), SPACE_KINDS[i],
+				"planet %d kind rides the fixed ring (TS:105)" % i)
+	# the C1 gate no-ops on the boot's own world (same seed → no deck rebuild)
+	eq(int(g.current.sim.deckSeed), int(g.context.world["seed"]),
+			"same world → deckSeed unchanged (C1 gate no-op, TS:183)")
+	ok(g.current.hud_inst._cur_banner == null, "no space-side landing banner")
+	# the landed sandbox draws clean right after the handoff (no crash)
+	g.current.render()
+	ok(true, "space render() right after the civ victory landing")
 	_wipe_saves()
 	_drop(g)
 
@@ -404,14 +455,21 @@ func test_brick_hardening_continue_auto_space() -> void:
 	# the restore happened first: the unified board is what stood
 	eq(String(g2.context.stage), "civ", "the restore landed civ before the space card")
 	eq(float(g2.current.sim.mil), 7.0, "restore_state true (the unified board restored)")
-	# ride it out: space unregistered → the switch no-ops, the civ stage remains
+	# ride it out: with space REGISTERED the brick card lands the REAL
+	# SpaceStage — the sandbox of the unified run (M6 task 6 upgrade; the
+	# M5 placeholder tail asserted the civ stage remained)
 	var steps2 := 0
-	while g2.transition != null and steps2 < TRANSITION_POLL:
+	while not (String(g2.context.stage) == "space" and g2.transition == null) \
+			and steps2 < TRANSITION_POLL:
 		g2.step_for_testing(1, DT)
 		steps2 += 1
-	eq(g2.transition, null, "the swallowed space card completed")
-	eq(String(g2.context.stage), "civ", "the civ stage remains after the swallowed card")
-	eq(String(g2.current.id), "civ", "the live stage is still civ")
+	eq(g2.transition, null, "the brick space card completed (%d steps)" % steps2)
+	eq(String(g2.context.stage), "space", "the brick card landed the space stage")
+	eq(String(g2.current.id), "space", "the live stage is space")
+	# the space save never visited space: the constructor system stands
+	eq(g2.current.sim.planets.size(), 6, "the constructor system stands after the brick landing")
+	eq(String(g2.current.hud_inst.show_objective), SPACE_OBJECTIVE,
+			"the objective armed on the brick landing")
 	_wipe_saves()
 	_drop(g2)
 

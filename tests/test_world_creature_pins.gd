@@ -33,6 +33,17 @@
 # main.gd now does. The landing/placeholder/brick/i18n flows live in
 # tests/test_hud_civ.gd (the task-4 file split, the M4 task-5 precedent).
 #
+# M6 task 6 additions: the SPACE save/continue pins — a space-stage save_all
+# CONTINUEs into the space stage with the system AS IT STOOD (the restore
+# whitelist: planets incl. the eco rosters + colonies + scanned, cargo, the
+# abduct ledger), the on_exit persist, the C1 deck-rebuild gate on a
+# different-world CONTINUE, and the corrupt-blob guards E2E (a wrong-length
+# blob → the fresh constructor system incl. the gate placement — the ledger
+# and the ending discard too; a non-finite r → the field keeps the
+# constructor value while valid fields in the same blob ride).
+# `with_space` boots register the SpaceStage like main.gd now does. The
+# ending-continue flows + the space i18n live in tests/test_hud_space.gd.
+#
 # Headless -s boot: test_hud_creature's out-of-tree pattern (run.gd drives
 # tests synchronously inside _initialize; stage _ready is invoked ONCE
 # manually). The cell→creature shore transition's REAL-input proof lives in
@@ -46,7 +57,10 @@ const MenuStageScript := preload("res://src/game/menu.gd")
 const CreatureStageScript := preload("res://src/game/creature/creature_stage.gd")
 const TribeStageScript := preload("res://src/game/tribe/tribe_stage.gd")
 const CivStageScript := preload("res://src/game/civ/civ_stage.gd")
+const SpaceStageScript := preload("res://src/game/space/space_stage.gd")
 const CreatureSim := preload("res://src/game/creature/creature_sim.gd")
+const GenomeLib := preload("res://src/evo/genome.gd")
+const SpaceEventsLib := preload("res://src/game/space/space_events.gd")
 
 const DT := 1.0 / 60.0
 const SEED := 0x9BEF
@@ -62,8 +76,11 @@ const SCRATCH_CFG := "user://test_wcp_settings.cfg"
 ## with_tribe registers the TribeStage too (main.gd parity) — the tribe
 ## flows below need a REAL landing target for go_to('tribe'). with_civ
 ## registers the CivStage too (M5: main.gd parity) — the civ flows need the
-## REAL landing target for the saved stage id.
-func _boot(seed_v: int = SEED, with_tribe := false, with_civ := false) -> Variant:
+## REAL landing target for the saved stage id. with_space registers the
+## SpaceStage too (M6: main.gd parity) — the space flows need the REAL
+## landing target for the saved stage id.
+func _boot(seed_v: int = SEED, with_tribe := false, with_civ := false,
+		with_space := false) -> Variant:
 	var ctx: Variant = ContextScript.new(seed_v)
 	var g: Variant = GameScript.new(ctx)
 	g.set_process(false)
@@ -82,11 +99,15 @@ func _boot(seed_v: int = SEED, with_tribe := false, with_civ := false) -> Varian
 		g.register(TribeStageScript.new(g))
 	if with_civ:
 		g.register(CivStageScript.new(g))
+	if with_space:
+		g.register(SpaceStageScript.new(g))
 	g.stages["creature"]._ready()
 	if with_tribe:
 		g.stages["tribe"]._ready()
 	if with_civ:
 		g.stages["civ"]._ready()
+	if with_space:
+		g.stages["space"]._ready()
 	g.start()
 	return g
 
@@ -602,5 +623,249 @@ func test_civ_stale_blob_guards_e2e() -> void:
 	eq(float(sim2.mil), 4.0, "fresh sliders (4/3/3)")
 	eq(bool(sim2.victoryFired), false, "no latch on the fresh board")
 	eq(g2.pending_go_to, null, "no brick go_to (victoryFired false + rivals hold)")
+	_wipe_saves()
+	_drop(g2)
+
+
+# ---- M6 task 6: space save/continue + the corrupt-blob guards (REAL transitions) --
+
+## A SPACE-stage save mid-flight CONTINUEs back into the system AS IT STOOD:
+## game.save_all routes current.persist_state (the creature/civ precedent) →
+## the spaceWorld blob rides the slot → on_enter's restore whitelist restores
+## planets (scanned, colonies), the eco rosters, the cargo and the abduct
+## pay-curve ledger (SpaceStage.ts:190-267 — a reload used to re-roll every
+## seeded roster and re-pay the abduct "firsts").
+func test_space_save_continue_restores_system() -> void:
+	_wipe_saves()
+	# run 1: direct space entry (headless pattern — the landing legs cover the
+	# real transition), fixture the system through the sim surface, save
+	# through the REAL game.save_all seam
+	var g1: Variant = _boot(SEED, false, false, true)
+	g1.switch_stage("space")
+	g1.step_for_testing(2, DT)
+	var sim1: Variant = g1.current.sim
+	sim1.planets[0]["scanned"] = true
+	sim1.planets[1]["colony"] = {"pop": 12.5, "generations": 3.0}
+	sim1.planets[2]["colony"] = {"pop": 20.0, "generations": 7.0}  # a thriving one
+	sim1.abductCount = {"0:4": 2.0, "1:7": 1.0}
+	var roster_names: Array = []
+	var roster_pops: Array = []
+	for sp in sim1.planets[0]["eco"].species:
+		roster_names.append(String(sp["name"]))
+		roster_pops.append(float(sp["pop"]))
+	var genome: Dictionary = GenomeLib.clone_genome(GenomeLib.default_genome())
+	genome["size"] = 1.7
+	sim1.cargo.append({"genome": genome, "name": "Zeta-9"})
+	ok(g1.save_all(), "space-stage save_all (the persist_state seam)")
+	var parsed: Variant = JSON.parse_string(
+			FileAccess.get_file_as_string("user://saves/slot0.json"))
+	ok(parsed is Dictionary, "slot parses")
+	eq(String(parsed["stage"]), "space", "slot stage is space")
+	var blob: Variant = JSON.parse_string(String(parsed["flags"]["spaceWorld"]))
+	ok(blob is Dictionary, "spaceWorld blob present in the slot")
+	if blob is Dictionary:
+		eq((blob["planets"] as Array).size(), 6, "blob carries the 6-planet system")
+		eq(bool((blob["planets"] as Array)[0]["scanned"]), true, "blob carries scanned")
+		eq(float(((blob["planets"] as Array)[1]["colony"] as Dictionary)["pop"]), 12.5,
+				"blob carries the colony pop")
+		eq((blob["abductCount"] as Dictionary).size(), 2, "blob carries the ledger")
+		eq(String((blob["cargo"] as Array)[0]["name"]), "Zeta-9", "blob carries the cargo row")
+		eq(bool(blob["endingDone"]), false, "blob carries endingDone false")
+	# on_exit persists too (TS:270): leaving the stage rewrites the flags blob
+	sim1.planets[3]["scanned"] = true
+	g1.switch_stage("creature")
+	var flags_blob: Variant = JSON.parse_string(String(g1.context.flags["spaceWorld"]))
+	eq(bool(((flags_blob["planets"] as Array)[3]["scanned"])), true,
+			"on_exit → persist_state (TS:270)")
+	_drop(g1)
+	# run 2: CONTINUE lands the SAVED stage (space). The exact-restored asserts
+	# run at the FIRST WELCOME-BACK card frame — on_enter (the restore) fired
+	# at the out→card boundary and the card phase FREEZES the stage sim
+	# (game.gd's card gate), so zero sim ticks separate restore from assert
+	# (the in-fade afterwards grows the colonies ~0.05 — the civ test's
+	# <1 s-of-ticks caveat, one frame sooner here).
+	var g2: Variant = _boot(SEED, false, false, true)
+	g2.current.continue_slot(0)
+	var steps := 0
+	while not (String(g2.context.stage) == "space" and g2.transition != null \
+			and String(g2.transition["phase"]) == "card") and steps < TRANSITION_POLL:
+		g2.step_for_testing(1, DT)
+		steps += 1
+	eq(String(g2.context.stage), "space",
+			"CONTINUE with a space save boots the space stage (%d steps)" % steps)
+	var sim2: Variant = g2.current.sim
+	eq(bool(sim2.planets[0]["scanned"]), true, "scanned restored (the whitelist rides)")
+	eq(float(sim2.planets[1]["colony"]["pop"]), 12.5, "colony pop restored")
+	eq(float(sim2.planets[1]["colony"]["generations"]), 3.0, "colony generations restored")
+	eq(float(sim2.planets[2]["colony"]["pop"]), 20.0, "the thriving colony restored")
+	eq(sim2.abductCount, {"0:4": 2.0, "1:7": 1.0},
+			"the abduct ledger restored — no re-paid firsts (TS:252-255)")
+	eq(sim2.cargo.size(), 1, "cargo restored")
+	if sim2.cargo.size() == 1:
+		eq(String(sim2.cargo[0]["name"]), "Zeta-9", "cargo name restored")
+		eq(float(sim2.cargo[0]["genome"]["size"]), 1.7, "cargo genome gene restored")
+	eq(bool(sim2.endingDone), false, "endingDone false restored")
+	# the eco roster rebuilt from the save — seeded genes survive the reload
+	# (TS:232-240; the from_json roster rides name/pop/genome). The pops ride
+	# the JSON wire: the stringify shortest-repr can drop the last ulp, so the
+	# pops pin at 1e-9 (the sim-side whitelist pins are exact).
+	var restored_names: Array = []
+	var restored_pops: Array = []
+	for sp in sim2.planets[0]["eco"].species:
+		restored_names.append(String(sp["name"]))
+		restored_pops.append(float(sp["pop"]))
+	eq(restored_names, roster_names, "the eco roster names round-trip (TS:239)")
+	eq(restored_pops.size(), roster_pops.size(), "the eco roster SIZE round-trips")
+	for j in mini(restored_pops.size(), roster_pops.size()):
+		approx(restored_pops[j], roster_pops[j],
+				"the eco roster pop %d round-trips (the JSON wire, 1e-9)" % j, 1e-9)
+	eq(float(sim2.planets[0]["eco"].flora_cap), 140.0, "the lush floraCap rides (TS:137)")
+	# ride the card + fade out, then the settle pins
+	var steps2 := 0
+	while not (String(g2.context.stage) == "space" and g2.transition == null) \
+			and steps2 < TRANSITION_POLL:
+		g2.step_for_testing(1, DT)
+		steps2 += 1
+	eq(g2.transition, null, "the WELCOME BACK ride completed (%d steps)" % steps2)
+	# the arrival hud hooks + the C1 no-op on the same world
+	eq(String(g2.current.hud_inst.show_objective),
+			"SEED 3 WORLDS, GROW EACH TO POP 20 — awaken the Chaos Core · R abduct · F evolve",
+			"objective re-armed on the restored system (TS:188)")
+	eq(float(g2.current.hud_inst.toast_inset), 0.0, "no inset armed (space arms none)")
+	eq(int(sim2.deckSeed), int(g2.context.world["seed"]),
+			"same world → no deck rebuild (C1 no-op, TS:183)")
+	_wipe_saves()
+	_drop(g2)
+
+
+## The C1 gate E2E: a CONTINUE that loads a DIFFERENT world than the boot's
+## rebuilds the space chaos deck folding the LOADED world in (TS:182-186) —
+## boot 2's constructor folded its own world (deckSeed B); the landing must
+## re-fold the save's world (deckSeed A).
+func test_space_continue_rebuilds_deck_on_new_world() -> void:
+	_wipe_saves()
+	# run 1: a space save under seed A (a distinctive marker rides too)
+	var g1: Variant = _boot(SEED, false, false, true)
+	g1.switch_stage("space")
+	g1.step_for_testing(2, DT)
+	g1.current.sim.planets[0]["scanned"] = true
+	ok(g1.save_all(), "the seed-A space save wrote the slot")
+	_drop(g1)
+	# run 2: a boot on a DIFFERENT world — the space stage constructor folded
+	# its own world (deckSeed B ≠ A)
+	var g2: Variant = _boot(SEED + 0x2B1, false, false, true)
+	eq(int(g2.stages["space"].sim.deckSeed), int(g2.context.world["seed"]),
+			"boot 2 folded its own world (deckSeed B)")
+	ok(int(g2.context.world["seed"]) != SEED, "the boot world really differs")
+	g2.current.continue_slot(0)
+	var steps := 0
+	while not (String(g2.context.stage) == "space" and g2.transition == null) \
+			and steps < TRANSITION_POLL:
+		g2.step_for_testing(1, DT)
+		steps += 1
+	eq(String(g2.context.stage), "space", "CONTINUE landed space (%d steps)" % steps)
+	var sim2: Variant = g2.current.sim
+	eq(int(sim2.deckSeed), SEED,
+			"the deck REBUILT folding the LOADED world in (deckSeed A, C1 TS:184-185)")
+	eq(sim2.chaos.defs.size(),
+			SpaceEventsLib.make_space_chaos_events(g2.context.world).size(),
+			"the rebuilt deck folds the loaded world in (task 3)")
+	# the restore still ran on the same landing (scanned rides)
+	eq(bool(sim2.planets[0]["scanned"]), true, "the whitelist restore rode with the rebuild")
+	_wipe_saves()
+	_drop(g2)
+
+
+## The guards E2E: a STALE save whose spaceWorld predates the current system
+## shape (3 planets vs the constructor's 6) → the TS:201 length gate rejects
+## the WHOLE restore (the gate placement: the cargo, the abduct ledger AND
+## the ending state discard too) → the FRESH constructor system stands — no
+## blob value rides, no stale orb, no crash.
+func test_space_stale_blob_guards_e2e() -> void:
+	_wipe_saves()
+	# the FRESH constructor baseline (same seed → boot 2 rebuilds it exactly)
+	var g1: Variant = _boot(SEED, false, false, true)
+	var sim1: Variant = g1.stages["space"].sim
+	var gen_name0 := String(sim1.planets[0]["name"])
+	var gen_r0 := float(sim1.planets[0]["r"])
+	var gen_kind0 := String(sim1.planets[0]["kind"])
+	# the slot must carry stage 'space' (the M5 stale-blob shape): enter before
+	# authoring — on_enter restores nothing (no blob yet), then the hand blob
+	g1.switch_stage("space")
+	# the stale blob: a 3-planet system from an older save shape (hand-authored
+	# — the corruption scenario the gate exists for cannot come from the sim)
+	g1.context.flags["spaceWorld"] = JSON.stringify({
+		"planets": [
+			{"name": "Ghost", "scanned": true, "colony": {"pop": 30.0, "generations": 9.0}},
+			{"name": "Ghost2"},
+			{"name": "Ghost3"},
+		],
+		"cargo": [{"genome": {"size": 2.5}, "name": "Phantom"}],
+		"abductCount": {"9:9": 9.0},
+		"endingDone": true,
+		"endingDismissed": true,
+	})
+	ok(g1.context.save(), "the stale-blob slot wrote (stage space)")
+	_drop(g1)
+	var g2: Variant = _boot(SEED, false, false, true)
+	g2.current.continue_slot(0)
+	var steps := 0
+	while not (String(g2.context.stage) == "space" and g2.transition == null) \
+			and steps < TRANSITION_POLL:
+		g2.step_for_testing(1, DT)
+		steps += 1
+	eq(String(g2.context.stage), "space", "CONTINUE booted the space stage (%d steps)" % steps)
+	var sim2: Variant = g2.current.sim
+	# the FRESH constructor system: no stale value rode
+	eq(String(sim2.planets[0]["name"]), gen_name0, "fresh system — the ghost name did not ride")
+	eq(float(sim2.planets[0]["r"]), gen_r0, "fresh radius")
+	eq(String(sim2.planets[0]["kind"]), gen_kind0, "fresh kind")
+	eq(bool(sim2.planets[0]["scanned"]), false, "fresh scanned")
+	eq(sim2.planets[0]["colony"], null, "fresh uncolonized")
+	# the gate placement: cargo, the ledger and the WON state discarded too
+	eq(sim2.cargo, [], "the phantom cargo discarded (inside the gate, TS:247)")
+	eq(sim2.abductCount, {}, "the phantom ledger discarded (inside the gate, TS:253)")
+	eq(bool(sim2.endingDone), false, "the phantom endingDone discarded (inside the gate, TS:257)")
+	eq(sim2.finale, null, "no stale orb (the dismissed blob never restored)")
+	g2.stages["space"].render()
+	ok(true, "the fresh system renders clean")
+	_wipe_saves()
+	_drop(g2)
+
+
+## The corrupt-field guard E2E (right length): row 0's r carries `1e999` —
+## JSON parses it to inf, the JSON analog of TS Number.isFinite — and the
+## num(v, 0) guard rejects it (TS:208/210); the CONSTRUCTOR r keeps the orbit
+## loop finite while VALID fields in the same blob ride (per-field guards).
+func test_space_corrupt_r_guard_e2e() -> void:
+	_wipe_saves()
+	var g1: Variant = _boot(SEED, false, false, true)
+	var sim1: Variant = g1.stages["space"].sim
+	var gen_r0 := float(sim1.planets[0]["r"])
+	# the slot must carry stage 'space' (the M5 stale-blob shape)
+	g1.switch_stage("space")
+	# hand-authored: 6 rows (right length), row 0 inf r, row 1 valid fields
+	g1.context.flags["spaceWorld"] = "{\"planets\":[{\"r\": 1e999}, " \
+			+ "{\"name\": \"Corruptus\", \"scanned\": true}, {}, {}, {}, {}], " \
+			+ "\"cargo\": [], \"abductCount\": {}, \"endingDone\": false, " \
+			+ "\"endingDismissed\": false}"
+	ok(g1.context.save(), "the corrupt-r slot wrote (stage space)")
+	_drop(g1)
+	var g2: Variant = _boot(SEED, false, false, true)
+	g2.current.continue_slot(0)
+	var steps := 0
+	while not (String(g2.context.stage) == "space" and g2.transition == null) \
+			and steps < TRANSITION_POLL:
+		g2.step_for_testing(1, DT)
+		steps += 1
+	eq(String(g2.context.stage), "space", "CONTINUE booted the space stage (%d steps)" % steps)
+	var sim2: Variant = g2.current.sim
+	eq(float(sim2.planets[0]["r"]), gen_r0,
+			"the inf r rejected → the constructor r kept (the NaN-r guard, TS:208-210)")
+	eq(String(sim2.planets[1]["name"]), "Corruptus", "the valid name rode (the gate opened)")
+	eq(bool(sim2.planets[1]["scanned"]), true, "the valid scanned rode")
+	# the orbit loop stays finite: a render pass over the corrupt-adjacent system
+	g2.stages["space"].render()
+	ok(true, "render clean with the guarded r")
 	_wipe_saves()
 	_drop(g2)

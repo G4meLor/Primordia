@@ -34,6 +34,7 @@ const CellStageScript := preload("res://src/game/cell/cell_stage.gd")
 const CreatureStageScript := preload("res://src/game/creature/creature_stage.gd")
 const TribeStageScript := preload("res://src/game/tribe/tribe_stage.gd")
 const CivStageScript := preload("res://src/game/civ/civ_stage.gd")
+const SpaceStageScript := preload("res://src/game/space/space_stage.gd")
 const BotTribeScript := preload("res://tests/bots/bot_tribe.gd")
 const BotCreatureScript := preload("res://tests/bots/bot_creature.gd")  # the WORLD_SEED pin lives on the arrival/founding legs
 
@@ -156,10 +157,11 @@ func _first_trace_divergence() -> String:
 
 
 ## The REAL composition the bot flows through (main.gd's boot minus the
-## factory): menu + cell + creature + tribe + civ registered at boot —
-## main.gd parity since M5 (the victory lands the REGISTERED civ stage;
-## 'space' stays unregistered until its milestone) — manual stepping ONLY
-## (the real _process would add wall-clock-clamped phantom steps).
+## factory): menu + cell + creature + tribe + civ + space registered at boot —
+## main.gd parity since M6 (the victory lands the REGISTERED civ stage; the
+## space stage registers at boot like main.gd, though this arc never lands
+## it) — manual stepping ONLY (the real _process would add wall-clock-clamped
+## phantom steps).
 func _build_game() -> Variant:
 	var ctx: Variant = ContextScript.new(BotCreatureScript.WORLD_SEED)
 	var game: Variant = GameScript.new(ctx)
@@ -171,6 +173,7 @@ func _build_game() -> Variant:
 	game.register(CreatureStageScript.new(game))
 	game.register(TribeStageScript.new(game))
 	game.register(CivStageScript.new(game))
+	game.register(SpaceStageScript.new(game))
 	game.start()
 	return game
 

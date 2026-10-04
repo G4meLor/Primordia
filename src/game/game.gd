@@ -179,6 +179,16 @@ func _process(delta: float) -> void:
 func register(stage: Variant) -> void:
 	stages[stage.id] = stage
 	add_child(stage)  # stages are Nodes — tree entry for later draw work
+	# the boot registry starts HIDDEN — the factory-rebuild doctrine applied to
+	# the boot instances (a visible stage draws ONCE on tree entry, and that
+	# one-shot layer composites ABOVE every stage registered before it
+	# forever: the M6 space registration find — the last-registered stage's
+	# opaque backdrop covered the live stage's output, and would cover a
+	# CONTINUE's landed stage in the real boot the same way). add_child fires
+	# the stage _ready inline when the Game is in the tree, so the canvases
+	# exist here; in the out-of-tree -s boots nothing hides yet and nothing
+	# draws. switch_stage shows the stage it makes current.
+	_set_stage_visible(stage, false)
 
 
 ## TS resetStagesForNewRun (game.ts:109-121): rebuild every gameplay stage
