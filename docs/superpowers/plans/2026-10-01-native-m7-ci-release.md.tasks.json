@@ -1,0 +1,38 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: CI workflow — the suite as the repo's contract",
+      "status": "pending",
+      "blockedBy": [],
+      "description": "**Goal:** CI workflow (headless suite + RID-leak ceiling 403). Full AC in plan Task 1.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\".github/workflows/ci.yml\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && ~/.local/bin/godot --headless -s res://tests/run.gd --path .\", \"acceptanceCriteria\": [\"ci.yml push/PR triggers, Godot 4.2.2 pinned\", \"suite step verbatim + RID gate hard at 403\", \"local rehearsal matches the datum\", \"xvfb families documented out-of-scope\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Release workflow + export presets",
+      "status": "pending",
+      "blockedBy": [
+        1
+      ],
+      "description": "**Goal:** Release workflow (tag v* → Windows/Linux exports → GitHub release via GITHUB_TOKEN). Full AC in plan Task 2.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"export_presets.cfg\", \".github/workflows/release.yml\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && godot --headless --export-release Windows build/PRIMORDIA.exe 2>&1 | head -3\", \"acceptanceCriteria\": [\"two presets parse (Windows/Linux)\", \"release.yml contents:write only, GITHUB_TOKEN release\", \"template pack fetched in-workflow\", \"rehearsal shows preset recognized\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: The repo overwrite — the remote becomes the native port",
+      "status": "pending",
+      "blockedBy": [
+        2
+      ],
+      "description": "**Goal:** The operational moment: G4meLor/Primordia replaced by the native port (force-with-lease, all tags, v0.6.0, the release fires). Full AC in plan Task 3.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && git ls-remote origin | head -8\", \"acceptanceCriteria\": [\"remote added + dry-run access probe\", \"verification pass before overwrite (suite/tree/describe)\", \"force-with-lease push main + tags + v0.6.0\", \"post-push remote verification recorded\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: M7 wrap — the final review, the completion, the tag",
+      "status": "pending",
+      "blockedBy": [
+        3
+      ],
+      "description": "**Goal:** M7 wrap (RELEASE-M7.md record, final review, tag ci-release-m7 pushed). Full AC in plan Task 4.\n\n```json:metadata\n{\"modelTier\": \"standard\", \"files\": [\"docs/RELEASE-M7.md\"], \"verifyCommand\": \"cd ~/Desktop/RD/primordia-native && git ls-remote --tags origin\", \"acceptanceCriteria\": [\"RELEASE-M7.md complete (SHAs, release URL, CI status, RID datum)\", \"final whole-branch review clean\", \"tag ci-release-m7 pushed\", \"the arc DONE — the goal met\"]}\n```"
+    }
+  ]
+}
