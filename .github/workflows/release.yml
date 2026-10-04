@@ -60,6 +60,17 @@ jobs:
           mkdir -p "$HOME/.local/share/godot/export_templates/4.2.2.stable"
           cp /tmp/templates/templates/* "$HOME/.local/share/godot/export_templates/4.2.2.stable/"
 
+      # Godot 4.2 has NO auto-import on export: a fresh checkout must run an
+      # editor import pass first, or the export errors on every unimported
+      # asset (22x "!importer.is_valid()" — the 2026-10-04 release run). The
+      # committed .import metadata files make the pass deterministic; 600
+      # frames lets the scan settle (a bare --quit aborts it mid-import).
+      - name: Import pass (4.2 has no auto-import on export)
+        run: |
+          set -euo pipefail
+          godot --headless --editor --quit-after 600
+          test -d .godot/imported
+
       # Windows first, zipped BEFORE the Linux export runs: with Godot's
       # default embed_pck=false both presets write a sidecar pck named
       # build/PRIMORDIA.pck — the second export would overwrite the first's.
