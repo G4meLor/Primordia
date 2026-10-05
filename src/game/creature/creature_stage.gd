@@ -50,9 +50,32 @@ const RendererScript := preload("res://src/gfx/renderer.gd")
 const BackdropScript := preload("res://src/gfx/backdrop.gd")
 const CreaturePainter := preload("res://src/gfx/creature_painter.gd")
 const HudScript := preload("res://src/ui/hud.gd")
+
 const EditorUiScript := preload("res://src/ui/editor.gd")
 const PauseScript := preload("res://src/ui/pause.gd")
 const TutorialScript := preload("res://src/ui/tutorial.gd")
+
+## Below this a viewport dimension cannot be a real playable window (the QC r1
+## B4 collapse reported 0–300 px against an 1152×648 window) — a transient
+## X11/llvmpipe size glitch; keep the last frame instead of recording it.
+const MIN_RENDER_VW := 64.0
+const MIN_RENDER_VH := 64.0
+
+
+## QC r1 B4 — the frame-size sanity check behind render()'s freeze: the game's
+## vw/vh mirror the root viewport's visible rect, which equals the OS window
+## size by construction (no stretch/content scale is configured). A game size
+## far below the real window (or simply tiny) is the collapsed-report glitch,
+## not a real resize; rendering it produced the flat gray captures. Headless
+## servers report a degenerate window, so there the check degrades to the
+## plain MIN_RENDER floor (headless tests never render these stages anyway).
+func _frame_size_sane() -> bool:
+	if game.vw < MIN_RENDER_VW or game.vh < MIN_RENDER_VH:
+		return false
+	var win: Vector2i = DisplayServer.window_get_size()
+	if win.x < MIN_RENDER_VW or win.y < MIN_RENDER_VH:
+		return true  # no trustworthy window reference — accept the game size
+	return game.vw >= float(win.x) * 0.5 and game.vh >= float(win.y) * 0.5
 
 var sim: Variant = null            # CreatureSim (RefCounted sim core)
 var fx: Variant = null             # stage Particles pool (TS `new Fx(1300)`)
@@ -588,8 +611,20 @@ func _lawn_h() -> float:
 
 ## Per-frame draw hook (Game's render side): rebuild the z-sorted creature
 ## item order and queue all canvases (Node2D._draw fires on the next pass).
+## QC r1 B4: the X11/llvmpipe viewport can transiently report a COLLAPSED size
+## while the OS window keeps its real extent (measured on the QC i18n ride:
+## vw flapped 1152 → ~300 → ~30 → 0 between frames). Recording a frame at a
+## degenerate size crams every vw-anchored draw into a left-edge sliver and,
+## after the next cam.update_view_bounds, culls the world outright — the flat
+## #4d4d4d clear-colored captures (the survivors' band widths and cloud
+## positions match a forced-vw reproduction exactly). The sim is unaffected;
+## the honest render response is to keep the LAST recorded frame (the RS
+## re-issues a canvas item's existing commands) until the viewport reports a
+## usable size again.
 func render() -> void:
 	if sky_canvas == null:
+		return
+	if not _frame_size_sane():
 		return
 	_sync_creature_items()
 	sky_canvas.queue_redraw()
