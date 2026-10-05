@@ -69,6 +69,8 @@ const MIN_RENDER_VH := 64.0
 ## not a real resize; rendering it produced the flat gray captures. Headless
 ## servers report a degenerate window, so there the check degrades to the
 ## plain MIN_RENDER floor (headless tests never render these stages anyway).
+## game.gd's `_resize`/`_resize_ok` runs the same check at the vw/vh latch —
+## this per-stage freeze stays as the second line of defense.
 func _frame_size_sane() -> bool:
 	if game.vw < MIN_RENDER_VW or game.vh < MIN_RENDER_VH:
 		return false

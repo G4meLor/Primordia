@@ -322,12 +322,53 @@ func stop() -> void:
 	pass
 
 
+## QC r1 B4 root-guard floor — below this a viewport dimension cannot be a
+## real playable window (the collapse reported 0–300 px against an 1152×648
+## window): a transient X11/llvmpipe size glitch, not a resize.
+const MIN_RENDER_VW := 64.0
+const MIN_RENDER_VH := 64.0
+
+
+## QC r1 B4 root guard — the sane-frame check creature_stage.gd /
+## tribe_stage.gd run at render time (`_frame_size_sane`) applied where vw/vh
+## are LATCHED. Under X11/llvmpipe load the viewport transiently reports a
+## collapsed size (1152→300→30→0) while the OS window is unchanged; accepting
+## it shrank every vw-anchored draw to a sliver and camera-culled the world
+## (flat #4d4d4d frames while the sim kept running). A degenerate report is
+## SKIPPED — vw/vh keep their previous values until a sane size returns. A
+## genuine player-driven shrink still lands: the ratio compares against the
+## OS window, and viewport == window by construction (no stretch configured).
 func _resize() -> void:
-	var rs := get_viewport().get_visible_rect().size
+	var vp := get_viewport()
+	if vp == null:
+		return  # out-of-tree boot (the -s suite) — no viewport to read; keep the latch
+	var rs := vp.get_visible_rect().size
+	if not _resize_ok(rs, Vector2(vw, vh)):
+		return
 	vw = rs.x
 	vh = rs.y
 	input.vw = vw
 	input.vh = vh
+
+
+## The guard's decision, split out for the headless suite
+## (tests/test_resize_guard.gd): is `new` a size worth latching given the
+## currently latched `old`? Degenerate = below the 64px playable floor on
+## either axis, or below half the OS window's report while that window itself
+## is sane (the glitch signature). old == 0 (nothing latched — boot/tests)
+## accepts any above-floor size, so the first resize from zero lands even in
+## a deliberately small 640×360 window. Headless windows report degenerate
+## sizes, so there the ratio degrades to the plain floor (the
+## `_frame_size_sane` fallback).
+func _resize_ok(new: Vector2, old: Vector2) -> bool:
+	if old.x <= 0.0 or old.y <= 0.0:
+		return new.x >= MIN_RENDER_VW and new.y >= MIN_RENDER_VH
+	if new.x < MIN_RENDER_VW or new.y < MIN_RENDER_VH:
+		return false
+	var win: Vector2i = DisplayServer.window_get_size()
+	if win.x < MIN_RENDER_VW or win.y < MIN_RENDER_VH:
+		return true  # no trustworthy window reference — accept the game size
+	return new.x >= float(win.x) * 0.5 and new.y >= float(win.y) * 0.5
 
 
 # ---- frame -------------------------------------------------------------------
