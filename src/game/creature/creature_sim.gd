@@ -1083,9 +1083,15 @@ func update_ents(dt: float) -> void:
 				tx = float(e["tx"])
 				tz = float(e["tz"])
 				sp *= 0.5
-				e["mood"] = "idle"
-				if night:
-					e["mood"] = "alert"
+				# a missed charm (update_charm, earlier this tick) set mood "angry"
+				# + packCd 6 — the wander branch clobbered it back to "idle" the
+				# same frame, so the annoyance never reached the painter (QC round-2
+				# B3). Cosmetic-only hold: the anger stays while the miss's charm
+				# cooldown runs; the hunt/flee branches still re-mood as before.
+				if not (String(e["mood"]) == "angry" and float(e["packCd"]) > 0.0):
+					e["mood"] = "idle"
+					if night:
+						e["mood"] = "alert"
 
 		var dx: float = tx - float(e["x"])
 		var dz: float = tz - float(e["z"])
