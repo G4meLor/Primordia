@@ -686,6 +686,65 @@ func test_chief_respawn_safest_sample_geometry() -> void:
 	eq(float(sim2.pz), bz, "respawn z = sample farthest from the raider")
 
 
+# QC round-2 B3: the safest-sample respawn can drop the chief ~1900 px from
+# camp with no pointer home (walkback 35-50 s, tribe-edge probe) — a one-line
+# toast fires when the respawn lands > 1200 px from the nearest built hut.
+# Feedback only; the sampling above is TS:437-445 verbatim.
+func test_chief_respawn_far_walkback_toast() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	# pin the rng: no threats → the FIRST sample wins (the geometry pin of
+	# test_chief_respawn_safest_sample_geometry) — the respawn point is known
+	var pr: Variant = RngLib.new_from(4242)
+	sim.rng.set_state(pr.state())
+	var exp_x: float = pr.range(-WORLD_HALF * 0.5, WORLD_HALF * 0.5)
+	var exp_z: float = pr.range(Z_MIN + 30.0, Z_MAX - 30.0)
+	sim.deathHandled = true  # isolate the respawn path (no tax side effects)
+	sim.deathFade = 1.5
+	# no huts → nothing to walk back to → the hint stays silent
+	sim.handle_chief_death(0.2)  # deathFade 1.7 > 1.6 → respawn
+	eq(float(sim.px), exp_x, "respawn = the pinned first sample")
+	eq(float(sim.pz), exp_z, "respawn z pinned")
+	var hint := false
+	for t in m["rec"]["toasts"]:
+		if String(t[0]) == "Your chief is far — walk back":
+			hint = true
+	ok(not hint, "no hut → no walk-back hint")
+	# a camp ON the respawn point → silent
+	var m2 := _mk_sim()
+	var sim2: Variant = m2["sim"]
+	var pr2: Variant = RngLib.new_from(4242)
+	sim2.rng.set_state(pr2.state())
+	sim2.huts.append({"x": pr2.range(-WORLD_HALF * 0.5, WORLD_HALF * 0.5),
+			"z": pr2.range(Z_MIN + 30.0, Z_MAX - 30.0), "buildT": 0.0, "hp": 100.0})
+	sim2.deathHandled = true
+	sim2.deathFade = 1.5
+	sim2.handle_chief_death(0.2)
+	eq(float(sim2.px), float(sim2.huts[0]["x"]), "respawn lands on the camp")
+	hint = false
+	for t in m2["rec"]["toasts"]:
+		if String(t[0]) == "Your chief is far — walk back":
+			hint = true
+	ok(not hint, "respawn at camp → silent")
+	# a camp 1500 px east of the pinned sample → the hint fires
+	var m3 := _mk_sim()
+	var sim3: Variant = m3["sim"]
+	var pr3: Variant = RngLib.new_from(4242)
+	sim3.rng.set_state(pr3.state())
+	var fx: float = pr3.range(-WORLD_HALF * 0.5, WORLD_HALF * 0.5)
+	var fz: float = pr3.range(Z_MIN + 30.0, Z_MAX - 30.0)
+	sim3.huts.append({"x": fx + 1500.0, "z": fz, "buildT": 0.0, "hp": 100.0})
+	sim3.deathHandled = true
+	sim3.deathFade = 1.5
+	sim3.handle_chief_death(0.2)
+	eq(float(sim3.px), fx, "respawn = the pinned sample again")
+	hint = false
+	for t in m3["rec"]["toasts"]:
+		if String(t[0]) == "Your chief is far — walk back":
+			hint = true
+	ok(hint, "respawn 1500 px from camp → walk-back hint")
+
+
 func test_chief_death_dna_tax_rounding() -> void:
 	var m := _mk_sim()
 	var sim: Variant = m["sim"]

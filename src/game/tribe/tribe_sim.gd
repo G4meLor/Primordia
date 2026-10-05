@@ -635,6 +635,13 @@ func handle_chief_death(dt: float) -> void:
 				bz = cz
 		px = bx
 		pz = bz
+		# QC round-2 B3 feedback: the safest sample can drop the chief ~1900 px
+		# from camp with no pointer home (walkback 35-50 s, measured by the
+		# tribe-edge probe). Pure feedback — the sampling above is TS:437-445
+		# verbatim, no mechanic change.
+		var home: Variant = nearest_hut({"x": px, "z": pz})
+		if home != null and _vdist(float(home["x"]), float(home["z"]), px, pz) > 1200.0:
+			_fire("hud_toast", [tr("Your chief is far — walk back"), "info", "🧭"])
 		# brief grace — re-death within ~2s of respawn costed double 15% taxes
 		invulnT = 3.0
 		# death already taxes 15% DNA — permanently removing a tribesman too
