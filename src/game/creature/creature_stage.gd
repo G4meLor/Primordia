@@ -255,6 +255,7 @@ func _install_overlays() -> void:
 		"update": hud_inst.update,
 		"dismiss_banner": hud_inst.dismiss_banner,
 		"toast": hud_inst.toast,
+		"toast_gate": hud_inst.toast_gate,
 		"banner": hud_inst.banner,
 		"float_world": hud_inst.float_world,
 		"pointer_down": hud_inst.pointer_down,
@@ -917,6 +918,7 @@ func persist_state() -> void:
 func _build_hooks() -> Dictionary:
 	return {
 		"hud_toast": _h_hud_toast,
+		"hud_toast_gate": _h_hud_toast_gate,
 		"hud_banner": _h_hud_banner,
 		"hud_float_world": _h_hud_float_world,
 		"audio_play": _h_audio_noop,
@@ -935,6 +937,17 @@ func _build_hooks() -> Dictionary:
 
 func _h_hud_toast(text: String, kind: String, icon: String) -> void:
 	game.hud["toast"].call(text, kind, icon)
+
+
+## QC round-2 B3: gate toasts (conditions that persist while a key is held —
+## squeak-ignore, pack-full) ride hud.toast's longer dedupe window. Recorder
+## huds (tests) and the boot stubs only implement the plain 3-arg "toast" —
+## fall back so routing tests and bots keep working unchanged.
+func _h_hud_toast_gate(text: String, kind: String, icon: String, window: float) -> void:
+	if game.hud.has("toast_gate"):
+		game.hud["toast_gate"].call(text, kind, icon, window)
+	else:
+		game.hud["toast"].call(text, kind, icon)
 
 
 func _h_hud_banner(data: Variant) -> void:

@@ -98,6 +98,32 @@ func test_toast_dedup_within_1_5s_then_allows_again() -> void:
 	eq(hud._toasts.size(), 2, "after 1.5s the same text pushes again")
 
 
+# QC round-2 B3 — gate toasts (squeak-ignore, pack-full) opt into a longer
+# dedupe window: while the gate condition persists (a held key re-fires the
+# gate every tick) the message re-shows at most once per window. The plain
+# toast keeps the TS 1.5 s flood guard untouched.
+func test_toast_gate_window_dedupes_longer() -> void:
+	_en()
+	var g: Variant = MockGame.new()
+	var hud: Variant = _hud(g)
+	hud.toast_gate("gate!", "info", "🐾")  # window defaults 4.0
+	eq(hud._toasts.size(), 1, "gate toast pushed")
+	eq(float(hud._toasts[0]["ttl"]), 4.0, "gate toast keeps the default ttl")
+	hud.update(2.0)
+	hud.toast_gate("gate!", "info", "🐾")
+	eq(hud._toasts.size(), 1, "re-fire inside the 4s window drops")
+	hud.update(2.2)  # the first instance ages past ttl and drops
+	eq(hud._toasts.size(), 0, "expired gate toast drops like any toast")
+	hud.toast_gate("gate!", "info", "🐾")
+	eq(hud._toasts.size(), 1, "after the window lapses the gate toast re-fires")
+	eq(float(hud._toasts[0]["t"]), 0.0, "the re-fire is a fresh instance")
+	# the plain toast path keeps the 1.5 s window
+	hud.toast("plain", "info", "•")
+	hud.update(1.6)
+	hud.toast("plain", "info", "•")
+	eq(hud._toasts.size(), 3, "plain toast still re-fires after 1.5 s (TS flood guard)")
+
+
 func test_toast_cap_six_shifts_oldest() -> void:
 	_en()
 	var g: Variant = MockGame.new()

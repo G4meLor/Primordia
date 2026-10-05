@@ -33,6 +33,9 @@ func _mk_sim(seed_v: int = SEED, genome_mods: Dictionary = {},
 	}
 	var hooks: Dictionary = {
 		"hud_toast": func(text, kind, icon): rec["toasts"].append([text, kind, icon]),
+		# QC round-2 B3: the sim's gate toasts (pack-full, squeak-ignore) ride
+		# the 4th window arg — recorded like a plain toast here
+		"hud_toast_gate": func(text, kind, icon, _window): rec["toasts"].append([text, kind, icon]),
 		"hud_banner": func(data): rec["banners"].append(data),
 		"hud_float_world": func(x, y, text, color, size): rec["floats"].append([x, y, text, color, size]),
 		"audio_play": func(n, v, p): rec["audio"].append([n, v, p]),
