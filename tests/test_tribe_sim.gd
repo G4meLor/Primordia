@@ -39,6 +39,9 @@ func _mk_sim(seed_v: int = SEED, genome_mods: Dictionary = {},
 	}
 	var hooks: Dictionary = {
 		"hud_toast": func(text, kind, icon): rec["toasts"].append([text, kind, icon]),
+		# QC round-2 B3: gate toasts (gatherer dead-zone) ride the 4th window
+		# arg — recorded like a plain toast here
+		"hud_toast_gate": func(text, kind, icon, _window): rec["toasts"].append([text, kind, icon]),
 		"hud_banner": func(data): rec["banners"].append(data),
 		"audio_play": func(n, v, p): rec["audio"].append([n, v, p]),
 		"audio_set_mood": func(name_v): rec["moods"].append(name_v),
@@ -684,6 +687,111 @@ func test_chief_respawn_safest_sample_geometry() -> void:
 	sim2.handle_chief_death(0.2)
 	eq(float(sim2.px), bx, "respawn x = sample farthest from the raider")
 	eq(float(sim2.pz), bz, "respawn z = sample farthest from the raider")
+
+
+# QC round-2 B3: the safest-sample respawn can drop the chief ~1900 px from
+# camp with no pointer home (walkback 35-50 s, tribe-edge probe) — a one-line
+# toast fires when the respawn lands > 1200 px from the nearest built hut.
+# Feedback only; the sampling above is TS:437-445 verbatim.
+func test_chief_respawn_far_walkback_toast() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	# pin the rng: no threats → the FIRST sample wins (the geometry pin of
+	# test_chief_respawn_safest_sample_geometry) — the respawn point is known
+	var pr: Variant = RngLib.new_from(4242)
+	sim.rng.set_state(pr.state())
+	var exp_x: float = pr.range(-WORLD_HALF * 0.5, WORLD_HALF * 0.5)
+	var exp_z: float = pr.range(Z_MIN + 30.0, Z_MAX - 30.0)
+	sim.deathHandled = true  # isolate the respawn path (no tax side effects)
+	sim.deathFade = 1.5
+	# no huts → nothing to walk back to → the hint stays silent (the
+	# constructor seeds a starting hut at (0, 80) — clear it)
+	sim.huts.clear()
+	sim.handle_chief_death(0.2)  # deathFade 1.7 > 1.6 → respawn
+	eq(float(sim.px), exp_x, "respawn = the pinned first sample")
+	eq(float(sim.pz), exp_z, "respawn z pinned")
+	var hint := false
+	for t in m["rec"]["toasts"]:
+		if String(t[0]) == "Your chief is far — walk back":
+			hint = true
+	ok(not hint, "no hut → no walk-back hint")
+	# a camp ON the respawn point → silent
+	var m2 := _mk_sim()
+	var sim2: Variant = m2["sim"]
+	var pr2: Variant = RngLib.new_from(4242)
+	sim2.rng.set_state(pr2.state())
+	var hx: float = pr2.range(-WORLD_HALF * 0.5, WORLD_HALF * 0.5)
+	var hz: float = pr2.range(Z_MIN + 30.0, Z_MAX - 30.0)
+	sim2.huts.clear()
+	sim2.huts.append({"x": hx, "z": hz, "buildT": 0.0, "hp": 100.0})
+	sim2.deathHandled = true
+	sim2.deathFade = 1.5
+	sim2.handle_chief_death(0.2)
+	eq(float(sim2.px), hx, "respawn lands on the camp")
+	hint = false
+	for t in m2["rec"]["toasts"]:
+		if String(t[0]) == "Your chief is far — walk back":
+			hint = true
+	ok(not hint, "respawn at camp → silent")
+	# a camp 1500 px east of the pinned sample → the hint fires
+	var m3 := _mk_sim()
+	var sim3: Variant = m3["sim"]
+	var pr3: Variant = RngLib.new_from(4242)
+	sim3.rng.set_state(pr3.state())
+	var fx: float = pr3.range(-WORLD_HALF * 0.5, WORLD_HALF * 0.5)
+	var fz: float = pr3.range(Z_MIN + 30.0, Z_MAX - 30.0)
+	sim3.huts.clear()
+	sim3.huts.append({"x": fx + 1500.0, "z": fz, "buildT": 0.0, "hp": 100.0})
+	sim3.deathHandled = true
+	sim3.deathFade = 1.5
+	sim3.handle_chief_death(0.2)
+	eq(float(sim3.px), fx, "respawn = the pinned sample again")
+	hint = false
+	for t in m3["rec"]["toasts"]:
+		if String(t[0]) == "Your chief is far — walk back":
+			hint = true
+	ok(hint, "respawn 1500 px from camp → walk-back hint")
+
+
+# QC round-2 B3 dead-zone feedback: a gatherer with no bush within 600 px and
+# no tree with wood anywhere idles forever in silence (the only recovery is
+# the random sapling respawn) — a gate-toast hint fires instead. Observation
+# only: the targeting chain above the hint is TS:759-763 verbatim and the
+# dead zone still assigns NO target.
+func test_gatherer_dead_zone_hint() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	sim.bushes.clear()  # no berries anywhere
+	sim.trees.clear()   # no wood anywhere
+	sim.tribe.append({"x": 0.0, "z": 0.0, "role": "gather", "carrying": null,
+			"hasTarget": false, "retargetT": 0.0})
+	sim.tribe_job_ai(sim.tribe[0], DT, 0)
+	var hints := 0
+	for t2 in m["rec"]["toasts"]:
+		if String(t2[0]) == "Gatherers idle — no berries or wood in reach":
+			hints += 1
+	eq(hints, 1, "dead-zone hint fired")
+	eq(bool(sim.tribe[0]["hasTarget"]), false, "dead zone still assigns no target (AI untouched)")
+	# the retarget cadence gates the re-fire (0.5 s), the hud gate window
+	# (10 s, live routing) collapses the rest
+	sim.tribe[0]["retargetT"] = 0.0
+	sim.tribe_job_ai(sim.tribe[0], DT, 0)
+	hints = 0
+	for t2 in m["rec"]["toasts"]:
+		if String(t2[0]) == "Gatherers idle — no berries or wood in reach":
+			hints += 1
+	eq(hints, 2, "re-target fires the hint again at the sim layer (hud dedupes by window)")
+	# a bush back in range → normal targeting resumes, no hint (wood ≥ quota
+	# so the index-0 gatherer is NOT on a wood shift and actually looks for
+	# berries)
+	m["rec"]["toasts"].clear()
+	sim.wood = 100.0
+	sim.bushes.append({"x": 100.0, "z": 0.0, "food": 3.0, "regrow": 0.0})
+	sim.tribe[0]["retargetT"] = 0.0
+	sim.tribe[0]["hasTarget"] = false
+	sim.tribe_job_ai(sim.tribe[0], DT, 0)
+	eq(bool(sim.tribe[0]["hasTarget"]), true, "bush back in range → targeted again")
+	eq(m["rec"]["toasts"].size(), 0, "no dead-zone hint while food is reachable")
 
 
 func test_chief_death_dna_tax_rounding() -> void:

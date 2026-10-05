@@ -206,6 +206,13 @@ func click_part(row: Dictionary, btn: String) -> void:
 			_game.hud["toast"].call(_game.i18n.tr_key("Your only way ashore! Keep at least one LEG."), "bad", "🐢")
 			# TS audio.play('hurt', 0.4)
 			return
+		# creature-mode sell warning (QC round-1 carry, r2 B3): selling the
+		# last LEG leaves a legless worm — survivable (no softlock, berries
+		# still feed) but the sell was completely silent. Warn WITHOUT
+		# blocking: unlike the cell guard above, the sell proceeds.
+		if mode == "creature" and String(def["gene"]) == "legs" and level - 1 < 1:
+			_game.hud["toast"].call(
+					_game.i18n.tr_key("Selling your last LEG — you will only crawl."), "bad", "🦵")
 		var refund: int = PartsScript.part_refund(def, level - 1)
 		_game.context.add_dna(float(refund))
 		g[def["gene"]] = level - 1
@@ -447,7 +454,8 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 				"fill": RendererScript.css_color("rgba(50,110,220,0.9)"),
 				"stroke": RendererScript.css_color("rgba(160,210,255,0.7)"),
 			})
-	RendererScript.outlined_text(ci, "DONE (E)", float(close_rect["x"]) + float(close_rect["w"]) / 2.0,
+	RendererScript.outlined_text(ci, _game.i18n.tr_key("DONE (E)"),
+			float(close_rect["x"]) + float(close_rect["w"]) / 2.0,
 			float(close_rect["y"]) + 20.0, {"size": 14.0, "fill": Color("#fff")})
 	update_editor_cursor()
 
@@ -548,7 +556,8 @@ func render_row(ci: CanvasItem, row: Dictionary, x: float, y: float, w: float, h
 			_row_label(ci, x, y, w, h, _game.i18n.tr_key("DIET"),
 					"%s — %s" % [_game.i18n.tr_key(String(diet["name"])),
 							_game.i18n.tr_key(String(diet["desc"]))],
-					"(%d DNA to switch)" % int(diet["cost"]) if int(diet["cost"]) > 0 else "")
+					"(%d %s)" % [int(diet["cost"]),
+							_game.i18n.tr_key("DNA to switch")] if int(diet["cost"]) > 0 else "")
 			var nxt: Dictionary = PartsScript.DIETS[(_diet_index(String(g["diet"])) + 1) % PartsScript.DIETS.size()]
 			RendererScript.outlined_text(ci, "%s %s ▸" % [_game.i18n.tr_key("next:"),
 					_game.i18n.tr_key(String(nxt["name"]))], x + w - 16.0, y + h / 2.0,

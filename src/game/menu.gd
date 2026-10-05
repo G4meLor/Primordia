@@ -592,7 +592,12 @@ func _build_settings(vw: float, vh: float, ci: CanvasItem) -> void:
 	RendererScript.outlined_text(ci, game.i18n.tr_key("SOUND"), px + 30.0, py + 190.0,
 			{"size": 12.0, "fill": RendererScript.css_color("#8fd0ff"), "align": "left"})
 	var sound_on: bool = not bool(game.muted)
-	_btn(game.i18n.tr_key("On") if sound_on else game.i18n.tr_key("Off"), func() -> void:
+	# the button label IS the drawn text (QC round-2 B3: the hit-text read
+	# "On"/"Off" while the panel drew "🔊 On"/"🔇 Off" — mismatched for label
+	# readers/accessibility; the hit area is rect-based and unchanged)
+	var sound_label: String = ("🔊 %s" % game.i18n.tr_key("On")) if sound_on \
+			else ("🔇 %s" % game.i18n.tr_key("Off"))
+	_btn(sound_label, func() -> void:
 		game.toggle_mute()
 	, px + 30.0, py + 204.0, 150.0, 40.0, sound_on)
 	RendererScript.panel(ci, px + 30.0, py + 204.0, 150.0, 40.0, {
@@ -600,8 +605,7 @@ func _build_settings(vw: float, vh: float, ci: CanvasItem) -> void:
 				else RendererScript.css_color("rgba(90,50,50,0.9)"),
 		"stroke": RendererScript.css_color("rgba(170,215,255,0.4)"),
 	})
-	RendererScript.outlined_text(ci, ("🔊 %s" % game.i18n.tr_key("On")) if sound_on
-			else ("🔇 %s" % game.i18n.tr_key("Off")), px + 105.0, py + 224.0,
+	RendererScript.outlined_text(ci, sound_label, px + 105.0, py + 224.0,
 			{"size": 14.0, "fill": Color("#ffffff")})
 
 	_btn(game.i18n.tr_key("◀ Back"), func() -> void:

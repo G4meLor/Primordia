@@ -33,6 +33,9 @@ func _mk_sim(seed_v: int = SEED, genome_mods: Dictionary = {},
 	}
 	var hooks: Dictionary = {
 		"hud_toast": func(text, kind, icon): rec["toasts"].append([text, kind, icon]),
+		# QC round-2 B3: the sim's gate toasts (pack-full, squeak-ignore) ride
+		# the 4th window arg — recorded like a plain toast here
+		"hud_toast_gate": func(text, kind, icon, _window): rec["toasts"].append([text, kind, icon]),
 		"hud_banner": func(data): rec["banners"].append(data),
 		"hud_float_world": func(x, y, text, color, size): rec["floats"].append([x, y, text, color, size]),
 		"audio_play": func(n, v, p): rec["audio"].append([n, v, p]),
@@ -339,6 +342,9 @@ func test_charm_mash_in_zone_ignored() -> void:
 # TS:1103-1113 — a press outside the zone is a miss: charm over, target
 # angry with packCd 6, rhythm toast. Direct calls keep the transient angry
 # mood visible (the AI tick would re-mood the same frame, TS-true).
+# QC round-2 B3: natively the angry mood now SURVIVES the AI tick while the
+# miss's packCd window runs (the wander branch no longer clobbers it the
+# same frame — cosmetic-only divergence, TS:964 still re-moods idle).
 func test_charm_miss_annoyance() -> void:
 	var m := _mk_sim()
 	var sim: Variant = m["sim"]
@@ -360,6 +366,17 @@ func test_charm_miss_annoyance() -> void:
 	approx(float(ctx.karma), 0.0, "no karma on a miss")
 	var texts: Array = _toast_texts(m["rec"])
 	ok(texts.has("It did not like your rhythm."), "rhythm toast")
+	# the angry mood survives the AI tick (the wander branch's idle re-mood
+	# is guarded while the miss's packCd runs — QC round-2 B3)
+	sim.update(DT, _inp({}))
+	eq(String(e["mood"]), "angry", "angry survives the same-tick wander re-mood")
+	# once the cooldown lapses the standard re-mood returns — park the ent out
+	# of the flee radius so the lapse hands back to the wander branch (near
+	# the player a lapsed packCd routes to flee/afraid, TS-true)
+	e["packCd"] = 0.0
+	e["x"] = float(sim.px) + 2000.0
+	sim.update(DT, _inp({}))
+	eq(String(e["mood"]), "idle", "once the charm cooldown lapses the wander re-mood returns")
 
 
 # TS:1060-1069 — escape conditions: a target removed from ents toasts 'It got

@@ -79,13 +79,16 @@ func set_abilities(a: Array) -> void:
 	abilities = a
 
 
-func toast(text: String, kind := "info", icon := "•", ttl := 4.0, card: Variant = null) -> void:
-	# drop identical repeats within 1.5 s (rate-limit floods). TS compares the
-	# TRANSLATED text (toast translated internally); natively the call sites
-	# translate BEFORE the call (audit shape), so the stored text is the
-	# identity — same dedup behavior, one translation instead of two.
+func toast(text: String, kind := "info", icon := "•", ttl := 4.0, card: Variant = null,
+		dedupe := 1.5) -> void:
+	# drop identical repeats within the dedupe window (rate-limit floods; the
+	# TS window is 1.5 s — hud.ts:73). TS compares the TRANSLATED text (toast
+	# translated internally); natively the call sites translate BEFORE the
+	# call (audit shape), so the stored text is the identity — same dedup
+	# behavior, one translation instead of two. toast_gate passes a longer
+	# window for gate toasts (QC round-2 B3).
 	for x in _toasts:
-		if String(x["text"]) == text and float(x["t"]) < 1.5:
+		if String(x["text"]) == text and float(x["t"]) < dedupe:
 			return
 	var t := {"text": text, "kind": kind, "icon": icon, "ttl": ttl, "t": 0.0,
 			"title": null, "body": null}
@@ -95,6 +98,15 @@ func toast(text: String, kind := "info", icon := "•", ttl := 4.0, card: Varian
 	_toasts.append(t)
 	if _toasts.size() > 6:
 		_toasts.pop_front()
+
+
+## Gate-toast entry (QC round-2 B3): a gate condition persists while its key
+## is held (F near a too-big target, a full pack), re-firing the gate toast
+## every tick — the plain 1.5 s flood guard let the same message re-show 2-3x
+## per hold. The longer window re-shows it at most once per `window` seconds
+## while the condition lasts (squeak-ignore, pack-full, gatherer dead-zone).
+func toast_gate(text: String, kind := "info", icon := "•", window := 4.0) -> void:
+	toast(text, kind, icon, 4.0, null, window)
 
 
 ## Public API for big center banners (chaos events, stage cards).

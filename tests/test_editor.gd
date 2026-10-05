@@ -189,6 +189,26 @@ func test_legs_floor_guard_keeps_the_shore_exit() -> void:
 	eq(_g.toasts.size(), toast_count, "min-level no-op is silent (TS returns before the toast)")
 
 
+# QC round-1 carry (r2 B3): creature mode sells the last LEG freely (the
+# worm survives on berries — no softlock) but the sell was completely
+# silent. A one-line warning mirrors the cell guard's text style WITHOUT
+# blocking the sell.
+func test_creature_last_leg_sell_warns_but_proceeds() -> void:
+	var ed: Variant = _editor(9999)
+	_g.context.genome["legs"] = 1
+	ed.show("creature")
+	ed.click_part(_row(_part_def("legs")), "-")
+	eq(int(_g.context.genome["legs"]), 0, "creature mode lets the last LEG sell")
+	eq(_g.toasts.size(), 1, "warning toast fired")
+	eq(String(_g.toasts[0][0]), "Selling your last LEG — you will only crawl.", "warning text")
+	eq(String(_g.toasts[0][1]), "bad", "warning kind")
+	# above the floor: sell proceeds without a warning
+	_g.context.genome["legs"] = 2
+	ed.click_part(_row(_part_def("legs")), "-")
+	eq(int(_g.context.genome["legs"]), 1, "legs 2→1 sells")
+	eq(_g.toasts.size(), 1, "no warning above the floor")
+
+
 # ---- the special rows (clickRow programmatic path) ---------------------------
 
 func test_diet_row_cycles_with_cost_gate() -> void:

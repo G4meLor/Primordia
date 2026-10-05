@@ -142,6 +142,22 @@ func test_iq1_flagged_keys_translate() -> void:
 	_restore_locale()
 
 
+# ---- QC round-2 B3: the EN-sót display sweep --------------------------------
+# Display sites TS renders RAW got native tr_key wraps; '👑 yours' and
+# 'DNA to switch' are NEW native vi.csv keys (TS is frozen — a gen_i18n_csv
+# re-run from the frozen dict would drop native-only rows).
+
+func test_r2_b3_display_keys_translate() -> void:
+	_wipe()
+	var i: Variant = _i18n()
+	i.set_lang("vi")
+	eq(i.tr_key("DONE (E)"), "XONG (E)", "editor close button (dict key pre-existing, call site was raw)")
+	eq(i.tr_key("DNA to switch"), "DNA để đổi", "diet-switch hint suffix")
+	eq(i.tr_key("👑 yours"), "👑 của bạn", "civ city ownership tag")
+	i.set_lang("en")
+	_restore_locale()
+
+
 # ---- I-q1 part 2: the structural sweep (features.test.ts:96-122) -----------
 # Scanners are ports of the TS audit regexes, with the receiver shapes native
 # code actually uses: `hud.toast(` (a typed HUD object, TS shape) and

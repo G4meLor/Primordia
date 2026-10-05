@@ -1083,9 +1083,15 @@ func update_ents(dt: float) -> void:
 				tx = float(e["tx"])
 				tz = float(e["tz"])
 				sp *= 0.5
-				e["mood"] = "idle"
-				if night:
-					e["mood"] = "alert"
+				# a missed charm (update_charm, earlier this tick) set mood "angry"
+				# + packCd 6 — the wander branch clobbered it back to "idle" the
+				# same frame, so the annoyance never reached the painter (QC round-2
+				# B3). Cosmetic-only hold: the anger stays while the miss's charm
+				# cooldown runs; the hunt/flee branches still re-mood as before.
+				if not (String(e["mood"]) == "angry" and float(e["packCd"]) > 0.0):
+					e["mood"] = "idle"
+					if night:
+						e["mood"] = "alert"
 
 		var dx: float = tx - float(e["x"])
 		var dz: float = tz - float(e["z"])
@@ -1166,11 +1172,16 @@ func try_charm() -> void:
 		if bool(e["pack"]):
 			packCount += 1
 	if packCount >= packLimit:
-		_fire("hud_toast", ["Your pack is full (%d) — evolve Arms/Brain for more" % packLimit, "info", "🐾"])
+		# gate toast: the full-pack condition persists while F is held — the
+		# 4 s window re-shows it once per hold instead of every 1.5 s (r2 B3)
+		_fire("hud_toast_gate",
+				["Your pack is full (%d) — evolve Arms/Brain for more" % packLimit, "info", "🐾", 4.0])
 		return
 	if float(best["genome"]["size"]) > float(ctx.genome["size"]) * 1.6 \
 			and float(ctx.genome.get("brain", 0)) < 2.0:
-		_fire("hud_toast", [tr("It ignores your squeaking. Grow bigger or smarter."), "info", "🐾"])
+		# gate toast: the size gate persists while F is held (r2 B3)
+		_fire("hud_toast_gate",
+				[tr("It ignores your squeaking. Grow bigger or smarter."), "info", "🐾", 4.0])
 		return
 	charmTarget = best
 	charmActive = true
