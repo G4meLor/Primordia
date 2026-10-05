@@ -128,6 +128,15 @@
 ##    stores String(opts.color), so a Color would corrupt).
 ##  - the TS try/catch around the restore ports as JSON.parse_string null
 ##    checks (no GDScript try/catch): a parse failure reads as "no blob".
+##  - TS JSON.stringify null-ifies non-finite floats; the native stringify
+##    writes the invalid-JSON tokens `nan`/`inf`, so persist_colonies runs the
+##    blob through _json_safe first — the round-trip then degrades per-field
+##    (null → the guards) exactly like TS instead of bricking the whole blob
+##    (QC r1 B3 follow-up: probe-verified stringify/parse behavior).
+##  - the restore's silent falls log "[space-restore]" lines to stdout (QC r1
+##    B3: a whole-blob discard used to be indistinguishable from a missing
+##    blob; TS is equally silent, so this is stdout telemetry only, no
+##    behavior change).
 ##  - the abductCount ledger reads numerically (`?? 0` + the JS string-concat
 ##    pathology for a hand-corrupted "0" value is unreachable through the
 ##    real write path — the ledger is sim-written and JSON-restored, and JSON
@@ -286,14 +295,24 @@ func persist_state() -> void:
 ## The restore whitelist (TS:190-267 — TS inlines it in onEnter). EVERY field
 ## rides a guard: corrupt values keep the generated/current ones instead of
 ## NaNing the orbit loop.
+##
+## Every silent fall logs "[space-restore]" to stdout (QC r1 B3: the
+## all-or-nothing gate used to fail with ZERO output — a lost cargo/colony
+## was indistinguishable from a never-written blob). Logging does not change
+## the TS-parity semantics: the gate + fresh-board fallback stay.
 func _restore_world() -> void:
 	# restore the exact system (planets, colonies, cargo) from the last save
 	var saved: Variant = ctx.flags.get("spaceWorld")
 	if not (saved is String) or (saved as String).is_empty():
+		print("[space-restore] fall: no blob (spaceWorld %s)" %
+				("missing" if not ctx.flags.has("spaceWorld")
+				else "type=%s" % typeof(ctx.flags["spaceWorld"])))
 		return  # TS:191 — no blob
 	# TS try/catch — a parse failure reads as "no blob" (TS:266 `catch /* fresh */`)
 	var parsed: Variant = JSON.parse_string(saved)
 	if not (parsed is Dictionary):
+		print("[space-restore] fall: JSON.parse_string failed (len=%d, first=%s)" %
+				[(saved as String).length(), (saved as String).substr(0, 24)])
 		return
 	var world: Dictionary = parsed
 	# TS:200 — shapesOk: an array whose every row is an object (`typeof === 'object'
@@ -305,6 +324,14 @@ func _restore_world() -> void:
 			if not (pl is Dictionary or pl is Array):
 				shapes_ok = false
 				break
+	# QC r1 B3: the all-or-nothing gate used to fall SILENT — a wrong-shape or
+	# wrong-length blob kept the fresh board (cargo [] from the constructor)
+	# with no signal at all. Same outcome (parity), now visible.
+	if not shapes_ok:
+		print("[space-restore] fall: shapes_ok=false (planets type=%s)" % typeof(planets_v))
+	elif (planets_v as Array).size() != planets.size():
+		print("[space-restore] fall: planets size mismatch (saved %d vs live %d)" %
+				[(planets_v as Array).size(), planets.size()])
 	if shapes_ok and (planets_v as Array).size() == planets.size():
 		for i in planets.size():
 			var p: Dictionary = planets[i]
@@ -376,6 +403,9 @@ func _restore_world() -> void:
 						5.0, {"kin": true, "name": "%s colonists" % String(p["name"])})
 		# the cargo clamp merge (TS:247-251)
 		var cargo_v: Variant = world.get("cargo")
+		print("[space-restore] gate open: shapes_ok=%s saved planets=%d live planets=%d cargo=%s" %
+				[shapes_ok, (planets_v as Array).size(), planets.size(),
+				("array(%d)" % (cargo_v as Array).size()) if cargo_v is Array else typeof(cargo_v)])
 		if cargo_v is Array:
 			var merged: Array = []
 			for it in cargo_v:
@@ -440,7 +470,31 @@ func persist_colonies() -> void:
 		"endingDone": endingDone,
 		"endingDismissed": endingDismissed,
 	}
-	ctx.flags["spaceWorld"] = JSON.stringify(blob)  # TS:296
+	ctx.flags["spaceWorld"] = JSON.stringify(_json_safe(blob))  # TS:296
+
+
+## TS JSON.stringify null-ifies non-finite floats (NaN/Infinity → null, valid
+## JSON); the native stringify instead writes the INVALID-JSON tokens
+## `nan`/`inf`, which JSON.parse_string rejects WHOLESALE — one non-finite
+## float anywhere in the blob would brick the ENTIRE restore (fresh board,
+## QC r1 B3's suspected "ký tự lạ qua JSON.stringify" path) where TS degrades
+## per-field (null → the restore guards keep the generated values). Sanitize
+## at persist time so the round-trip matches TS's observable behavior; the
+## gate + guards stay the sole arbiters of what restores.
+func _json_safe(v: Variant) -> Variant:
+	if v is float:
+		return v if is_finite(v) else null
+	if v is Dictionary:
+		var out: Dictionary = {}
+		for k in v:
+			out[k] = _json_safe(v[k])
+		return out
+	if v is Array:
+		var list: Array = []
+		for e in v:
+			list.append(_json_safe(e))
+		return list
+	return v
 
 
 # ---- system generation (TS:103-179) -----------------------------------------------
