@@ -206,6 +206,13 @@ func click_part(row: Dictionary, btn: String) -> void:
 			_game.hud["toast"].call(_game.i18n.tr_key("Your only way ashore! Keep at least one LEG."), "bad", "🐢")
 			# TS audio.play('hurt', 0.4)
 			return
+		# creature-mode sell warning (QC round-1 carry, r2 B3): selling the
+		# last LEG leaves a legless worm — survivable (no softlock, berries
+		# still feed) but the sell was completely silent. Warn WITHOUT
+		# blocking: unlike the cell guard above, the sell proceeds.
+		if mode == "creature" and String(def["gene"]) == "legs" and level - 1 < 1:
+			_game.hud["toast"].call(
+					_game.i18n.tr_key("Selling your last LEG — you will only crawl."), "bad", "🦵")
 		var refund: int = PartsScript.part_refund(def, level - 1)
 		_game.context.add_dna(float(refund))
 		g[def["gene"]] = level - 1
