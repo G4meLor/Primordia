@@ -67,11 +67,34 @@ extends "res://src/game/stage.gd"
 
 const TribeSimScript := preload("res://src/game/tribe/tribe_sim.gd")
 const ParticlesScript := preload("res://src/gfx/particles.gd")
+
 const RendererScript := preload("res://src/gfx/renderer.gd")
 const BackdropScript := preload("res://src/gfx/backdrop.gd")
 const CreaturePainter := preload("res://src/gfx/creature_painter.gd")
 const HudScript := preload("res://src/ui/hud.gd")
 const PauseScript := preload("res://src/ui/pause.gd")
+
+## Below this a viewport dimension cannot be a real playable window (the QC r1
+## B4 collapse reported 0–300 px against an 1152×648 window) — a transient
+## X11/llvmpipe size glitch; keep the last frame instead of recording it.
+const MIN_RENDER_VW := 64.0
+const MIN_RENDER_VH := 64.0
+
+
+## QC r1 B4 — the frame-size sanity check behind render()'s freeze: the game's
+## vw/vh mirror the root viewport's visible rect, which equals the OS window
+## size by construction (no stretch/content scale is configured). A game size
+## far below the real window (or simply tiny) is the collapsed-report glitch,
+## not a real resize; rendering it produced the flat gray captures. Headless
+## servers report a degenerate window, so there the check degrades to the
+## plain MIN_RENDER floor (headless tests never render these stages anyway).
+func _frame_size_sane() -> bool:
+	if game.vw < MIN_RENDER_VW or game.vh < MIN_RENDER_VH:
+		return false
+	var win: Vector2i = DisplayServer.window_get_size()
+	if win.x < MIN_RENDER_VW or win.y < MIN_RENDER_VH:
+		return true  # no trustworthy window reference — accept the game size
+	return game.vw >= float(win.x) * 0.5 and game.vh >= float(win.y) * 0.5
 
 var sim: Variant = null            # TribeSim (RefCounted sim core)
 var fx: Variant = null             # stage Particles pool (TS `new Fx(1000)`)
@@ -551,6 +574,13 @@ func _is_night() -> bool:
 ## item order, re-register the hudRects, queue all canvases.
 func render() -> void:
 	if sky_canvas == null or sim == null:
+		return
+	# QC r1 B4 — same degenerate-viewport guard as the creature stage: the
+	# X11/llvmpipe viewport can transiently report a collapsed size while the
+	# window keeps its real extent, and recording that frame crams every
+	# vw-anchored draw into a left sliver over the clear color. Keep the LAST
+	# recorded frame until the viewport reports a usable size again.
+	if not _frame_size_sane():
 		return
 	_sync_creature_items()
 	_sync_hud_rects()

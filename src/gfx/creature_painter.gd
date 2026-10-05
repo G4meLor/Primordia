@@ -527,23 +527,24 @@ static func _ring_area(ring: PackedVector2Array) -> float:
 ## Radial gradient disc (col0 at r0 → col1 at r1) on a bare RID — the twin of
 ## renderer.gd radial_disc (that one takes a CanvasItem node and is guarded to
 ## _draw context; the glow pattern needs RID calls). Vertex-colored ring fan +
-## inner disc, the cell_painter gradient equivalence.
+## inner disc, the cell_painter gradient equivalence. The ring emits ONE QUAD
+## PER SEGMENT — the old single self-touching strip polygon (each quad's corner
+## repeated at the segment boundary) fails triangulation under llvmpipe
+## ("Invalid polygon data") and rendered NOTHING, silently dropping the glow
+## blob (the M6 renderer.gd radial_disc lesson — same primitive, same fix;
+## reproduced by the B4 geometry probe: the raw strip logs the engine error).
 static func _radial_disc(item: RID, center: Vector2, r0: float, r1: float, col0: Color, col1: Color, segments := 24) -> void:
 	if r1 <= r0:
 		RenderingServer.canvas_item_add_circle(item, center, r1, col0)
 		return
 	RenderingServer.canvas_item_add_circle(item, center, r0, col0)
-	var pts := PackedVector2Array()
-	var cols := PackedColorArray()
 	for i in segments:
 		var a0 := (float(i) / float(segments)) * TAU
 		var a1 := (float(i + 1) / float(segments)) * TAU
-		pts.append(center + Vector2(cos(a0), sin(a0)) * r0)
-		pts.append(center + Vector2(cos(a1), sin(a1)) * r0)
-		pts.append(center + Vector2(cos(a1), sin(a1)) * r1)
-		pts.append(center + Vector2(cos(a0), sin(a0)) * r1)
-		cols.append(col0)
-		cols.append(col0)
-		cols.append(col1)
-		cols.append(col1)
-	RenderingServer.canvas_item_add_polygon(item, pts, cols)
+		RenderingServer.canvas_item_add_polygon(item,
+				PackedVector2Array([
+					center + Vector2(cos(a0), sin(a0)) * r0,
+					center + Vector2(cos(a1), sin(a1)) * r0,
+					center + Vector2(cos(a1), sin(a1)) * r1,
+					center + Vector2(cos(a0), sin(a0)) * r1]),
+				PackedColorArray([col0, col0, col1, col1]))
