@@ -149,6 +149,13 @@ func _ready() -> void:
 	# the CALLER draws the stage rng branch (sim header contract, mirrors
 	# TS `this.rng = ctx.rng.branch()` in the CreatureStage constructor)
 	sim = CreatureSimScript.new(game.context, game.context.rng.branch(), _build_hooks())
+	# the editor's buy/sell loop calls back into the sim (TS notifyStatsChanged
+	# → CreatureStage.onStatsChanged at 1321; the sim recompute is
+	# on_stats_changed — bound once, the sim is fixed for the stage's life;
+	# cell_stage.gd mirrors this right after its own sim build). No
+	# compensating call needed here: the sim's _init just computed pStats from
+	# the live genome and on_enter recomputes again (sim.on_enter).
+	editor_inst.on_stats_changed = sim.on_stats_changed
 
 	# TS draw-path parity (see header): world canvases draw at identity and the
 	# enabled Camera2D carries the transform. The rig boots disabled (menu/cell
