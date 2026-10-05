@@ -9,10 +9,14 @@
 ## net +11 DNA / 5 min) came from a hyper-aggressive bot, 1 seed, pre-B1.
 ##
 ## PROFILE (the middle player): hunt → bite on contact (the sim's contact
-## auto-bite) → RETREAT when hp < ~50% (real held-mouse run-away) → farm the
+## auto-bite) → RETREAT when hp < ~50% with danger near (real held-mouse
+## run-away) → turn and FIGHT when cornered (hp < 35%: every wild archetype
+## outruns a legs-1 player, a doomed retreat just dies tired) → farm the
 ## nearest bush when no safe prey / to heal (real held-mouse eat) → buy a JAW
 ## level every ~40 s when DNA affords it (the B1 kill lane: jaw now really
 ## raises damage, which flips `playerThreat` and shrinks the aggro set).
+## Safe prey = the live DPS trade (my bite-rate vs their counter-bite), so
+## the carnivore lane opens as jaw levels land — that opening IS the signal.
 ##
 ## INPUT LAW (Global Constraint 8): every gameplay input rides
 ## Input.parse_input_event + flush through the REAL pipeline (bot_driver.gd).
@@ -49,11 +53,13 @@ const STEP_BUDGET := 42000  # hard failsafe (~11.7 min of sim time)
 
 # kiter tuning (the profile, not a valve)
 const RETREAT_HP := 0.5     # rút khi hp < ~50%
-const THREAT_RADIUS := 320.0
+const CORNERED_HP := 0.35   # quá thấp để rút (kẻ săn nhanh hơn) → đánh lại
+const ANGRY_RADIUS := 380.0 # a committed hunter (mood angry) within ~aggro radius
+const CLOSE_RADIUS := 150.0 # about to be bitten
 const PREY_RANGE := 900.0
 const BUSH_RANGE := 800.0
 const JAW_EVERY := 40.0     # seconds between jaw-buy attempts
-const JAW_RESERVE := 25     # keep this much DNA in the wallet
+const JAW_RESERVE := 15     # keep this much DNA in the wallet
 
 const DEFAULT_SEEDS := [0xBEEF, 0xC0FFEE, 0x5EED5EED]
 const DEFAULT_LCGS := [777, 4242, 90909]
@@ -117,7 +123,7 @@ func run_seed(world_seed: int, lcg_seed: int) -> Dictionary:
 	var deaths0: int = int(game.deaths_in_stage)
 	var wpk0 := _wp_kills(ctx)
 	var run := {
-		"deaths": 0, "death_t": [], "death_lost": [],
+		"deaths": 0, "death_t": [], "death_lost": [], "death_by": [],
 		"kills": 0, "kill_t": [],
 		"respawn_clear": [], "respawn_threat10": [],
 		"modes": {"hunt": 0, "farm": 0, "retreat": 0, "wander": 0, "dead": 0},
@@ -130,6 +136,8 @@ func run_seed(world_seed: int, lcg_seed: int) -> Dictionary:
 	var contact_before := false
 	var last_min := -1
 	var jaw_attempts := 0
+	var respawn_sample_until := -1.0
+	var respawn_min := INF
 	var step := 0
 
 	while float(sim.time) - t0 < RUN_SEC and step < STEP_BUDGET:
@@ -143,12 +151,18 @@ func run_seed(world_seed: int, lcg_seed: int) -> Dictionary:
 				run["deaths"] += 1
 				run["death_t"].append(snake_t(float(sim.time) - t0))
 				run["death_lost"].append(int(prev_dna) - int(ctx.dna))
+				run["death_by"].append(_death_cause(sim))
 			run["modes"]["dead"] = int(run["modes"]["dead"]) + 1
 			prev_alive = false
 			game.step_for_testing(1, DT)
 			if float(sim.php) > 0.0 and float(sim.deathFade) <= 0.0:
-				# respawned this step (px reset to -1600, ents within 600 cleared)
-				_record_respawn(run, sim)
+				# respawned this step (px reset to -1600, ents within 600 cleared):
+				# record the instant clearance, then sample the 3-s invuln window
+				# WHILE RESUMING normal policy (no stand-still — the first run's
+				# 10-s passive window was a death factory that poisoned the data)
+				_record_respawn_instant(run, sim)
+				respawn_sample_until = float(sim.time) + 3.0
+				respawn_min = INF
 				prev_alive = true
 			continue
 
@@ -160,25 +174,26 @@ func run_seed(world_seed: int, lcg_seed: int) -> Dictionary:
 			run["jaw_end"] = int(ctx.genome.get("jaw", 0))
 
 		# ---- perceive
-		var threat: Variant = _nearest_threat(sim)
-		var prey: Variant = _pick_prey(sim) if threat == null else null
+		var angry: Variant = _nearest_angry(sim)
+		var close: Variant = _nearest_close(sim)
+		var prey: Variant = _pick_prey(sim)
 		var bush: Variant = _nearest_bush(sim)
 
-		# ---- decide + drive
+		# ---- decide + drive (the middle-player loop)
 		var t_alive: float = float(sim.time) - t0
-		if float(sim.php) < float(sim.pmaxHp) * RETREAT_HP:
-			# RÚT: hp < ~50%
-			if threat != null:
-				mode = _retreat_from(sim, threat)
-			elif bush != null:
-				mode = _farm_bush(sim, bush)
-			else:
-				mode = _flee_any(sim)
-		elif threat != null and String(threat["mood"]) == "angry" \
-				and float(sim.php) < float(sim.pmaxHp) * 0.75 \
-				and float(threat["stats"]["damage"]) >= float(sim.pStats["damage"]) * 0.8:
-			# an angry predator that out-bites us while we are mid-HP: disengage
-			mode = _retreat_from(sim, threat)
+		if float(sim.php) < float(sim.pmaxHp) * CORNERED_HP and close != null:
+			# cornered: a faster hunter will run us down — turn and fight
+			mode = _hunt(sim, close)
+			prey_id = int(close["eid"])
+			contact_before = _in_contact(sim, close)
+		elif float(sim.php) < float(sim.pmaxHp) * RETREAT_HP \
+				and (angry != null or close != null):
+			# RÚT: hp < ~50% with danger near
+			mode = _retreat_from(sim, angry if angry != null else close)
+		elif angry != null and _their_dps(sim, angry) > _my_dps(sim, angry) \
+				and float(sim.php) < float(sim.pmaxHp) * 0.8:
+			# a committed predator that out-trades us while we are mid-hp
+			mode = _retreat_from(sim, angry)
 		elif prey != null:
 			mode = _hunt(sim, prey)
 			prey_id = int(prey["eid"])
@@ -192,13 +207,24 @@ func run_seed(world_seed: int, lcg_seed: int) -> Dictionary:
 		# ---- step the REAL sim
 		game.step_for_testing(1, DT)
 
-		# ---- post reads: my-kill detection (the bite that killed MY target)
+		# ---- post reads
+		# my-kill detection (the bite that killed MY target)
 		if mode == "hunt" and contact_before:
 			var t: Variant = _ent_by_id(sim, prey_id)
 			if t != null and (t.has("corpseT") or float(t["hp"]) <= 0.0):
 				run["kills"] += 1
 				run["kill_t"].append(snake_t(t_alive))
 				prey_id = -1
+		# respawn-to-threat under play (the 3-s invuln window, bot active)
+		if respawn_sample_until > 0.0:
+			if float(sim.time) >= respawn_sample_until:
+				run["respawn_threat10"].append(
+						-1.0 if respawn_min == INF else snappedf(respawn_min, 1.0))
+				respawn_sample_until = -1.0
+			else:
+				var rt: Variant = _nearest_wild(sim)
+				if rt != null:
+					respawn_min = minf(respawn_min, _dist(sim, rt))
 		# a death that starts and ends between two bot frames is impossible
 		# (the fade alone is 1.8 s) — no missed transitions
 		prev_alive = float(sim.php) > 0.0 and float(sim.deathFade) <= 0.0
@@ -235,6 +261,7 @@ func run_seed(world_seed: int, lcg_seed: int) -> Dictionary:
 	out["respawn_threat10"] = run["respawn_threat10"]
 	out["death_t"] = run["death_t"]
 	out["death_lost"] = run["death_lost"]
+	out["death_by"] = run["death_by"]
 	var ev := ""
 	if not driver.sane_violations.is_empty():
 		ev = "sane: " + str(driver.sane_violations)
@@ -327,15 +354,7 @@ func _retreat_from(sim: Variant, threat: Variant) -> String:
 
 
 func _flee_any(sim: Variant) -> String:
-	var nearest: Variant = null
-	var bd := INF
-	for e in sim.ents:
-		if bool(e["pack"]) or e.has("corpseT"):
-			continue
-		var d: float = _dist(sim, e)
-		if d < bd:
-			bd = d
-			nearest = e
+	var nearest: Variant = _nearest_wild(sim)
 	if nearest == null:
 		return _wander(sim)
 	return _retreat_from(sim, nearest)
@@ -400,9 +419,10 @@ func _in_contact(sim: Variant, e: Variant) -> bool:
 	return _dist(sim, e) < pr + 14.0 * float(e["genome"]["size"]) + 4.0
 
 
-func _nearest_threat(sim: Variant) -> Variant:
+func _nearest_wild(sim: Variant) -> Variant:
+	# nearest wild, damage-capable ent at ANY distance (respawn clearance read)
 	var best: Variant = null
-	var bd := THREAT_RADIUS
+	var bd := INF
 	for e in sim.ents:
 		if bool(e["pack"]) or e.has("corpseT") or bool(e["baby"]):
 			continue
@@ -415,9 +435,57 @@ func _nearest_threat(sim: Variant) -> Variant:
 	return best
 
 
+func _nearest_angry(sim: Variant) -> Variant:
+	# a COMMITTED hunter: the sim's hunt branch sets mood "angry"
+	var best: Variant = null
+	var bd := ANGRY_RADIUS
+	for e in sim.ents:
+		if bool(e["pack"]) or e.has("corpseT") or bool(e["baby"]):
+			continue
+		if float(e["stats"]["damage"]) <= 0.0:
+			continue
+		if String(e["mood"]) != "angry":
+			continue
+		var d: float = _dist(sim, e)
+		if d < bd:
+			bd = d
+			best = e
+	return best
+
+
+func _nearest_close(sim: Variant) -> Variant:
+	# about to be bitten (the sim's bite radius is pR + 14*entSize)
+	var best: Variant = null
+	var bd := CLOSE_RADIUS
+	for e in sim.ents:
+		if bool(e["pack"]) or e.has("corpseT") or bool(e["baby"]):
+			continue
+		if float(e["stats"]["damage"]) <= 0.0:
+			continue
+		var d: float = _dist(sim, e)
+		if d < bd:
+			bd = d
+			best = e
+	return best
+
+
+func _my_dps(sim: Variant, e: Variant) -> float:
+	# player bite per 0.6 s into this ent's defense (creature_sim bite math)
+	var def: float = minf(0.6, float(e["stats"]["defense"]))
+	return float(sim.pStats["damage"]) * (1.0 - def) / 0.6
+
+
+func _their_dps(sim: Variant, e: Variant) -> float:
+	# their counter-bite per 0.9 s into the player's defense
+	var pdef: float = minf(0.65, float(sim.pStats["defense"]))
+	return float(e["stats"]["damage"]) * 0.85 * (1.0 - pdef) / 0.9
+
+
 func _pick_prey(sim: Variant) -> Variant:
-	# safe prey: herbivore/omnivore first, then a carnivore we out-damage
-	# (post-B1 jaw buys widen this set via the playerThreat flip)
+	# safe prey by the DPS trade: we win the bite exchange, or the meal dies
+	# in <=4 of our bites; herbivores preferred on ties. The carnivore lane
+	# OPENS as jaw buys land (post-B1 damage is real) — that is the question
+	# under measurement, so the rule must read live pStats, not a fixed list.
 	var best: Variant = null
 	var best_rank := -INF
 	for e in sim.ents:
@@ -426,14 +494,13 @@ func _pick_prey(sim: Variant) -> Variant:
 		var d: float = _dist(sim, e)
 		if d >= PREY_RANGE:
 			continue
-		var diet := String(e["genome"]["diet"])
-		var score := 0.0
-		if diet != "carnivore":
-			score = 2.0
-		elif float(e["stats"]["damage"]) < float(sim.pStats["damage"]) * 0.85:
-			score = 1.0
-		if score <= 0.0:
+		var quick_kill: bool = float(e["maxHp"]) <= float(sim.pStats["damage"]) * 4.0
+		var wins_trade: bool = _my_dps(sim, e) >= _their_dps(sim, e)
+		if not quick_kill and not wins_trade:
 			continue
+		var score := 1.0
+		if String(e["genome"]["diet"]) != "carnivore":
+			score = 2.0
 		var rank := score * 10000.0 - d
 		if best == null or rank > best_rank:
 			best = e
@@ -472,10 +539,10 @@ func _part_def(id: String) -> Dictionary:
 	return {}
 
 
-func _record_respawn(run: Dictionary, sim: Variant) -> void:
+func _record_respawn_instant(run: Dictionary, sim: Variant) -> void:
 	# the respawn clears ents within 600 (creature_sim.handle_death) — the
-	# instant read verifies that clearance actually held; the 10-s exposure
-	# window is the meaningful "respawn-to-threat" distance.
+	# instant read verifies that clearance held; the under-play 3-s invuln
+	# exposure is sampled back in the main loop while the bot keeps playing
 	var instant := INF
 	for e in sim.ents:
 		if bool(e["pack"]) or e.has("corpseT") or bool(e["baby"]):
@@ -486,22 +553,15 @@ func _record_respawn(run: Dictionary, sim: Variant) -> void:
 		if d < instant:
 			instant = d
 	run["respawn_clear"].append(-1.0 if instant == INF else snappedf(instant, 1.0))
-	# sample the next 10 s of sim time for the nearest wild threat
-	var deadline: float = float(sim.time) + 10.0
-	var best := INF
-	while float(sim.time) < deadline:
-		game.step_for_testing(1, DT)
-		if float(sim.php) <= 0.0:
-			break  # died again inside the window — report what we saw
-		for e in sim.ents:
-			if bool(e["pack"]) or e.has("corpseT") or bool(e["baby"]):
-				continue
-			if float(e["stats"]["damage"]) <= 0.0:
-				continue
-			var d: float = _dist(sim, e)
-			if d < best:
-				best = d
-	run["respawn_threat10"].append(-1.0 if best == INF else snappedf(best, 1.0))
+
+
+func _death_cause(sim: Variant) -> String:
+	# one-line diagnosis: who was on us when we died (nearest wild dmg-ent)
+	var e: Variant = _nearest_wild(sim)
+	if e == null:
+		return "none"
+	return "%s/%s/d%.0f" % [String(e["speciesId"]).substr(0, 8),
+			String(e["mood"]), float(e["stats"]["damage"])]
 
 
 # ---- small utils ------------------------------------------------------------------
