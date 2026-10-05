@@ -31,11 +31,15 @@
 ##     needing a llvmpipe draw pass headless.
 ## Editor open/close still rides the REAL KeyE pipeline both ways.
 ##
-## Run (headless):
-##   godot --headless --path . res://tests/scenes/test_b5_kiter.tscn -- \
-##       0xBEEF 0xC0FFEE 0x5EED5EED
-## Prints B5_* lines; per-seed summary on B5_SEED_RESULT. Exit 0 when the
-## runs complete (measurement scene — findings, not asserts).
+## Run (headless — needs xvfb on diskless servers: the input pipeline wants a
+## display server; no per-frame rendering happens):
+##   xvfb-run -a godot --rendering-driver opengl3 --path . \
+##       res://tests/scenes/test_b5_kiter.tscn -- 0xBEEF 0xC0FFEE 0x5EED5EED
+## TWO ARMS per seed: arm=kit buys jaw every ~40 s (the B1 kill lane),
+## arm=nokit never buys — the deaths delta between arms isolates what the B1
+## binding contributes to the valve. Prints B5_* lines; per-run summary on
+## B5_SEED_RESULT. Exit 0 when the runs complete (measurement scene —
+## findings, not asserts).
 extends Node
 
 const MainScene := preload("res://main.tscn")
@@ -83,8 +87,12 @@ func _ready() -> void:
 			seeds.append(_parse_seed(a))
 	print("B5_BEGIN seeds=%s" % str(seeds))
 	for i in range(seeds.size()):
-		var res := run_seed(int(seeds[i]), DEFAULT_LCGS[i % DEFAULT_LCGS.size()])
-		print("B5_SEED_RESULT " + _flat(res))
+		# two arms per seed: "kit" buys jaw (the B1 kill lane), "nokit" never
+		# buys — the delta isolates what the B1 binding contributes
+		var res := run_seed(int(seeds[i]), DEFAULT_LCGS[i % DEFAULT_LCGS.size()], true)
+		print("B5_SEED_RESULT arm=kit " + _flat(res))
+		var res2 := run_seed(int(seeds[i]), DEFAULT_LCGS[i % DEFAULT_LCGS.size()], false)
+		print("B5_SEED_RESULT arm=nokit " + _flat(res2))
 	get_tree().quit(0)
 
 
@@ -97,7 +105,7 @@ func _parse_seed(a: String) -> int:
 
 # ---- one seed -------------------------------------------------------------------
 
-func run_seed(world_seed: int, lcg_seed: int) -> Dictionary:
+func run_seed(world_seed: int, lcg_seed: int, allow_buy: bool) -> Dictionary:
 	driver = BotDriverScript.new()
 	driver.lcg_seed = lcg_seed
 	_pending_seed = world_seed
@@ -129,6 +137,7 @@ func run_seed(world_seed: int, lcg_seed: int) -> Dictionary:
 		"modes": {"hunt": 0, "farm": 0, "retreat": 0, "wander": 0, "dead": 0},
 		"dna_min": {}, "jaw_buys": 0, "jaw_end": int(ctx.genome.get("jaw", 0)),
 	}
+	out["arm"] = "kit" if allow_buy else "nokit"
 	var prev_alive := true
 	var prev_dna := dna0
 	var mode := "wander"
@@ -145,15 +154,9 @@ func run_seed(world_seed: int, lcg_seed: int) -> Dictionary:
 		var alive: bool = float(sim.php) > 0.0 and float(sim.deathFade) <= 0.0
 		if not alive:
 			# dead: drop the mouse, wait out the 1.8 s fade through the sim
-			if prev_alive and game.input.is_down():
+			if game.input.is_down():
 				driver.mouse_up()
-			if prev_alive:
-				run["deaths"] += 1
-				run["death_t"].append(snake_t(float(sim.time) - t0))
-				run["death_lost"].append(int(prev_dna) - int(ctx.dna))
-				run["death_by"].append(_death_cause(sim))
 			run["modes"]["dead"] = int(run["modes"]["dead"]) + 1
-			prev_alive = false
 			game.step_for_testing(1, DT)
 			if float(sim.php) > 0.0 and float(sim.deathFade) <= 0.0:
 				# respawned this step (px reset to -1600, ents within 600 cleared):
@@ -167,11 +170,16 @@ func run_seed(world_seed: int, lcg_seed: int) -> Dictionary:
 			continue
 
 		# jaw buy cadence (alive only; the editor refuses the dead anyway)
-		if float(sim.time) - t0 >= float(jaw_attempts) * JAW_EVERY \
+		if allow_buy and float(sim.time) - t0 >= float(jaw_attempts) * JAW_EVERY \
 				and int(ctx.genome.get("jaw", 0)) < 5:
 			jaw_attempts += 1
 			_buy_jaw(run)
 			run["jaw_end"] = int(ctx.genome.get("jaw", 0))
+			if float(sim.php) <= 0.0 or float(sim.deathFade) > 0.0:
+				# died inside the buy's one unblocked open-step
+				_count_death(run, sim, t0, prev_dna)
+				prev_alive = false
+				continue
 
 		# ---- perceive
 		var angry: Variant = _nearest_angry(sim)
@@ -194,6 +202,11 @@ func run_seed(world_seed: int, lcg_seed: int) -> Dictionary:
 				and float(sim.php) < float(sim.pmaxHp) * 0.8:
 			# a committed predator that out-trades us while we are mid-hp
 			mode = _retreat_from(sim, angry)
+		elif bush != null and angry == null \
+				and float(sim.php) < float(sim.pmaxHp) * 0.88:
+			# heal-up leg: top off at a berry bush before the next hunt
+			# (no passive regen exists — the kiter cycle NEEDS this leg)
+			mode = _farm_bush(sim, bush)
 		elif prey != null:
 			mode = _hunt(sim, prey)
 			prey_id = int(prey["eid"])
@@ -208,6 +221,12 @@ func run_seed(world_seed: int, lcg_seed: int) -> Dictionary:
 		game.step_for_testing(1, DT)
 
 		# ---- post reads
+		if float(sim.php) <= 0.0 or float(sim.deathFade) > 0.0:
+			# died THIS step (the tax fired in the same step — handle_death's
+			# first frame); the dead branch above just waits the fade now
+			_count_death(run, sim, t0, prev_dna)
+			prev_alive = false
+			continue
 		# my-kill detection (the bite that killed MY target)
 		if mode == "hunt" and contact_before:
 			var t: Variant = _ent_by_id(sim, prey_id)
@@ -537,6 +556,19 @@ func _part_def(id: String) -> Dictionary:
 		if String(p["id"]) == id:
 			return p
 	return {}
+
+
+func _count_death(run: Dictionary, sim: Variant, t0: float, prev_dna: float) -> void:
+	# the tax fires in handle_death's first frame — the SAME step the hp
+	# crosses 0, so prev_dna → dna IS the 12% loss (plus any same-step income)
+	run["deaths"] = int(run["deaths"]) + 1
+	run["death_t"].append(snake_t(float(sim.time) - t0))
+	run["death_lost"].append(int(prev_dna) - int(sim_ctx_dna()))
+	run["death_by"].append(_death_cause(sim))
+
+
+func sim_ctx_dna() -> float:
+	return float(game.context.dna)
 
 
 func _record_respawn_instant(run: Dictionary, sim: Variant) -> void:
