@@ -745,6 +745,47 @@ func test_chief_respawn_far_walkback_toast() -> void:
 	ok(hint, "respawn 1500 px from camp → walk-back hint")
 
 
+# QC round-2 B3 dead-zone feedback: a gatherer with no bush within 600 px and
+# no tree with wood anywhere idles forever in silence (the only recovery is
+# the random sapling respawn) — a gate-toast hint fires instead. Observation
+# only: the targeting chain above the hint is TS:759-763 verbatim and the
+# dead zone still assigns NO target.
+func test_gatherer_dead_zone_hint() -> void:
+	var m := _mk_sim()
+	var sim: Variant = m["sim"]
+	sim.bushes.clear()  # no berries anywhere
+	sim.trees.clear()   # no wood anywhere
+	sim.tribe.append({"x": 0.0, "z": 0.0, "role": "gather", "carrying": null,
+			"hasTarget": false, "retargetT": 0.0})
+	sim.tribe_job_ai(sim.tribe[0], DT, 0)
+	var hints := 0
+	for t2 in m["rec"]["toasts"]:
+		if String(t2[0]) == "Gatherers idle — no berries or wood in reach":
+			hints += 1
+	eq(hints, 1, "dead-zone hint fired")
+	eq(bool(sim.tribe[0]["hasTarget"]), false, "dead zone still assigns no target (AI untouched)")
+	# the retarget cadence gates the re-fire (0.5 s), the hud gate window
+	# (10 s, live routing) collapses the rest
+	sim.tribe[0]["retargetT"] = 0.0
+	sim.tribe_job_ai(sim.tribe[0], DT, 0)
+	hints = 0
+	for t2 in m["rec"]["toasts"]:
+		if String(t2[0]) == "Gatherers idle — no berries or wood in reach":
+			hints += 1
+	eq(hints, 2, "re-target fires the hint again at the sim layer (hud dedupes by window)")
+	# a bush back in range → normal targeting resumes, no hint (wood ≥ quota
+	# so the index-0 gatherer is NOT on a wood shift and actually looks for
+	# berries)
+	m["rec"]["toasts"].clear()
+	sim.wood = 100.0
+	sim.bushes.append({"x": 100.0, "z": 0.0, "food": 3.0, "regrow": 0.0})
+	sim.tribe[0]["retargetT"] = 0.0
+	sim.tribe[0]["hasTarget"] = false
+	sim.tribe_job_ai(sim.tribe[0], DT, 0)
+	eq(bool(sim.tribe[0]["hasTarget"]), true, "bush back in range → targeted again")
+	eq(m["rec"]["toasts"].size(), 0, "no dead-zone hint while food is reachable")
+
+
 func test_chief_death_dna_tax_rounding() -> void:
 	var m := _mk_sim()
 	var sim: Variant = m["sim"]

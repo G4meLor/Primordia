@@ -1070,6 +1070,15 @@ func tribe_job_ai(t: Dictionary, dt: float, t_index: int) -> void:
 					t["targetX"] = float(tree["x"])
 					t["targetZ"] = float(tree["z"])
 					t["hasTarget"] = true
+				else:
+					# QC round-2 B3 dead-zone feedback: no bush within 600 px AND
+					# no tree with wood anywhere — the gatherer idles forever
+					# with no word (the only recovery is the random sapling
+					# respawn). Observation only: the targeting above is
+					# TS:759-763 verbatim and untouched. The 10 s gate window
+					# keeps several idle gatherers from stacking the message.
+					_fire("hud_toast_gate",
+							[tr("Gatherers idle — no berries or wood in reach"), "info", "🌿", 10.0])
 			else:
 				# deliver to nearest hut; if the village is GONE, drop at the chief
 				var hut: Variant = nearest_hut(t)
