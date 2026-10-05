@@ -39,6 +39,9 @@ func _mk_sim(seed_v: int = SEED, genome_mods: Dictionary = {},
 	}
 	var hooks: Dictionary = {
 		"hud_toast": func(text, kind, icon): rec["toasts"].append([text, kind, icon]),
+		# QC round-2 B3: gate toasts (gatherer dead-zone) ride the 4th window
+		# arg — recorded like a plain toast here
+		"hud_toast_gate": func(text, kind, icon, _window): rec["toasts"].append([text, kind, icon]),
 		"hud_banner": func(data): rec["banners"].append(data),
 		"audio_play": func(n, v, p): rec["audio"].append([n, v, p]),
 		"audio_set_mood": func(name_v): rec["moods"].append(name_v),
@@ -701,7 +704,9 @@ func test_chief_respawn_far_walkback_toast() -> void:
 	var exp_z: float = pr.range(Z_MIN + 30.0, Z_MAX - 30.0)
 	sim.deathHandled = true  # isolate the respawn path (no tax side effects)
 	sim.deathFade = 1.5
-	# no huts → nothing to walk back to → the hint stays silent
+	# no huts → nothing to walk back to → the hint stays silent (the
+	# constructor seeds a starting hut at (0, 80) — clear it)
+	sim.huts.clear()
 	sim.handle_chief_death(0.2)  # deathFade 1.7 > 1.6 → respawn
 	eq(float(sim.px), exp_x, "respawn = the pinned first sample")
 	eq(float(sim.pz), exp_z, "respawn z pinned")
@@ -715,12 +720,14 @@ func test_chief_respawn_far_walkback_toast() -> void:
 	var sim2: Variant = m2["sim"]
 	var pr2: Variant = RngLib.new_from(4242)
 	sim2.rng.set_state(pr2.state())
-	sim2.huts.append({"x": pr2.range(-WORLD_HALF * 0.5, WORLD_HALF * 0.5),
-			"z": pr2.range(Z_MIN + 30.0, Z_MAX - 30.0), "buildT": 0.0, "hp": 100.0})
+	var hx: float = pr2.range(-WORLD_HALF * 0.5, WORLD_HALF * 0.5)
+	var hz: float = pr2.range(Z_MIN + 30.0, Z_MAX - 30.0)
+	sim2.huts.clear()
+	sim2.huts.append({"x": hx, "z": hz, "buildT": 0.0, "hp": 100.0})
 	sim2.deathHandled = true
 	sim2.deathFade = 1.5
 	sim2.handle_chief_death(0.2)
-	eq(float(sim2.px), float(sim2.huts[0]["x"]), "respawn lands on the camp")
+	eq(float(sim2.px), hx, "respawn lands on the camp")
 	hint = false
 	for t in m2["rec"]["toasts"]:
 		if String(t[0]) == "Your chief is far — walk back":
@@ -733,6 +740,7 @@ func test_chief_respawn_far_walkback_toast() -> void:
 	sim3.rng.set_state(pr3.state())
 	var fx: float = pr3.range(-WORLD_HALF * 0.5, WORLD_HALF * 0.5)
 	var fz: float = pr3.range(Z_MIN + 30.0, Z_MAX - 30.0)
+	sim3.huts.clear()
 	sim3.huts.append({"x": fx + 1500.0, "z": fz, "buildT": 0.0, "hp": 100.0})
 	sim3.deathHandled = true
 	sim3.deathFade = 1.5

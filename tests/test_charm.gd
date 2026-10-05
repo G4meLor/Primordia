@@ -370,7 +370,11 @@ func test_charm_miss_annoyance() -> void:
 	# is guarded while the miss's packCd runs — QC round-2 B3)
 	sim.update(DT, _inp({}))
 	eq(String(e["mood"]), "angry", "angry survives the same-tick wander re-mood")
+	# once the cooldown lapses the standard re-mood returns — park the ent out
+	# of the flee radius so the lapse hands back to the wander branch (near
+	# the player a lapsed packCd routes to flee/afraid, TS-true)
 	e["packCd"] = 0.0
+	e["x"] = float(sim.px) + 2000.0
 	sim.update(DT, _inp({}))
 	eq(String(e["mood"]), "idle", "once the charm cooldown lapses the wander re-mood returns")
 

@@ -315,6 +315,10 @@ func test_pack_limit_formula_and_charm_pack_full_gate() -> void:
 	# the pack-full gate: a third wild ent cannot join
 	var e3: Dictionary = sim.spawn_ent(null, float(sim.px) + 60.0, float(sim.pz), {}, {})
 	_toasts = []
+	# QC round-2 B3: the pack-full gate rides the toast_gate channel — stub it
+	# into the same recorder (the real hud dict carries the live hud_inst key)
+	g.hud["toast_gate"] = func(text: String, kind: String, icon: String, _window: float) -> void:
+		_rec_toast(text, kind, icon)
 	guard = 0
 	while guard < 30:
 		guard += 1
