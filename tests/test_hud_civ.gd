@@ -520,6 +520,8 @@ func test_civ_i18n_mapping_1to1() -> void:
 			"the tribe victory card keys map")
 	ok(i.vi_has(SPACE_TITLE) and i.vi_has(SPACE_SUB), "the space card keys map")
 	# the RAW composed/unwrapped sites — normative absences, 1:1 with TS
+	# (QC round-2 B3: '👑 yours' LEFT this list — native translates the
+	# ownership tag, TS:598 renders it raw; see the mapped pin below)
 	for raw in ["+1 %s ← %s",  # TS:210 — composed raw
 			"%s needs 2 output in its lane (raise with Q/W/E)",  # TS:314 raw
 			"%s needs %s+ more output in its lane (5+ total) — raise with Q/W/E, or lower a full slider",  # TS:333 raw
@@ -530,10 +532,12 @@ func test_civ_i18n_mapping_1to1() -> void:
 			"Earthquake damages %s!",  # TS:467 raw
 			"Unrest in %s! (-40 influence)",  # TS:475 raw
 			"%s DECLARES WAR",  # TS:489 raw
-			"your capital is shelled",  # TS:489 raw
-			"👑 yours"]:  # TS:598 raw
+			"your capital is shelled"]:  # TS:489 raw
 		ok(not i.vi_has(String(raw)), "raw site absent from VI like TS: %s" % raw)
 		eq(i.tr_key(String(raw)), String(raw), "EN fallback parity: %s" % raw)
+	# the ownership tag: raw in TS (:598), translated natively (QC r2 B3)
+	ok(i.vi_has("👑 yours"), "ownership tag maps (native-only wrap, TS:598 renders raw)")
+	eq(i.tr_key("👑 yours"), "👑 của bạn", "ownership tag value")
 	i.set_lang("en")
 	TranslationServer.set_locale("en")
 	_wipe_cfg()

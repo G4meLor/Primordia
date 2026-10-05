@@ -395,8 +395,9 @@ func _draw_planet(ci: CanvasItem) -> void:
 		RendererScript.glow(ci, s2.x, s2.y, 22.0, col2, 0.5)
 		RendererScript.outlined_text(ci, String(c["name"]), s2.x, s2.y - 22.0,
 				{"size": 12.0, "fill": col2, "weight": "700"})
-		# the '👑 yours' string is NOT t()-wrapped in TS (:598) — raw
-		var status := "👑 yours"
+		# '👑 yours' is raw in TS (:598) — native translates it (QC round-2 B3
+		# VI-completeness sweep; the tag is the disc's only fixed UI string)
+		var status := tr("👑 yours")
 		if not mine:
 			status = String(rival["name"]) if rival != null else ""
 		RendererScript.outlined_text(ci, status, s2.x, s2.y + 22.0,
