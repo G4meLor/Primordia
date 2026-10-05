@@ -46,6 +46,16 @@ var rng: Variant = null
 var canvas: Node2D = null
 var veil_canvas: Node2D = null
 
+## The menu's own toast surface — {text, kind, icon, t0, ttl} | null. Recorded
+## by continue_slot's load-fail path and drawn by _draw_menu: the live hud
+## draws only inside the gameplay stages, so a hud-recorded toast never paints
+## while the menu is current (TS's immediate-mode hud rendered on EVERY stage,
+## so its corrupt-slot toast displayed — QC r1 B2 nit). Cleared on re-entry.
+var menu_toast: Variant = null
+## hud TOAST_COLORS subset for the kinds the menu records (hud.gd "bad").
+const MENU_TOAST_COLORS := {"bad": "#ff9a8a", "info": "#9fd8ff",
+		"good": "#8fe39a", "chaos": "#e2a4ff"}
+
 
 ## One full-screen canvas the menu repaints every frame (cell-stage pattern).
 class MenuCanvas extends Node2D:
@@ -110,6 +120,7 @@ func on_enter(_from: Variant = null) -> void:
 	# arm-click used to silently wipe the next slot you loaded
 	overwrite_armed = false
 	trash_armed = -1
+	menu_toast = null
 	refresh_slots()
 
 
@@ -195,16 +206,16 @@ func continue_slot(slot: int) -> void:
 		# the row showed 'CELL · 12 min · 500 DNA' one click earlier. Mark it
 		# and let the player delete (trash) or start over deliberately.
 		corrupt_slots[slot] = true
-		# NOTE: this toast is recorded but NEVER DRAWN while the menu is the
-		# current stage — the menu draws no hud canvas under the native tree
-		# model (TS's immediate-mode hud drew on every stage, so its toast
-		# displayed). The visible corrupt signal in the menu is the tombstone
-		# row (⚠ name, corrupt stage); the toast keeps the hud-state parity
-		# for the quit-to-title path — documented divergence, do not silently
-		# drop in a refactor.
-		game.hud["toast"].call(
-				game.i18n.tr_key("This slot is corrupted — delete it in CONTINUE, or use NEW LIFE"),
-				"bad", "⚠️")
+		# TS's immediate-mode hud drew its toast on EVERY stage, so the
+		# corrupt-slot toast displayed over the menu too. Natively the hud
+		# renders only inside the gameplay stages — the hud record below keeps
+		# the hud-state parity for the quit-to-title path, and menu_toast is
+		# the menu's own draw of the same toast (the visible one; _draw_menu).
+		var text: String = game.i18n.tr_key(
+				"This slot is corrupted — delete it in CONTINUE, or use NEW LIFE")
+		game.hud["toast"].call(text, "bad", "⚠️")
+		menu_toast = {"text": text, "kind": "bad", "icon": "⚠️",
+				"t0": t, "ttl": 4.0}
 		return
 	# TS audio.play('levelup') — audio core: its own task
 	# the loaded run starts its narration clean — the quitting run's latches
@@ -717,3 +728,25 @@ func _draw_menu(ci: CanvasItem) -> void:
 		game.i18n.tr_key("everything procedural, nothing scripted")],
 		vw / 2.0, vh - 24.0,
 		{"size": 11.0, "fill": RendererScript.css_color("rgba(140,180,230,0.4)")})
+
+	# the menu's own toast (continue_slot's load-fail record — see menu_toast):
+	# hud-toast shape (bottom-left panel, icon + kind-colored text, hud fade
+	# math), parked above the footer so the two never overlap
+	if menu_toast != null:
+		var age: float = t - float(menu_toast["t0"])
+		var ttl: float = float(menu_toast["ttl"])
+		if age >= 0.0 and age < ttl:
+			var a: float = minf(1.0, age * 4.0) * minf(1.0, (ttl - age) * 2.0)
+			var mtw: float = ThemeDB.fallback_font.get_string_size(
+					String(menu_toast["text"]),
+					HORIZONTAL_ALIGNMENT_LEFT, -1.0, 13).x
+			var mpw: float = minf(maxf(170.0, mtw + 60.0), vw - 32.0)
+			RendererScript.panel(ci, 16.0, vh - 78.0, mpw, 26.0, {
+				"fill": RendererScript.css_color("rgba(6,10,24,0.85)"),
+				"stroke": RendererScript.css_color("rgba(120,160,220,0.25)"),
+			})
+			RendererScript.outlined_text(ci, "%s %s" % [String(menu_toast["icon"]),
+					String(menu_toast["text"])], 30.0, vh - 64.0,
+					{"size": 12.0, "fill": RendererScript.css_color(String(
+							MENU_TOAST_COLORS.get(String(menu_toast["kind"]), "#ff9a8a"))),
+					"align": "left", "maxWidth": mpw - 28.0, "alpha": a})
