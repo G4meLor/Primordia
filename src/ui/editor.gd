@@ -69,6 +69,12 @@ func close() -> void:
 	open = false
 	_sync_open()
 	free_preview_rids()
+	# QC r8 batch2.1: a mouse button HELD while the editor closes used to leak
+	# into the sim (input.down stayed true → the cell kept swimming toward the
+	# cursor ~80 px/s until the next click). TS re-derives pointer state per
+	# event, native must drop the stale latch here.
+	_game.input.down = false
+	_game.input.clicked = false
 	# dirty-flag: E-spam used to write localStorage ~30×/s (~2700 saves in a
 	# 90s session) — only persist when the genome actually changed
 	if dirty_since_save:
