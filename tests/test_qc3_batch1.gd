@@ -66,10 +66,13 @@ func test_ctx_toast_lands_in_live_hud_only() -> void:
 	eq(int(cell_hud._toasts.size()), 1, "live hud receives the ctx toast")
 	eq(int(creature_hud._toasts.size()), 0,
 			"hidden hud receives NOTHING (the fan-out guard)")
-	# the positive path on the other side: creature current → its hud
+	# the positive path on the other side: creature current → its hud — and
+	# the switch itself migrated the live cell toast onto the creature hud
 	g.switch_stage("creature")
+	eq(int(creature_hud._toasts.size()), 1, "the live cell toast migrated in")
 	g.context.toast.emit("creature discovery", "info", "•")
-	eq(int(creature_hud._toasts.size()), 1, "creature hud receives its own stage's toast")
+	eq(int(creature_hud._toasts.size()), 2, "creature hud receives its own stage's toast too")
+	eq(String(creature_hud._toasts[1]["text"]), "creature discovery", "the fresh toast appended")
 	eq(int(cell_hud._toasts.size()), 0, "cell hud stays empty while hidden")
 	_drop(g)
 
@@ -342,7 +345,7 @@ func _tribe_sim() -> Dictionary:
 func test_walkback_hint_covers_the_900_band() -> void:
 	# camp ~1050 px from the pinned respawn → the hint fires now (silent at the
 	# old 1200); a camp inside 900 stays silent
-	for case in [[1050.0, true], [800.0, false]]:
+	for wb in [[1050.0, true], [800.0, false]]:
 		var m := _tribe_sim()
 		var sim: Variant = m["sim"]
 		var pr: Variant = RngLib.new_from(4242)
@@ -352,7 +355,7 @@ func test_walkback_hint_covers_the_900_band() -> void:
 		# the constructor seeds a starting hut at (0, 80) — replace with the
 		# probe camp at the wanted home distance
 		sim.huts.clear()
-		sim.huts.append({"x": exp_x + float(case[0]), "z": exp_z,
+		sim.huts.append({"x": exp_x + float(wb[0]), "z": exp_z,
 				"buildT": 0.0, "hp": 100.0})
 		sim.deathHandled = true  # isolate the respawn path (no tax side effects)
 		sim.deathFade = 1.5
@@ -363,10 +366,10 @@ func test_walkback_hint_covers_the_900_band() -> void:
 		for t in m["rec"]["toasts"]:
 			if String(t[0]) == "Your chief is far — walk back":
 				hint = true
-		if bool(case[1]):
-			ok(hint, "camp %d px out → walk-back hint fires" % int(case[0]))
+		if bool(wb[1]):
+			ok(hint, "camp %d px out → walk-back hint fires" % int(wb[0]))
 		else:
-			ok(not hint, "camp %d px out → silent (below 900)" % int(case[0]))
+			ok(not hint, "camp %d px out → silent (below 900)" % int(wb[0]))
 
 
 # ---- item 5: bot capture ensure-dir (synthesis 4H) ---------------------------------
@@ -488,6 +491,7 @@ func test_f7_tribe_entry_card_sub_en_identity_and_vi() -> void:
 
 
 func _found_tribe_card(player_name: String) -> Dictionary:
+	DirAccess.make_dir_recursive_absolute("user://saves")  # found_tribe flushes ctx.save
 	var ctx: Variant = Ctx.new(SEED)
 	ctx.player_name = String(player_name)
 	ctx.stage = "creature"
