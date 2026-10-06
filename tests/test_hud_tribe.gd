@@ -188,13 +188,16 @@ func test_tribe_i18n_mapping_1to1() -> void:
 
 # ---- composed/unwrapped TS sites stay unwrapped (the T8 exemption) ---------------
 
-## TS:521 `Everyone: ${role}`, TS:550 `Totem needs 100 food + 80 wood (have …)`
-## and TS:1422 `🗿 TOTEM ${p}%` are UNWRAPPED template literals in TS — the
-## native sites compose raw too (no tr() around the literal). Pinned against
-## a regression that "helpfully" wraps them (that would diverge from TS).
+## TS:550 `Totem needs 100 food + 80 wood (have …)` and TS:1422
+## `🗿 TOTEM ${p}%` are UNWRAPPED template literals in TS — the native sites
+## compose raw too (no tr() around the literal). Pinned against a regression
+## that "helpfully" wraps them (that would diverge from TS). TS:521
+## `Everyone: ${role}` JOINED this family in QC r3 F6 — the TEMPLATE side now
+## goes through tr() (the key ships in vi.csv; composed raw it was an
+## orphan-key miss) while the role value stays raw.
 func test_unwrapped_sites_stay_unwrapped() -> void:
 	var src := FileAccess.get_file_as_string("res://src/game/tribe/tribe_sim.gd")
-	ok(src.contains("\"Everyone: %s\" % role_v"), "Everyone: composed raw (TS:521 unwrapped)")
+	ok(src.contains("tr(\"Everyone:\")"), "Everyone: template translated first (QC r3 F6)")
 	ok(src.contains("\"Totem needs 100 food + 80 wood (have %d/%d)\""),
 			"Totem needs… composed raw (TS:550 unwrapped)")
 	var stage_src := FileAccess.get_file_as_string("res://src/game/tribe/tribe_stage.gd")

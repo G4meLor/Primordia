@@ -733,7 +733,10 @@ func assign_role(role_v: String) -> void:
 	for t in tribe:
 		t["role"] = role_v
 	_fire("audio_play", ["click", 1.0, 0.0])
-	_fire("hud_toast", ["Everyone: %s" % role_v, "info", "📣"])
+	# QC r3 F6: the template goes through tr FIRST, the role composes after —
+	# "Everyone:" ships in vi.csv (TS:521's VI object had it; composed raw it
+	# was an orphan-key miss). EN output is byte-identical ("Everyone: gather").
+	_fire("hud_toast", ["%s %s" % [tr("Everyone:"), role_v], "info", "📣"])
 
 
 ## TS tryBuildHut (TribeStage.ts:526-541).

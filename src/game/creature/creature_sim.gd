@@ -1302,7 +1302,11 @@ func found_tribe() -> void:
 	_fire("audio_play", ["ascend", 1.0, 0.0])
 	_fire("go_to", ["tribe", {
 		"title": "THE FIRST FIRE",
-		"sub": "%s looks at the stars and decides to stay" % ctx.player_name,
+		# QC r3 F7: the tail goes through tr FIRST, the name composes after —
+		# "looks at the stars and decides to stay" ships in vi.csv (composed
+		# with the name inside it was an orphan-key miss at the card's draw-time
+		# tr). EN output is byte-identical ("<name> looks at the stars …").
+		"sub": "%s %s" % [ctx.player_name, tr("looks at the stars and decides to stay")],
 	}])
 
 

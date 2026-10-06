@@ -416,6 +416,106 @@ func test_save_png_into_a_fresh_dir_works() -> void:
 	DirAccess.remove_absolute(probe)
 
 
+# ---- item 6: i18n compose-after-translate (F6/F7, keys already in vi.csv) ---------
+# Both sites composed the name INTO the string before any tr() — the whole
+# sentence became an orphan lookup key at the display site and EN leaked into
+# VI. The template side now goes through tr() FIRST, the name composes after
+# (menu.gd:231 pattern); EN output is byte-identical (the keys pass through).
+
+const I18nLib := preload("res://src/core/i18n.gd")
+const CreatureSim := preload("res://src/game/creature/creature_sim.gd")
+
+const SLOT_QC3B1 := 137
+
+
+func _slot_path(n: int) -> String:
+	return "user://saves/slot%d.json" % n
+
+
+func test_f6_everyone_toast_en_identity_and_vi_key() -> void:
+	var i: Variant = I18nLib.new(SCRATCH_CFG)
+	_wipe_cfg()
+	ok(i.vi_has("Everyone:"), "the Everyone: key ships in vi.csv (no orphan)")
+	# EN: the composed toast is byte-identical to the old raw composition
+	var m := _tribe_sim()
+	var sim: Variant = m["sim"]
+	sim.assign_role("gather")
+	var found := ""
+	for t in m["rec"]["toasts"]:
+		if String(t[0]).begins_with("Everyone:"):
+			found = String(t[0])
+	eq(found, "Everyone: gather", "EN toast unchanged (Everyone: gather)")
+	# VI: the restored translation reaches the toast
+	i.set_lang("vi")
+	eq(String(TranslationServer.get_locale()), "vi", "locale switched to vi")
+	var m2 := _tribe_sim()
+	m2["sim"].assign_role("hunt")
+	found = ""
+	for t in m2["rec"]["toasts"]:
+		if String(t[0]).contains("hunt"):
+			found = String(t[0])
+	eq(found, "Tất cả: hunt", "VI toast carries the restored Everyone: translation")
+	i.set_lang("en")
+	TranslationServer.set_locale("en")
+	_wipe_cfg()
+
+
+func test_f7_tribe_entry_card_sub_en_identity_and_vi() -> void:
+	var i: Variant = I18nLib.new(SCRATCH_CFG)
+	_wipe_cfg()
+	var key := "looks at the stars and decides to stay"
+	ok(i.vi_has(key), "the stars-tail key ships in vi.csv (no orphan)")
+	# the source composes the translated tail AFTER the name (menu pattern)
+	var src := FileAccess.get_file_as_string("res://src/game/creature/creature_sim.gd")
+	ok(src.contains("tr(\"looks at the stars and decides to stay\")"),
+			"the card tail goes through tr first (QC r3 F7)")
+	# EN: drive the real found_tribe path — the card sub is byte-identical
+	if FileAccess.file_exists(_slot_path(SLOT_QC3B1)):
+		DirAccess.remove_absolute(_slot_path(SLOT_QC3B1))
+	var card := _found_tribe_card("Chieftain")
+	eq(String(card.get("sub", "")), "Chieftain looks at the stars and decides to stay",
+			"EN card sub unchanged")
+	# VI: the same path with the vi locale — name first, translated tail after
+	i.set_lang("vi")
+	card = _found_tribe_card("Chieftain")
+	eq(String(card.get("sub", "")), "Chieftain nhìn các vì sao và quyết định ở lại",
+			"VI card sub composes the translated tail after the name")
+	i.set_lang("en")
+	TranslationServer.set_locale("en")
+	_wipe_cfg()
+	if FileAccess.file_exists(_slot_path(SLOT_QC3B1)):
+		DirAccess.remove_absolute(_slot_path(SLOT_QC3B1))
+
+
+func _found_tribe_card(player_name: String) -> Dictionary:
+	var ctx: Variant = Ctx.new(SEED)
+	ctx.player_name = String(player_name)
+	ctx.stage = "creature"
+	ctx.slot = SLOT_QC3B1
+	var rec := {"go_to": []}
+	var hooks: Dictionary = {
+		"hud_toast": func(text, kind, icon): pass,
+		"hud_banner": func(data): pass,
+		"audio_play": func(n, v, p): pass,
+		"cam_shake": func(mag, dur): pass,
+		"fx_burst": func(x, y, n, opts): pass,
+		"fx_spawn": func(opts): pass,
+		"context_event": func(ev, data): pass,
+		"tutorial_finish": func(): pass,
+		"go_to": func(id, card): rec["go_to"].append([id, card]),
+	}
+	var rng: Variant = ctx.rng.branch()
+	var sim: Variant = CreatureSim.new(ctx, rng, hooks)
+	sim.debug_spawn_pack(7)
+	sim.found_tribe()
+	eq(int(rec["go_to"].size()), 1, "found_tribe fired exactly one go_to")
+	if rec["go_to"].size() == 1:
+		eq(String(rec["go_to"][0][0]), "tribe", "go_to targets tribe")
+		var card: Variant = rec["go_to"][0][1]
+		return card if card is Dictionary else {}
+	return {}
+
+
 func _drop_game(g: Variant) -> void:
 	if g != null:
 		g.hud = {}
