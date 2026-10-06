@@ -369,6 +369,53 @@ func test_walkback_hint_covers_the_900_band() -> void:
 			ok(not hint, "camp %d px out → silent (below 900)" % int(case[0]))
 
 
+# ---- item 5: bot capture ensure-dir (synthesis 4H) ---------------------------------
+# bot_civ twin_grab saved its PNG into user://visual_capture_civ_bot/ without
+# ensure-dir — only the scene wrapper pre-created it, so the full-arc gate
+# died on a clean HOME (every fresh QC slot + the M6 gate). The bots now
+# mkdir before each save.
+
+func test_bot_captures_ensure_dir_before_save() -> void:
+	for pair in [["res://tests/bots/bot_civ.gd", "user://visual_capture_civ_bot"],
+			["res://tests/bots/bot_space.gd", "user://visual_capture_space_bot"]]:
+		var src := FileAccess.get_file_as_string(String(pair[0]))
+		ok(src != "", "%s readable" % String(pair[0]))
+		var saves := 0
+		var covered := 0
+		var from := 0
+		while true:
+			var save_at := src.find("save_png(", from)
+			if save_at < 0:
+				break
+			saves += 1
+			var dir_at := src.rfind("make_dir_recursive_absolute(\"%s\")" % String(pair[1]),
+					save_at)
+			if dir_at >= 0:
+				covered += 1
+			from = save_at + 1
+		eq(saves, 2 if String(pair[0]).ends_with("bot_civ.gd") else 3,
+				"%s capture-save count" % String(pair[0]))
+		eq(covered, saves, "%s: every capture save is preceded by its ensure-dir" % String(pair[0]))
+
+
+func test_save_png_into_a_fresh_dir_works() -> void:
+	# the mechanism the bot legs rely on, exercised on a clean dir
+	var probe := "user://qc3b1_capture_probe"
+	if FileAccess.file_exists(probe + "/.keep"):
+		DirAccess.remove_absolute(probe + "/.keep")
+	if DirAccess.dir_exists_absolute(probe):
+		DirAccess.remove_absolute(probe)
+	ok(not DirAccess.dir_exists_absolute(probe), "probe dir starts absent (clean HOME)")
+	DirAccess.make_dir_recursive_absolute(probe)
+	var img := Image.create(2, 2, false, Image.FORMAT_RGBA8)
+	img.fill(Color(1, 0, 0))
+	var err := img.save_png(probe + "/probe.png")
+	eq(err, OK, "save_png into the just-created dir succeeds")
+	ok(FileAccess.file_exists(probe + "/probe.png"), "the capture landed")
+	DirAccess.remove_absolute(probe + "/probe.png")
+	DirAccess.remove_absolute(probe)
+
+
 func _drop_game(g: Variant) -> void:
 	if g != null:
 		g.hud = {}

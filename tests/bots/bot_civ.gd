@@ -385,6 +385,11 @@ func civ_tick(game: Variant) -> String:
 			_twin_img = _grab(game)
 			if _twin_img == null:
 				return "twin_grab: the viewport returned no image"
+			# QC r3 (synthesis 4H): a clean HOME has no capture dir — only the
+			# test_bot_civ scene wrapper pre-created it; every other driver
+			# (full-arc QC runs, fresh slots) died right here. ensure-dir before
+			# each save so the bot itself is self-sufficient.
+			DirAccess.make_dir_recursive_absolute("user://visual_capture_civ_bot")
 			var err := _twin_img.save_png("user://visual_capture_civ_bot/bot_civ_route.png")
 			if err != OK:
 				return "twin_grab: cannot save the route twin (%s)" % str(err)
@@ -630,6 +635,7 @@ func _flight_tick(game: Variant, sim: Variant, next: String, want_capture: bool)
 		var trail_fail := _trail_asserts(game)
 		if trail_fail != "":
 			return "flight: " + trail_fail
+		DirAccess.make_dir_recursive_absolute("user://visual_capture_civ_bot")
 		var err := _flight_img.save_png("user://visual_capture_civ_bot/bot_civ_armada.png")
 		if err != OK:
 			return "flight: cannot save the armada capture (%s)" % str(err)

@@ -617,6 +617,9 @@ func space_tick(game: Variant) -> String:
 						game.vw / 2.0 + 130.0, 172.0])
 				if n < 8:
 					return "ff_hold: the ff tint label never rendered (%d purple px)" % n
+				# QC r3: ensure-dir before each save — a clean HOME has no
+				# capture dir (only the test scene wrapper pre-created it)
+				DirAccess.make_dir_recursive_absolute("user://visual_capture_space_bot")
 				var err2 := img.save_png("user://visual_capture_space_bot/bot_space_ff.png")
 				if err2 != OK:
 					return "ff_hold: cannot save the ff capture (%s)" % str(err2)
@@ -802,6 +805,7 @@ func _fly_tick(game: Variant, sim: Variant) -> String:
 		# with b > g > r (the checker's disc shape, visual_check_civ_scene.py:221)
 		if mean.x < 90.0 or mean.z < 110.0 or not (mean.z > mean.y and mean.y > mean.x):
 			return "fly: the ship hull is not bright blue-white at its projection (%s)" % str(mean)
+		DirAccess.make_dir_recursive_absolute("user://visual_capture_space_bot")
 		var err := img.save_png("user://visual_capture_space_bot/bot_space_flight.png")
 		if err != OK:
 			return "fly: cannot save the flight capture (%s)" % str(err)
@@ -899,6 +903,7 @@ func _ending_tick(game: Variant, sim: Variant) -> String:
 				game.vw / 2.0 + 260.0, game.vh / 2.0 - 100.0])
 		if n < 12:
 			return "ending: the ACCEPTS YOU title never rendered (%d purple px)" % n
+		DirAccess.make_dir_recursive_absolute("user://visual_capture_space_bot")
 		var err := img.save_png("user://visual_capture_space_bot/bot_space_ending.png")
 		if err != OK:
 			return "ending: cannot save the ending capture (%s)" % str(err)
