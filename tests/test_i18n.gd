@@ -510,3 +510,28 @@ func test_r4_new_keys_translate() -> void:
 	eq(i.tr_key("CELL PARTS"), "CELL PARTS", "EN: CELL PARTS unchanged")
 	eq(i.tr_key("Herbivore"), "Herbivore", "EN: diet display name passthrough")
 	_restore_locale()
+
+
+# ---- QC round-6 batch 1: the format-before-tr sweep + csv fixes -------------
+# The '%s'-templated toast/banner sites compose tr-FIRST at the sim now (EN
+# byte-identical — tr passthrough); fixed-format banner strings ship keys for
+# the hud's draw-time tr_key (hud.gd:401-405). TS renders all of these raw —
+# native VI completion, the QC r2 B3 / r4 armada precedent. vi.csv rows are
+# added by hand (a gen_i18n_csv re-run from the frozen dict would drop
+# native-only rows).
+
+func test_r6_i18n_wave_vi_then_en() -> void:
+	_wipe()
+	var i: Variant = _i18n()
+	i.set_lang("vi")
+	var keys := {
+		"%s has gone EXTINCT": "%s đã tuyệt chủng",
+	}
+	for k in keys:
+		ok(i.vi_has(k), "vi.csv ships the key: %s" % k)
+		eq(i.tr_key(k), keys[k], "VI translation live: %s" % k)
+	# EN passthrough: every touched key comes back byte-identical
+	i.set_lang("en")
+	for k in keys:
+		eq(i.tr_key(k), k, "EN passthrough unchanged: %s" % k)
+	_restore_locale()

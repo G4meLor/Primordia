@@ -181,7 +181,11 @@ func mark_extinct(genome_v: Dictionary) -> void:
 	var e: Variant = bestiary.get(key)
 	if e != null and not e["extinct"]:
 		e["extinct"] = true
-		toast.emit("%s has gone EXTINCT" % e["name"], "chaos", "💀")
+		# QC r6: the template goes through tr FIRST — the toast text is drawn
+		# verbatim (no draw-time tr on the toast path), so a composed string
+		# could never resolve a key. "%s has gone EXTINCT" ships in vi.csv;
+		# EN output is byte-identical (tr passthrough).
+		toast.emit(tr("%s has gone EXTINCT") % e["name"], "chaos", "💀")
 
 
 # ---- persistence ---------------------------------------------------------
