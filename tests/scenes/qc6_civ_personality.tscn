@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tests/scenes/qc6_civ_personality.gd" id="1"]
+
+[node name="QC6CivPersonality" type="Node"]
+script = ExtResource("1")

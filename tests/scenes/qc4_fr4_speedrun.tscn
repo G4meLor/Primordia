@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tests/scenes/qc4_fr4_speedrun.gd" id="1"]
+
+[node name="Qc4Fr4Speedrun" type="Node"]
+script = ExtResource("1")
