@@ -174,9 +174,32 @@ func _act_back_world() -> void:
 
 
 func _act_quit() -> void:
+	# QC r2 C2 instrumentation: the silent quit-to-title process death landed
+	# somewhere in this call's window (last seen marker "quit clicked"). Each
+	# seam appends a breadcrumb to user://crash_markers.log with a flush per
+	# write — stdout dies with a segfault, the file does not. ~5 lines per
+	# quit, silent when nothing crashes.
+	_qc2_mark("quit: pre-save_all")
 	actions["save_all"].call()
+	_qc2_mark("quit: post-save_all")
 	actions["close_pause"].call()
+	_qc2_mark("quit: pre-go_to menu")
 	actions["go_to"].call("menu", {"title": "PRIMORDIA", "sub": "the soup remembers you"})
+	_qc2_mark("quit: post-go_to")
+
+
+## QC r2 C2 crash-window breadcrumb (shared shape with context.gd's _qc2_mark).
+func _qc2_mark(tag: String) -> void:
+	var line := "C2Q[%d] %s" % [Time.get_ticks_msec(), tag]
+	print(line)
+	var f := FileAccess.open("user://crash_markers.log", FileAccess.READ_WRITE)
+	if f != null:
+		f.seek_end()
+	else:
+		f = FileAccess.open("user://crash_markers.log", FileAccess.WRITE)
+	if f != null:
+		f.store_string(line + "\n")
+		f.flush()
 
 
 func _mk(label: String, action: Callable, y: float, cx: float) -> Dictionary:

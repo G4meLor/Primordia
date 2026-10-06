@@ -265,6 +265,8 @@ func switch_stage(id: String) -> void:
 	var next: Variant = stages.get(id)
 	if next == null:
 		return
+	# QC r2 C2 crash-window breadcrumbs (see context.gd _qc2_mark)
+	_qc2_mark("switch_stage: -> %s" % id)
 	fx["clear"].call()
 	hud["dismiss_banner"].call()
 	# TS:213 — a new stage starts with the inset the TS game zeroes; stages
@@ -288,6 +290,7 @@ func switch_stage(id: String) -> void:
 	stage_time = 0.0
 	_set_stage_visible(next, true)
 	next.on_enter(from)
+	_qc2_mark("switch_stage: entered %s" % id)
 	stage_changed.emit(id)  # TS context.bus.emit(EV.stageChanged) — M1 signal port
 
 
@@ -759,9 +762,28 @@ func _on_context_event(ev_name: String, _from_stage: String) -> void:
 ## Flush the live stage's volatile state, THEN write the save (TS saveAll).
 ## Stages expose persist_state() as they land.
 func save_all() -> bool:
+	# QC r2 C2 crash-window breadcrumbs (see context.gd _qc2_mark)
+	_qc2_mark("save_all: pre-persist_state stage=%s" % context.stage)
 	if current != null and current.has_method("persist_state"):
 		current.persist_state()
-	return context.save()
+	_qc2_mark("save_all: post-persist_state")
+	var ok: bool = context.save()
+	_qc2_mark("save_all: done ok=%s" % ok)
+	return ok
+
+
+## QC r2 C2 crash-window breadcrumb (shared shape with context.gd's _qc2_mark).
+func _qc2_mark(tag: String) -> void:
+	var line := "C2Q[%d] %s" % [Time.get_ticks_msec(), tag]
+	print(line)
+	var f := FileAccess.open("user://crash_markers.log", FileAccess.READ_WRITE)
+	if f != null:
+		f.seek_end()
+	else:
+		f = FileAccess.open("user://crash_markers.log", FileAccess.WRITE)
+	if f != null:
+		f.store_string(line + "\n")
+		f.flush()
 
 
 # ---- overlay controls (TS game.ts:228-251 — the API the hud buttons, the
