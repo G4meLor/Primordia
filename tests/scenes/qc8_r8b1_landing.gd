@@ -137,6 +137,7 @@ func _process(_dt: float) -> void:
 				get_tree().quit(1)
 		"land_wait":
 			_game.step_for_testing(1, DT)
+			_game._do_render(0.0)  # drive the render side (qc5/qc6 probe law)
 			_leg_f += 1
 			var landed: bool = _game.context.stage == "space" \
 					and _game.stages["space"].sim != null \
@@ -148,6 +149,7 @@ func _process(_dt: float) -> void:
 				print("QC8R8 LANDED t=%s" % str(_game.context.playtime))
 		"space":
 			_game.step_for_testing(1, DT)
+			_game._do_render(0.0)  # drive the render side (qc5/qc6 probe law)
 			_leg_f += 1
 			if not _grabbed.has("arrival") and _leg_f >= 10:
 				_grabbed["arrival"] = true
