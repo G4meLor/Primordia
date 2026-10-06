@@ -38,6 +38,24 @@ func _mk_stage(seed_v: int = SEED) -> Dictionary:
 	return {"game": game, "stage": stage, "ctx": ctx, "sim": st}
 
 
+# ---- QC r8 batch2.3: emoji tofu fallback ----------------------------------------
+
+func test_res_tag_tracks_font_coverage() -> void:
+	# the ASCII stand-in fires exactly when the drawing font lacks the emoji —
+	# env-dependent by design (a host with a system emoji font keeps the
+	# emoji; a bare llvmpipe/xvfb host must NOT render "(100☐ 80☐)")
+	var m := _mk_stage()
+	var stage: Variant = m["stage"]
+	var f: Font = ThemeDB.fallback_font
+	var has := f != null and f.has_char("🍒".unicode_at(0))
+	var tag: String = stage._res_tag("🍒", "food")
+	if has:
+		eq(tag, "🍒", "emoji kept when the font has coverage")
+	else:
+		eq(tag, "food", "ascii stand-in when the font lacks coverage")
+	eq(stage._res_tag("🪵", "wood").length() > 0, true, "wood tag non-empty")
+
+
 # ---- hook bindings (the task-3 carry-in: the storyteller seam) ------------------
 
 func test_hooks_bind_all_sim_keys() -> void:

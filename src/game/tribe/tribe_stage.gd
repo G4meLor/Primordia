@@ -517,10 +517,11 @@ func _render_hud(ci: CanvasItem, vh: float) -> void:
 		"fill": RendererScript.css_color("rgba(6,10,24,0.85)"),
 		"stroke": RendererScript.css_color("rgba(255,220,150,0.3)"),
 	})
-	RendererScript.outlined_text(ci, "🍒 %d   🪵 %d" % [roundi(sim.food), roundi(sim.wood)],
+	RendererScript.outlined_text(ci, "%s %d   %s %d" % [_res_tag("🍒", "food"),
+			roundi(sim.food), _res_tag("🪵", "wood"), roundi(sim.wood)],
 			28.0, vh - 146.0, {"size": 16.0, "fill": Color("#ffe8c0"), "align": "left"})
-	RendererScript.outlined_text(ci, "👥 %d/%d   🏠 %d"
-			% [sim.tribe.size(), sim.pop_cap(), sim.huts.size()],
+	RendererScript.outlined_text(ci, "%s %d/%d   %s %d" % [_res_tag("👥", "pop"),
+			sim.tribe.size(), sim.pop_cap(), _res_tag("🏠", "hut"), sim.huts.size()],
 			28.0, vh - 128.0, {"size": 13.0,
 					"fill": RendererScript.css_color("rgba(255,232,192,0.7)"), "align": "left"})
 
@@ -535,8 +536,8 @@ func _render_hud(ci: CanvasItem, vh: float) -> void:
 				else RendererScript.css_color("rgba(50,55,65,0.9)"),
 		"stroke": RendererScript.css_color("rgba(180,255,190,0.4)"),
 	})
-	RendererScript.outlined_text(ci, tr("R · HUT (40🪵)"), bx + bw / 2.0, by + 20.0,
-			{"size": 13.0, "fill": Color("#eaffea")})
+	RendererScript.outlined_text(ci, tr("R · HUT (40🪵)").replace("🪵", _res_tag("🪵", "W")),
+			bx + bw / 2.0, by + 20.0, {"size": 13.0, "fill": Color("#eaffea")})
 
 	# totem button — TS:1417-1422
 	var tx := 18.0
@@ -551,12 +552,26 @@ func _render_hud(ci: CanvasItem, vh: float) -> void:
 	})
 	RendererScript.outlined_text(ci,
 			("🗿 TOTEM %d%%" % roundi(float(sim.totem["progress"]))) if active
-					else tr("T · TOTEM (100🍒 80🪵)"),
+					else tr("T · TOTEM (100🍒 80🪵)").replace("🍒", _res_tag("🍒", "F"))
+							.replace("🪵", _res_tag("🪵", "W")),
 			tx + bw / 2.0, ty + 20.0, {"size": 12.0, "fill": Color("#fff8e8")})
 
 
 func _lawn_h() -> float:
 	return (TribeSimScript.Z_MAX + 120.0) * TribeSimScript.Z_TO_Y
+
+
+## QC r8 batch2.3: Godot's bundled fallback font carries no emoji coverage —
+## on hosts without a system emoji font every emoji draws as the same tofu
+## box, and the stockpile read "(100☐ 80☐)" with food indistinguishable from
+## wood. When the drawing font (ThemeDB.fallback_font, the outlined_text
+## default) lacks the char, an ASCII tag stands in; the emoji stays on
+## emoji-capable hosts (TS visual parity there).
+func _res_tag(emoji: String, ascii: String) -> String:
+	var f: Font = ThemeDB.fallback_font
+	if f != null and f.has_char(emoji.unicode_at(0)):
+		return emoji
+	return ascii
 
 
 ## The TS:1292 progress-label seam — `TOTEM ${Math.round(p)}%` with p the
