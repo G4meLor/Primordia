@@ -771,6 +771,23 @@ func test_slot_meta_reads_native_saves() -> void:
 	var tomb: Variant = g.current.slot_meta(1)
 	eq(String(tomb["playerName"]), "⚠", "corrupt tombstone player name")
 	eq(String(tomb["stage"]), "corrupt", "corrupt tombstone stage")
+	# QC r8 batch2.6: parse-ok but wrong SHAPE also tombstones up front —
+	# the meta must not render lying numbers off a junk dictionary
+	f = FileAccess.open("user://saves/slot3.json", FileAccess.WRITE)
+	f.store_string("{\"stage\":\"civ\",\"dna\":777,\"playtime\":360,\"playerName\":\"Phantom\"}")
+	f = null
+	var ghost: Variant = g.current.slot_meta(3)
+	eq(String(ghost["stage"]), "corrupt", "wrong-shape meta tombstones (no seed key)")
+	f = FileAccess.open("user://saves/slot3.json", FileAccess.WRITE)
+	f.store_string("{\"stage\":\"civ\",\"dna\":\"lots\",\"playtime\":360,\"playerName\":\"Phantom\",\"seed\":5}")
+	f = null
+	ghost = g.current.slot_meta(3)
+	eq(String(ghost["stage"]), "corrupt", "non-numeric dna tombstones")
+	f = FileAccess.open("user://saves/slot3.json", FileAccess.WRITE)
+	f.store_string("{\"stage\":\"nope\",\"dna\":5,\"playtime\":1,\"playerName\":\"P\",\"seed\":5}")
+	f = null
+	ghost = g.current.slot_meta(3)
+	eq(String(ghost["stage"]), "corrupt", "unknown stage tombstones")
 	# occupied flags + delete
 	g.current.refresh_slots()
 	eq(bool(g.current.occupied[2]), true, "occupied slot 2")

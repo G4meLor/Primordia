@@ -279,12 +279,36 @@ func start_new_game(slot := 0, difficulty := "normal", seed_v := -1) -> void:
 ## (the native format has no meta envelope). A file that exists but fails to
 ## parse is a TOMBSTONE so the UI shows the corrupt mark and offers trash,
 ## instead of a silent ghost slot that NEW LIFE overwrites without a confirm.
+## QC r8 batch2.6: a file that PARSES but is not save-shaped (wrong keys,
+## non-numeric dna/playtime) used to render a very loadable-looking row with
+## lying numbers ("CIV · 6 min · 777 DNA · Phantom") — it tombstones up front
+## now, before any click.
+const SAVE_STAGES := ["cell", "creature", "tribe", "civ", "space"]
+
+
+func _save_shaped(d: Dictionary) -> bool:
+	if not SAVE_STAGES.has(String(d.get("stage", ""))):
+		return false
+	var dna: Variant = d.get("dna", null)
+	if not (dna is float or dna is int) or is_nan(float(dna)) or float(dna) < 0.0 \
+			or not is_finite(float(dna)):
+		return false
+	var pt: Variant = d.get("playtime", null)
+	if not (pt is float or pt is int) or is_nan(float(pt)) or float(pt) < 0.0 \
+			or not is_finite(float(pt)):
+		return false
+	if not (d.get("playerName", null) is String):
+		return false
+	var sd: Variant = d.get("seed", null)
+	return (sd is float or sd is int) and is_finite(float(sd)) and not is_nan(float(sd))
+
+
 func slot_meta(slot: int) -> Variant:
 	var path := "user://saves/slot%d.json" % slot
 	if not FileAccess.file_exists(path):
 		return null
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
-	if not (parsed is Dictionary):
+	if not (parsed is Dictionary) or not _save_shaped(parsed):
 		return {"stage": "corrupt", "playtime": 0.0, "dna": 0,
 				"playerName": "⚠", "savedAt": 0.0}
 	var d: Dictionary = parsed
