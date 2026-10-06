@@ -430,13 +430,19 @@ func handle_death(dt: float) -> void:
 	if not deathStarted:
 		# TS first-frame idiom `deathFade === dt` (CellStage.ts:499) → bool
 		deathStarted = true
-		_fire("context_event", ["playerDeath", "cell"])  # storyteller signal
-		_fire("audio_play", ["die", 0.8, 0.0])
-		_fire("cam_shake", [10.0, 0.5])
+		# defensive ordering deviation (QC r3, synthesis 4E): the death penalty
+		# lands BEFORE the hook dispatch — a throwing listener must not eat the
+		# loss. TS pays after the dispatch (its hooks are plain calls today);
+		# natively _fire callv's the hook directly, so one bad future listener
+		# would otherwise skip the DNA loss, its toast and the chaos bump.
+		# A listener now observes the post-penalty dna — accepted (defensive).
 		var lost := floori(float(ctx.dna) * 0.12 + 0.5)  # JS Math.round
 		ctx.add_dna(-lost)
 		_fire("hud_toast", ["%s %d DNA" % [tr("You died — lost"), lost], "bad", "💀"])
 		ctx.add_chaos(0.03)
+		_fire("context_event", ["playerDeath", "cell"])  # storyteller signal
+		_fire("audio_play", ["die", 0.8, 0.0])
+		_fire("cam_shake", [10.0, 0.5])
 		_fx_burst(px, py, 30, [_hsl(float(ctx.genome["hue"]), 0.7, 0.6), "#ff8a9a"],
 				{"speed": 160.0, "ttl": 1.0})
 	if deathFade > 1.6:
