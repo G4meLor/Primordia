@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tests/scenes/qc7_gate_anchor.gd" id="1"]
+
+[node name="Qc7_gate_anchor" type="Node"]
+script = ExtResource("1")
