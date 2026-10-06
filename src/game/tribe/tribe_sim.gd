@@ -638,9 +638,11 @@ func handle_chief_death(dt: float) -> void:
 		# QC round-2 B3 feedback: the safest sample can drop the chief ~1900 px
 		# from camp with no pointer home (walkback 35-50 s, measured by the
 		# tribe-edge probe). Pure feedback — the sampling above is TS:437-445
-		# verbatim, no mechanic change.
+		# verbatim, no mechanic change. QC r3 (synthesis 4D): the 1200 band
+		# missed real respawns — tribe-edge measured home_d 1178.6 and 1017
+		# with no hint through 10-15 s of walking; 900 covers the band.
 		var home: Variant = nearest_hut({"x": px, "z": pz})
-		if home != null and _vdist(float(home["x"]), float(home["z"]), px, pz) > 1200.0:
+		if home != null and _vdist(float(home["x"]), float(home["z"]), px, pz) > 900.0:
 			_fire("hud_toast", [tr("Your chief is far — walk back"), "info", "🧭"])
 		# brief grace — re-death within ~2s of respawn costed double 15% taxes
 		invulnT = 3.0

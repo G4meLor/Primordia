@@ -305,6 +305,70 @@ func test_hue_click_at_band_end_maps_360() -> void:
 	_drop_game(m["g"])
 
 
+# ---- item 4: walk-back hint threshold (synthesis 4D) ------------------------------
+# The respawn hint fired only past 1200 px, but tribe-edge measured REAL
+# respawns at home_d 1178.6 and 1017 with no hint through 10-15 s of walking.
+# Threshold 900. Respawn geometry pinned like test_tribe_sim's walkback test
+# (no threats → the FIRST safest-sample wins).
+
+const TribeSim := preload("res://src/game/tribe/tribe_sim.gd")
+
+const Z_MIN := -200.0
+const Z_MAX := 240.0
+const WORLD_HALF := 2400.0
+
+
+func _tribe_sim() -> Dictionary:
+	var ctx: Variant = Ctx.new(0xC0FFEE)
+	var rec := {"toasts": []}
+	var hooks: Dictionary = {
+		"hud_toast": func(text, kind, icon): rec["toasts"].append([text, kind, icon]),
+		"hud_toast_gate": func(text, kind, icon, window): rec["toasts"].append([text, kind, icon]),
+		"hud_banner": func(data): pass,
+		"audio_play": func(n, v, p): pass,
+		"audio_set_mood": func(name_v): pass,
+		"cam_shake": func(mag, dur): pass,
+		"fx_burst": func(x, y, n, opts): pass,
+		"fx_spawn": func(opts): pass,
+		"context_event": func(ev, data): pass,
+		"hud_show_objective": func(text): pass,
+		"hud_toast_inset": func(px): pass,
+	}
+	var rng: Variant = ctx.rng.branch()
+	var sim: Variant = TribeSim.new(ctx, rng, hooks)
+	return {"sim": sim, "ctx": ctx, "rec": rec}
+
+
+func test_walkback_hint_covers_the_900_band() -> void:
+	# camp ~1050 px from the pinned respawn → the hint fires now (silent at the
+	# old 1200); a camp inside 900 stays silent
+	for case in [[1050.0, true], [800.0, false]]:
+		var m := _tribe_sim()
+		var sim: Variant = m["sim"]
+		var pr: Variant = RngLib.new_from(4242)
+		sim.rng.set_state(pr.state())
+		var exp_x: float = pr.range(-WORLD_HALF * 0.5, WORLD_HALF * 0.5)
+		var exp_z: float = pr.range(Z_MIN + 30.0, Z_MAX - 30.0)
+		# the constructor seeds a starting hut at (0, 80) — replace with the
+		# probe camp at the wanted home distance
+		sim.huts.clear()
+		sim.huts.append({"x": exp_x + float(case[0]), "z": exp_z,
+				"buildT": 0.0, "hp": 100.0})
+		sim.deathHandled = true  # isolate the respawn path (no tax side effects)
+		sim.deathFade = 1.5
+		sim.handle_chief_death(0.2)  # deathFade 1.7 > 1.6 → respawn
+		eq(float(sim.px), exp_x, "respawn = the pinned first sample")
+		eq(float(sim.pz), exp_z, "respawn z pinned")
+		var hint := false
+		for t in m["rec"]["toasts"]:
+			if String(t[0]) == "Your chief is far — walk back":
+				hint = true
+		if bool(case[1]):
+			ok(hint, "camp %d px out → walk-back hint fires" % int(case[0]))
+		else:
+			ok(not hint, "camp %d px out → silent (below 900)" % int(case[0]))
+
+
 func _drop_game(g: Variant) -> void:
 	if g != null:
 		g.hud = {}
