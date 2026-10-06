@@ -597,12 +597,16 @@ func render_row(ci: CanvasItem, row: Dictionary, x: float, y: float, w: float, h
 			var bx3 := x + 90.0
 			var bw3 := w - 110.0
 			# hue spectrum: 7 flat stops (TS draws a smooth gradient; vertex
-			# color fans below segment count — presence-level, renderer notes)
-			var seg := bw3 / 6.0
+			# color fans below segment count — presence-level, renderer notes).
+			# QC r3 (synthesis 4H): seg was bw3/6.0 with a +1px overlap fudge —
+			# 7 cells of 6 widths drew the red stop 1/6 of a band past the
+			# panel edge, and clicks in the drawn-over margin fell through to
+			# the full-row rect (hue from the wrong formula). 7 even cells
+			# tile the band exactly; the hit rect below is unchanged.
+			var seg := bw3 / 7.0
 			for i in 7:
 				RendererScript.gradient_rounded_rect(ci,
-						Rect2(bx3 + float(i) * seg - (0.0 if i == 0 else 0.5), y + 10.0,
-								seg + (0.0 if i == 0 else 1.0), 22.0), 8.0,
+						Rect2(bx3 + float(i) * seg, y + 10.0, seg, 22.0), 8.0,
 						RendererScript.hsl(float(i) * 60.0, 0.8, 0.55),
 						RendererScript.hsl(float(i) * 60.0, 0.8, 0.55))
 			var hpx := bx3 + (float(g["hue"]) / 360.0) * bw3
