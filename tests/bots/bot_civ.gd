@@ -41,10 +41,11 @@
 ## TICK SHAPE: the scene calls civ_tick once per _process frame AFTER the
 ## arrival/founding/tribe phases (delegated to the bot_tribe module — the
 ## founding→totem arc lands civ through the REAL go_to; NEVER re-implemented
-## here). The capture sub-states ride IN the legs (render in tick T, the
-## SceneTree flushes the draw between ticks, the image grabbed in tick T+1 —
-## the test_civ_scene arm→shot shape); the probes are computed from the sim
-## state AT THE RENDER TICK (the grab reads the previous completed pass).
+## here). The capture sub-states ride IN the legs (render in tick T, an idle
+## stepped tick, the image grabbed in tick T+2 — QC r5 MN-8: the readback
+## rides a PRESENTED frame, the r4 stale-frame law; the probes are computed
+## from the sim state AT THE RENDER TICK, and the armada PNG hits disk BEFORE
+## the pixel asserts so a failed assert still leaves the raw evidence).
 ## Every watch is a plain field read: sim fields, hud_inst._toasts/
 ## _floaters/_cur_banner/_banner_queue (the stage-NAMED hud — the d7a5cb8
 ## lesson: the post-landing reads go through game.stages['civ'], never
@@ -124,7 +125,7 @@ var _rival_def := 0.0             # derived from ctx.difficulty (rival_def_for's
 var _inf_prev := 0.0              # per-frame Δinfluence detector (the resolve watch)
 var _jump := -1.0                 # the latched resolve jump
 var _regen_mil := 0.0             # the regen watch's last milestone
-var _cap := "none"                # the 2-tick capture sub-state: none|grab
+var _cap := "none"                # the 3-tick capture sub-state: none|wait|grab
 var _twin_img: Image = null
 var _twin_cam := Vector2.ZERO
 var _probe := {}                  # the flight geometry recorded at the render tick
@@ -375,10 +376,18 @@ func civ_tick(game: Variant) -> String:
 		"twin_render":
 			# the pre-launch ROUTE TWIN: the board without armadas, the drift
 			# camera still at 0 (no armada has ever flown). Render in tick T,
-			# grab in tick T+1 (the SceneTree flushes the draw between ticks).
+			# grab in tick T+2 — QC r5 MN-8: the readback must ride a PRESENTED
+			# frame after the render tick's queue (the r4 stale-frame law), so
+			# an idle stepped tick sits between render and grab.
 			_civ_wait_step(game)
 			game._do_render(0.0)
 			_twin_cam = Vector2(float(sim.camX), float(sim.camY))
+			_leg = "twin_wait"
+		"twin_wait":
+			# the presented-frame wait: this tick's engine draw completes the
+			# twin_render queue (the image is already fixed — _twin_cam latched
+			# at the render tick; the sim stepping underneath cannot touch it)
+			_civ_wait_step(game)
 			_leg = "twin_grab"
 		"twin_grab":
 			_civ_wait_step(game)
@@ -603,7 +612,8 @@ func _launch_check(game: Variant, sim: Variant) -> String:
 ## captures the ship disc + trail mid-flight), the resolve is observed (the
 ## target's influence jump + the sim's own net math: the '+N influence'
 ## floatWorld text IS net/10 rendered), then control passes to `next`. The
-## capture sub-state rides INSIDE the leg (render tick T, grab tick T+1)
+## capture sub-state rides INSIDE the leg (render tick T, a presented-frame
+## wait tick, grab+save tick T+2 — the PNG lands BEFORE the asserts, MN-8)
 ## without breaking the uniform step cadence.
 func _flight_tick(game: Variant, sim: Variant, next: String, want_capture: bool) -> String:
 	_civ_wait_step(game)
@@ -619,12 +629,28 @@ func _flight_tick(game: Variant, sim: Variant, next: String, want_capture: bool)
 			"cam": Vector2(float(sim.camX), float(sim.camY)),
 		}
 		game._do_render(0.0)
+		_cap = "wait"
+		return ""
+	elif _cap == "wait":
+		# QC r5 MN-8 (the r4 stale-frame law): ≥1 PRESENTED frame must land
+		# after the render tick's queue before the readback — this idle tick's
+		# engine draw+present completes it (the image is fixed; the probe
+		# latched its sim positions and camera at the render tick, and the
+		# flight is far from its resolve at t ≥ 0.4, so one more step is safe)
 		_cap = "grab"
 		return ""
 	elif _cap == "grab":
 		_flight_img = _grab(game)
 		if _flight_img == null:
 			return "flight: the viewport returned no image"
+		# QC r5 MN-8: save_png BEFORE the asserts — a failed assert must still
+		# leave the raw evidence on disk (game-render vs harness-race triage:
+		# a missing disc in the PNG is a render finding, a present disc with a
+		# failed assert is a harness reading)
+		DirAccess.make_dir_recursive_absolute("user://visual_capture_civ_bot")
+		var err := _flight_img.save_png("user://visual_capture_civ_bot/bot_civ_armada.png")
+		if err != OK:
+			return "flight: cannot save the armada capture (%s)" % str(err)
 		var cam: Vector2 = _probe["cam"]
 		var ship: Vector2 = _proj(game, cam, float(_probe["sx"]), float(_probe["sy"]))
 		var mean := _patch_mean(_flight_img, ship.x, ship.y, 2)
@@ -635,10 +661,6 @@ func _flight_tick(game: Variant, sim: Variant, next: String, want_capture: bool)
 		var trail_fail := _trail_asserts(game)
 		if trail_fail != "":
 			return "flight: " + trail_fail
-		DirAccess.make_dir_recursive_absolute("user://visual_capture_civ_bot")
-		var err := _flight_img.save_png("user://visual_capture_civ_bot/bot_civ_armada.png")
-		if err != OK:
-			return "flight: cannot save the armada capture (%s)" % str(err)
 		capture_ok = true
 		_cap = "done"
 	# the resolve watch: the target's per-frame influence jump — a resolve
