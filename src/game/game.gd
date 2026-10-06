@@ -396,7 +396,7 @@ func _resize_ok(new: Vector2, old: Vector2) -> bool:
 ## The loop's update side — TS Game.update(dt) with this task's scope (see
 ## class header for what lands in Task 9 / later tasks).
 func _do_update(dt: float) -> void:
-	# TS game.ts:262 sets the frame's base cursor here and lets UI layers
+	_heartbeat()	# TS game.ts:262 sets the frame's base cursor here and lets UI layers
 	# upgrade it on hover; natively the base resolves at the END of the frame
 	# (see the tail of this func) so a steady hover never flaps the OS shape.
 	var base_cursor := "crosshair"
@@ -792,6 +792,39 @@ func save_all() -> bool:
 ## QC r2 C2 crash-window breadcrumb (shared shape with context.gd's _qc2_mark).
 func _qc2_mark(tag: String) -> void:
 	var line := "C2Q[%d] %s" % [Time.get_ticks_msec(), tag]
+	print(line)
+	var f := FileAccess.open("user://crash_markers.log", FileAccess.READ_WRITE)
+	if f != null:
+		f.seek_end()
+	else:
+		f = FileAccess.open("user://crash_markers.log", FileAccess.WRITE)
+	if f != null:
+		f.store_string(line + "\n")
+		f.flush()
+
+
+# ---- QC r4 MAJ-1 heartbeat (instrument-only) -----------------------------------
+
+## Sim-step counter for the C2-solo heartbeat. _do_update is exactly ONE fixed
+## sim step (the loop's update_cb — both the live loop and step_for_testing
+## funnel through it), so this counts sim steps regardless of the driver.
+var _hb_step := 0
+
+
+## QC r4 MAJ-1 (C2 solo recurrence ×2 tribe): a heartbeat breadcrumb every 300
+## sim steps — `HB[<wall-ms>] step=<n> stage=<s> dna=<d>` — printed AND appended
+## to user://crash_markers.log with a flush per line (the C2Q crash-marker
+## shape; a per-line file flush is the in-process equivalent of the harness's
+## `stdbuf -oL` wrapper, and survives stdout block-buffering under pipe). Bounds
+## a silent death window to ≤300 steps so the next C2 occurrence leaves the
+## last-tick evidence. INSTRUMENT ONLY: an int increment + compare on the hot
+## path, no state mutation, no behavior change.
+func _heartbeat() -> void:
+	_hb_step += 1
+	if _hb_step % 300 != 0:
+		return
+	var line := "HB[%d] step=%d stage=%s dna=%d" % [
+			Time.get_ticks_msec(), _hb_step, context.stage, int(context.dna)]
 	print(line)
 	var f := FileAccess.open("user://crash_markers.log", FileAccess.READ_WRITE)
 	if f != null:
