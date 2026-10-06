@@ -424,3 +424,36 @@ func test_graft_rows_for_fired_combo_and_extinct_bestiary() -> void:
 		want_cost += PartsScript.part_cost(_part_def("jaw"), l)
 	eq(int(c.dna), dna_before - want_cost, "standard part price, no discount")
 	eq(ed.rows.size(), 14, "the slot is spent — the graft rows drop immediately (TS:216)")
+
+
+# ---- QC round-5 MN-1: the COLOR / SATURATION / switch ▸ draw sites -----------
+# The vi.csv keys pre-existed (rows 128/129/135) but the four editor draw
+# sites rendered raw EN — F2's sweep wrapped the diet header and missed these.
+# The pin is two-layer: the DICTIONARY mapping (VI values + the EN key-space
+# passthrough) and the CALL SITES (a source scan of editor.gd — a native
+# draw_string override can't intercept in 4.2: the override warning is a hard
+# error and the parent signature drifts across engine versions, so the wrap
+# is pinned at the source the same way test_i18n.gd's structural audit works).
+
+func test_mn1_editor_labels_translate_in_vi_en_unchanged() -> void:
+	_editor(500)
+	var i: Variant = _g.i18n
+	# the dictionary layer: the pre-existing vi.csv rows resolve under VI...
+	i.set_lang("vi")
+	eq(String(i.tr_key("COLOR")), "MÀU", "VI: the hue header key")
+	eq(String(i.tr_key("SATURATION")), "ĐỘ BÃO HÒA", "VI: the sat header key")
+	eq(String(i.tr_key("switch ▸")), "đổi ▸", "VI: the pattern/coat switch hint key")
+	# ...and stay byte-identical EN passthrough (the EN key space)
+	i.set_lang("en")
+	eq(String(i.tr_key("COLOR")), "COLOR", "EN: the hue header unchanged")
+	eq(String(i.tr_key("SATURATION")), "SATURATION", "EN: the sat header unchanged")
+	eq(String(i.tr_key("switch ▸")), "switch ▸", "EN: the switch hint unchanged")
+	# the call-site layer: all four editor.gd draw sites route through tr_key
+	var src := FileAccess.get_file_as_string("res://src/ui/editor.gd")
+	eq(src.count("tr_key(\"switch ▸\")"), 2, "both switch-hint draw sites (pattern + coat) wrap tr_key")
+	eq(src.count("tr_key(\"COLOR\")"), 1, "the hue header draw site wraps tr_key")
+	eq(src.count("tr_key(\"SATURATION\")"), 1, "the sat header draw site wraps tr_key")
+	eq(src.count("ci, \"switch ▸\""), 0, "no raw switch-hint display literal left")
+	eq(src.count("h, \"COLOR\""), 0, "no raw hue-header display literal left")
+	eq(src.count("h, \"SATURATION\""), 0, "no raw sat-header display literal left")
+	TranslationServer.set_locale("en")

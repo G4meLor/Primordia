@@ -572,7 +572,7 @@ func render_row(ci: CanvasItem, row: Dictionary, x: float, y: float, w: float, h
 			_row_label(ci, x, y, w, h, _game.i18n.tr_key("SKIN PATTERN"),
 					_game.i18n.tr_key(String(pat["name"])),
 					"(%d DNA)" % int(pat["cost"]) if int(pat["cost"]) > 0 else "")
-			RendererScript.outlined_text(ci, "switch ▸", x + w - 16.0, y + h / 2.0,
+			RendererScript.outlined_text(ci, _game.i18n.tr_key("switch ▸"), x + w - 16.0, y + h / 2.0,
 					{"size": 11.0, "fill": Color("#9fc8ff"), "align": "right"})
 		"coat":
 			var coat: Dictionary = _coat_def(String(g["coat"]))
@@ -580,7 +580,7 @@ func render_row(ci: CanvasItem, row: Dictionary, x: float, y: float, w: float, h
 					"%s — %s" % [_game.i18n.tr_key(String(coat["name"])),
 							_game.i18n.tr_key(String(coat["effect"]))],
 					"(%d DNA)" % int(coat["cost"]) if int(coat["cost"]) > 0 else "")
-			RendererScript.outlined_text(ci, "switch ▸", x + w - 16.0, y + h / 2.0,
+			RendererScript.outlined_text(ci, _game.i18n.tr_key("switch ▸"), x + w - 16.0, y + h / 2.0,
 					{"size": 11.0, "fill": Color("#9fc8ff"), "align": "right"})
 		"size":
 			var b2: Dictionary = GenomeScript.GENE_BOUNDS["size"]
@@ -598,7 +598,7 @@ func render_row(ci: CanvasItem, row: Dictionary, x: float, y: float, w: float, h
 					RendererScript.hsl(float(g["hue"]), 0.7, 0.6),
 					RendererScript.hsl(float(g["hue"]), 0.7, 0.6))
 		"hue":
-			_row_label(ci, x, y, w, h, "COLOR", "", "")
+			_row_label(ci, x, y, w, h, _game.i18n.tr_key("COLOR"), "", "")
 			var bx3 := x + 90.0
 			var bw3 := w - 110.0
 			# hue spectrum: 7 flat stops (TS draws a smooth gradient; vertex
@@ -619,7 +619,7 @@ func render_row(ci: CanvasItem, row: Dictionary, x: float, y: float, w: float, h
 			slider_rects["hue"] = {"x": bx3, "y": y + 10.0, "w": bw3, "h": 22.0}
 			row_rects.append({"row": row, "r": {"x": bx3, "y": y + 4.0, "w": bw3, "h": 34.0}, "btn": null})
 		"sat":
-			_row_label(ci, x, y, w, h, "SATURATION", "", "")
+			_row_label(ci, x, y, w, h, _game.i18n.tr_key("SATURATION"), "", "")
 			var bx4 := x + 110.0
 			var bw4 := w - 130.0
 			RendererScript.gradient_rounded_rect(ci, Rect2(bx4, y + 10.0, bw4, 22.0), 8.0,
