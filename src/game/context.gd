@@ -213,26 +213,50 @@ func to_save_data() -> Dictionary:
 ## Save into a slot (defaults to the active one). No SlotMeta envelope — the
 ## top-level SaveData fields are enough for the native format.
 func save(slot_v: int = -1) -> bool:
+	# QC r2 C2 crash-window breadcrumbs (silent quit-to-title death): bracket
+	# every persist seam — serialize, write, verify — with a flush-per-write
+	# file marker (stdout dies with the process, the file does not). ~4 lines
+	# per save (autosave 60 s), silent when nothing crashes.
+	_qc2_mark("save: enter stage=%s slot=%d" % [stage, slot_v])
 	# never persist the MENU as a run state — a stray save path (pause over
 	# the title screen) used to downgrade the slot to stage 'menu', and the
 	# next CONTINUE loaded the cell stage over the finished run
 	if stage == "menu":
+		_qc2_mark("save: skip (menu)")
 		return false
 	if slot_v < 0:
 		slot_v = slot
 	DirAccess.make_dir_recursive_absolute("user://saves")
 	var f := FileAccess.open("user://saves/slot%d.json" % slot_v, FileAccess.WRITE)
 	if f == null:
+		_qc2_mark("save: open FAILED")
 		return false
 	# full_precision: TS JSON.stringify keeps full doubles — lossless round-trips
 	var payload := JSON.stringify(to_save_data(), "", false, true)
+	_qc2_mark("save: serialized len=%d" % payload.length())
 	f.store_string(payload)
 	f.flush()  # land the buffered bytes now, not at handle teardown
 	# TS writeFileSync throws on a failed write = fail-loud; a silent success
 	# here would report a save over a truncated file (disk full). Godot 4.2
 	# quirk: a short fwrite ERR_FAILs but leaves the handle's error state OK,
 	# so get_error() alone cannot see it — verify the payload landed complete.
-	return f.get_error() == OK and f.get_length() == payload.to_utf8_buffer().size()
+	var ok := f.get_error() == OK and f.get_length() == payload.to_utf8_buffer().size()
+	_qc2_mark("save: done ok=%s" % ok)
+	return ok
+
+
+## QC r2 C2 crash-window breadcrumb (shared shape with pause.gd's _qc2_mark).
+func _qc2_mark(tag: String) -> void:
+	var line := "C2Q[%d] %s" % [Time.get_ticks_msec(), tag]
+	print(line)
+	var f := FileAccess.open("user://crash_markers.log", FileAccess.READ_WRITE)
+	if f != null:
+		f.seek_end()
+	else:
+		f = FileAccess.open("user://crash_markers.log", FileAccess.WRITE)
+	if f != null:
+		f.store_string(line + "\n")
+		f.flush()
 
 
 func load(slot_v: int) -> bool:
