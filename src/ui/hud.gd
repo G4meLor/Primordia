@@ -46,6 +46,23 @@ func set_toast_inset(px: float) -> void:
 
 var _floaters: Array = []
 var _toasts: Array = []
+# QC r7 batch1.1 — gate-toast anchor OUTSIDE the live list. The r2 dedupe scan
+# only saw toasts still in _toasts, so ttl-expire (4 s) and the 6-cap pop_front
+# both destroyed the anchor and any window > ttl re-fired every ~4.1 s (the
+# tribe gatherer dead-zone, window 10, measured 4 emissions in a 15 s hold
+# against its promised 2). Two timestamps, both outside the list:
+#   _gate_last_shown — hud-clock of the last actual panel (the fold band's
+#     anchor), and _gate_arm — hud-clock of the last rate event (panel or
+#     fold). The clock advances in update() so a hud that stops ticking
+#     freezes its gate windows exactly like its toast ttls. Both dicts hold
+#     only the handful of gate literals the sims fire — no growth path.
+var _gate_last_shown: Dictionary = {}
+var _gate_arm: Dictionary = {}
+var _gate_clock := 0.0
+# fold band edge: gate ttl (4.0) + a 0.1 s guard — a re-show landing inside
+# the previous panel's decay+guard folds instead of stacking (fp-robust: the
+# guard dwarfs the ulp jitter between the hud clock and the toast age)
+const GATE_FOLD_GRACE := 4.1
 var _cur_banner: Variant = null     # Banner dict | null
 var _banner_queue: Array = []
 var _dna_display := 0.0
@@ -120,6 +137,27 @@ func toast(text: String, kind := "info", icon := "•", ttl := 4.0, card: Varian
 ## per hold. The longer window re-shows it at most once per `window` seconds
 ## while the condition lasts (squeak-ignore, pack-full, gatherer dead-zone).
 func toast_gate(text: String, kind := "info", icon := "•", window := 4.0) -> void:
+	# Rate check against the arm (last panel OR last fold) — the anchor lives
+	# OUTSIDE the toast list, so ttl-expire and the 6-cap pop_front both leave
+	# it intact (the r2 in-list anchor died with its toast and re-fired every
+	# ~4.1 s on any window > ttl). Then the boundary fold: when the re-show
+	# lands inside the previous panel's decay + grace (only possible when
+	# window <= ttl — the pack-full gate, 4/4), it consumes the window WITHOUT
+	# stacking a second identical panel — the toast age and the hud clock
+	# accumulate the same dt through different float sums, so a strict-window
+	# re-show races the ttl removal and duplicated half the time in-engine.
+	# A 5.5 s pack-full hold therefore shows exactly 1 (next panel at arm 8),
+	# while a sparse attempt past the decay (the r2 pin: a single attempt at
+	# 4.2 against a panel gone at 4.0) still displays.
+	var arm: Variant = _gate_arm.get(text)
+	if arm != null and _gate_clock - float(arm) < window:
+		return
+	var shown: Variant = _gate_last_shown.get(text)
+	if shown != null and _gate_clock - float(shown) < GATE_FOLD_GRACE:
+		_gate_arm[text] = _gate_clock
+		return
+	_gate_arm[text] = _gate_clock
+	_gate_last_shown[text] = _gate_clock
 	toast(text, kind, icon, 4.0, null, window)
 
 
@@ -178,6 +216,7 @@ func float_world(x: float, y: float, text: String, color := "#fff", size := 13.0
 
 
 func update(dt: float) -> void:
+	_gate_clock += dt
 	var i := _floaters.size() - 1
 	while i >= 0:
 		var f: Dictionary = _floaters[i]

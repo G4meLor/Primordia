@@ -124,6 +124,72 @@ func test_toast_gate_window_dedupes_longer() -> void:
 	eq(hud._toasts.size(), 3, "plain toast still re-fires after 1.5 s (TS flood guard)")
 
 
+# QC r7 batch1.1 — the r2 anchor (a live-toast age scan inside toast()) died
+# with its toast: ttl-expire and the 6-cap pop_front both lost it, so a window
+# > ttl re-fired every ~4.1 s. The anchor is now a timestamp dict outside the
+# list, checked before the append. The two acceptance shapes from the r7
+# synthesis, tick-ordered like the real frame (the stage fires the gate, THEN
+# hud.update ages the list):
+func test_gate_anchor_deadzone_15s_window10_max_two() -> void:
+	_en()
+	var g: Variant = MockGame.new()
+	var hud: Variant = _hud(g)
+	var fires := 0
+	for i in 900:  # a 15 s dead-zone hold, the condition re-fires every tick
+		hud.toast_gate("idle!", "info", "🌿", 10.0)
+		for t in hud._toasts:
+			if String(t["text"]) == "idle!" and float(t["t"]) == 0.0:
+				fires += 1  # a fresh instance — one count per append
+				break
+		hud.update(DT)
+	eq(fires, 2, "15 s hold, window 10: exactly 2 emissions (t=0 + t=10), old bug gave 4")
+	eq(hud._toasts.size(), 0, "the second emission expired at t=14 (hold ran to 15)")
+
+
+func test_gate_anchor_pack_full_5_5s_window4_exactly_one() -> void:
+	_en()
+	var g: Variant = MockGame.new()
+	var hud: Variant = _hud(g)
+	var fires := 0
+	for i in 330:  # a 5.5 s pack-full hold, window 4, ttl 4
+		hud.toast_gate("full!", "info", "🐾", 4.0)
+		for t in hud._toasts:
+			if String(t["text"]) == "full!" and float(t["t"]) == 0.0:
+				fires += 1
+				break
+		hud.update(DT)
+	eq(fires, 1, "5.5 s hold, window 4: exactly 1 (the t=4 re-fire lands while the t=0 toast is still on screen and folds into it)")
+
+
+func test_gate_anchor_survives_pop_front() -> void:
+	_en()
+	var g: Variant = MockGame.new()
+	var hud: Variant = _hud(g)
+	hud.toast_gate("gate!", "info", "🐾", 10.0)
+	for i in 8:
+		hud.toast("noise%d" % i, "info", "•")
+	eq(hud._toasts.size(), 6, "cap 6 shifted the gate toast out")
+	var popped := true
+	for t in hud._toasts:
+		if String(t["text"]) == "gate!":
+			popped = false
+	ok(popped, "gate toast really left the list")
+	hud.update(3.0)
+	hud.toast_gate("gate!", "info", "🐾", 10.0)
+	var refired := false
+	for t in hud._toasts:
+		if String(t["text"]) == "gate!":
+			refired = true
+	ok(not refired, "anchor survives the pop — no re-fire inside the window (old code re-fired here)")
+	hud.update(7.2)  # clock 10.2 — window lapsed
+	hud.toast_gate("gate!", "info", "🐾", 10.0)
+	var back := false
+	for t in hud._toasts:
+		if String(t["text"]) == "gate!" and float(t["t"]) == 0.0:
+			back = true
+	ok(back, "after the window the gate fires again")
+
+
 func test_toast_cap_six_shifts_oldest() -> void:
 	_en()
 	var g: Variant = MockGame.new()
