@@ -67,6 +67,14 @@ func _init(game_v: Variant) -> void:
 
 
 func _on_ctx_toast(text: String, kind: String, icon: String) -> void:
+	# QC r3 stale-toasts (synthesis 4A): every stage keeps a persistent hud_inst
+	# and _init taps context.toast — a sim toast used to fan out into ALL five
+	# huds, and a hidden hud never decays its ttl (only the live stage's hud
+	# gets hud["update"], game.gd _do_update), so frozen toasts revived when
+	# that stage became current again. Land the toast in the LIVE stage's hud
+	# only (the menu has no hud_inst — nothing lands there, TS-true).
+	if _game.current == null or _game.current.get("hud_inst") != self:
+		return
 	toast(text, kind if kind != "" else "info", icon if icon != "" else "•")
 
 
@@ -118,6 +126,24 @@ func banner(m: Dictionary) -> void:
 func dismiss_banner() -> void:
 	_cur_banner = null
 	_banner_queue.clear()
+
+
+## QC r3 stale-toasts: clear this hud's toast list and hand the live entries
+## back — switch_stage migrates them onto the hud of the stage it enters (TS
+## keeps ONE hud across stages, so a toast fired just before a switch still
+## shows in the next stage within its ttl). A toast left behind here would
+## freeze — a hidden hud never decays — and revive when this stage returned.
+func expire_toasts() -> Array:
+	var out := _toasts
+	_toasts = []
+	return out
+
+
+## Adopt a migrated toast list (switch_stage pairs this with expire_toasts on
+## the leaving hud). Wholesale replace: under the _on_ctx_toast guard the
+## entering hud holds nothing of its own at switch time.
+func adopt_toasts(list: Array) -> void:
+	_toasts = list
 
 
 func show_banner(m: Dictionary) -> void:

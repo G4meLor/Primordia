@@ -267,6 +267,8 @@ func _install_overlays() -> void:
 		"set_abilities": hud_inst.set_abilities,
 		# TS game.ts:213 — the game-level switch reset routes through this key
 		"set_toast_inset": hud_inst.set_toast_inset,
+		# QC r3 stale-toasts: switch_stage expires the leaving hud's list here
+		"expire_toasts": hud_inst.expire_toasts,
 	}
 	if pause_inst == null:
 		pause_inst = PauseScript.new(game)

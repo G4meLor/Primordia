@@ -104,6 +104,7 @@ func _init(context_v: Variant = null) -> void:
 	hud = {
 		"update": func(_dt: float) -> void: pass,
 		"dismiss_banner": func() -> void: pass,
+		"expire_toasts": func() -> Array: return [],
 		"toast": _stub_toast,  # method Callable: the world-toast call passes 5 args
 		"banner": func(_data: Variant) -> void: pass,
 		"float_world": func(_x: float, _y: float, _text: String, _color: Variant,
@@ -272,6 +273,19 @@ func switch_stage(id: String) -> void:
 	# TS:213 — a new stage starts with the inset the TS game zeroes; stages
 	# with bottom-left UI re-arm their own inset in on_enter (tribe 190)
 	hud["set_toast_inset"].call(0.0)
+	# QC r3 stale-toasts (synthesis 4A): the leaving hud's live toasts migrate
+	# onto the hud of the stage we enter (TS keeps ONE hud across stages — a
+	# toast fired just before a switch still shows in the next stage within
+	# its ttl) and the leaving list expires. A hidden hud never decays its
+	# ttl (only the live stage's hud gets hud["update"]), so anything left
+	# frozen would revive when that stage became current again. game.hud
+	# still binds the LEAVING stage here — the rebind happens in next's
+	# on_enter → _install_overlays (a stage without a hud, the menu, keeps
+	# nothing: its instance is absent so the list just dies).
+	if current != null and current.get("hud_inst") != null:
+		var carried_toasts: Array = hud["expire_toasts"].call()
+		if next.get("hud_inst") != null:
+			next.hud_inst.adopt_toasts(carried_toasts)
 	if current != null:
 		current.on_exit()
 		# native tree-model note (TS immediate-mode redraws only the live
