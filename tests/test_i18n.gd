@@ -571,6 +571,12 @@ func test_r6_i18n_wave_vi_then_en() -> void:
 		"Mutation storm! %s +1 (free)": "Bão đột biến! %s +1 (miễn phí)",
 		# cell banner sub (fixed key)
 		"the ocean grows quieter…": "đại dương trầm lặng hơn…",
+		# batch1.5 — the soup metaphor reads the same on both death cards
+		"the soup remembers you": "nồi súp vẫn nhớ bạn",
+		# batch1.6 — the corrupt-slot toast points at the VI button label
+		# ('✦  SỐNG MỚI', menu.gd:349), not the EN name
+		"This slot is corrupted — delete it in CONTINUE, or use NEW LIFE":
+				"Slot này hỏng — xóa nó trong TIẾP TỤC, hoặc dùng SỐNG MỚI",
 	}
 	for k in keys:
 		ok(i.vi_has(k), "vi.csv ships the key: %s" % k)
