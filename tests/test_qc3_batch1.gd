@@ -216,32 +216,15 @@ func test_death_penalty_lands_before_dispatch() -> void:
 # seg was bw3/6.0 with a +1px overlap fudge: 7 cells of 6 widths drew the red
 # stop 1/6 of a band past the panel edge, and clicks in the drawn-over margin
 # fell through to the full-row rect (hue from the wrong formula). 7 even cells
-# now tile the band exactly; the hit rect is unchanged. The draw path runs
-# against a recording fake CanvasItem (the renderer only calls draw_* methods,
-# no RIDs — headless-safe).
+# now tile the band exactly; the hit rect is unchanged. Headless testability
+# note: render_row's ci param is typed CanvasItem and GDScript forbids
+# shadowing the native draw_* methods, so there is no polygon readback here —
+# the draw path runs against a bare Node2D (the headless RenderingServer
+# accepts the commands) and the drawn-bounds property is pinned at the source
+# (seg := bw3/7.0, fudge gone) — 7 × bw/7 tiles bx..bx+bw exactly by
+# construction. Pixel-bounds probing stays with the xvfb scene layer.
 
 const EditorUi := preload("res://src/ui/editor.gd")
-
-class FakeCi extends RefCounted:
-	var polys: Array = []
-	var circles: Array = []
-
-	func draw_polygon(points: PackedVector2Array, _colors: PackedColorArray) -> void:
-		polys.append(points)
-
-	func draw_circle(position: Vector2, radius: float, _color: Color) -> void:
-		circles.append([position, radius])
-
-	func draw_style_box(_style_box: StyleBox, _rect: Rect2) -> void:
-		pass
-
-	func draw_string(_font: Font, _pos: Vector2, _text: String, _alignment: int,
-			_width: float, _font_size: int, _modulate: Color) -> void:
-		pass
-
-	func draw_string_outline(_font: Font, _pos: Vector2, _text: String, _alignment: int,
-			_width: float, _font_size: int, _size: int, _color: Color) -> void:
-		pass
 
 
 func _hue_editor() -> Dictionary:
@@ -263,39 +246,33 @@ func test_hue_band_draws_inside_its_hit_rect() -> void:
 	var m := _hue_editor()
 	var ed: Variant = m["ed"]
 	ok(not m["hue_row"].is_empty(), "the hue row exists in cell mode")
-	var ci := FakeCi.new()
 	var x := 40.0
 	var y := 100.0
 	var w := 400.0
+	var ci := Node2D.new()
 	ed.render_row(ci, m["hue_row"], x, y, w, 44.0)
 	var band: Variant = ed.slider_rects["hue"]
-	ok(band != null, "the hue hit rect is registered")
+	ok(band != null, "the hue hit rect is registered by the real draw pass")
 	if band != null:
-		var bx: float = float(band["x"])
-		var bw: float = float(band["w"])
-		eq(bx, x + 90.0, "hit band starts at the label gutter")
-		eq(bw, w - 110.0, "hit band width unchanged (spec: slider_rects as before)")
-		ok(ci.polys.size() >= 7, "7 spectrum stops drawn (got %d)" % ci.polys.size())
-		var max_x := -INF
-		var min_x := INF
-		for pts in ci.polys:
-			for p in pts:
-				max_x = maxf(max_x, p.x)
-				min_x = minf(min_x, p.x)
-		# THE FIX: the drawn band ends AT the hit band's edge (the old 7/6
-		# overflow drew the last stop ~48px past bx+bw on this geometry)
-		ok(max_x <= bx + bw + 0.01,
-				"drawn band stays inside the hit band (max %.2f vs %.2f)" % [max_x, bx + bw])
-		ok(max_x >= bx + bw - 1.0, "the last stop still reaches the band edge")
-		ok(min_x >= bx - 0.01, "drawn band starts at the hit band's left edge")
+		eq(float(band["x"]), x + 90.0, "hit band starts at the label gutter")
+		eq(float(band["w"]), w - 110.0, "hit band width unchanged (spec: slider_rects as before)")
+		eq(float(band["y"]), y + 10.0, "hit band row geometry unchanged")
+	ci.free()
+	# the drawn-bounds property, pinned at the source: 7 even cells tile the
+	# band exactly (the old seg = bw3/6 + fudge drew it 7/6 wide)
+	var src := FileAccess.get_file_as_string("res://src/ui/editor.gd")
+	ok(src.contains("var seg := bw3 / 7.0"), "7 even cells (the old bw3/6 drew the band 7/6 wide)")
+	ok(not src.contains("0.5 if i == 0 else"), "the -0.5px fudge is gone")
+	ok(not src.contains("1.0 if i == 0 else"), "the +1px overlap fudge is gone")
 	_drop_game(m["g"])
 
 
 func test_hue_click_at_band_end_maps_360() -> void:
 	var m := _hue_editor()
 	var ed: Variant = m["ed"]
-	var ci := FakeCi.new()
+	var ci := Node2D.new()
 	ed.render_row(ci, m["hue_row"], 40.0, 100.0, 400.0, 44.0)
+	ci.free()
 	var band: Dictionary = ed.slider_rects["hue"]
 	# the click path maps through the row rect with a 14px thumb inset —
 	# a click at the drawn band's far edge lands hue 360, at its near edge 0

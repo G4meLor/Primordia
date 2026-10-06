@@ -283,7 +283,10 @@ func switch_stage(id: String) -> void:
 	# on_enter → _install_overlays (a stage without a hud, the menu, keeps
 	# nothing: its instance is absent so the list just dies).
 	if current != null and current.get("hud_inst") != null:
-		var carried_toasts: Array = hud["expire_toasts"].call()
+		# duck-typed like the rest of the overlay dict — a narrower recorder
+		# dict (tests install these) simply migrates nothing
+		var expire_cb: Variant = hud.get("expire_toasts")
+		var carried_toasts: Array = expire_cb.call() if expire_cb is Callable else []
 		if next.get("hud_inst") != null:
 			next.hud_inst.adopt_toasts(carried_toasts)
 	if current != null:
