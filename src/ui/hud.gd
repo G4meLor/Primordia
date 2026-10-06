@@ -64,6 +64,12 @@ func _init(game_v: Variant) -> void:
 	# has no banner signal (M1 ported only EV.toast/EV.dna as signals).
 	_game.context.toast.connect(_on_ctx_toast)
 	_game.context.dna_gained.connect(_on_ctx_dna)
+	# QC r6: the chip starts AT the context total. A hud created on the
+	# CONTINUE path (civ/space — the stage's _install_overlays runs after
+	# the slot load) used to lerp 0 → the saved total for ~1s, the chip
+	# visibly lying on the first frame. TS keeps ONE hud per session whose
+	# display has already converged by stage-entry time — this matches that.
+	_dna_display = float(_game.context.dna)
 
 
 func _on_ctx_toast(text: String, kind: String, icon: String) -> void:

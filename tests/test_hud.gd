@@ -235,11 +235,17 @@ func test_dna_display_smoothing_toward_context() -> void:
 	var g: Variant = MockGame.new()
 	var hud: Variant = _hud(g)
 	eq(float(g.context.dna), 40, "fresh context dna")
+	# QC r6: the display starts AT the context total — a hud created on the
+	# CONTINUE path (civ/space) used to lerp 0 → the saved total over ~1s,
+	# the chip lying on the first frame (i18n-1 r6 caught 144 mid-lerp).
+	approx(float(hud._dna_display), 40.0, "display inits synced to the context dna", 1e-9)
+	# the damp pull still smooths later gains (TS hud.ts dnaDisplay lerp)
+	g.context.add_dna(60)
 	hud.update(DT)
-	approx(float(hud._dna_display), 40.0 * (8.0 / 60.0), "one step of the damp pull", 1e-9)
+	approx(float(hud._dna_display), 40.0 + 60.0 * (8.0 / 60.0), "one step of the damp pull", 1e-9)
 	for i in 600:
 		hud.update(DT)
-	approx(float(hud._dna_display), 40.0, "converges on the context dna", 1e-6)
+	approx(float(hud._dna_display), 100.0, "converges on the context dna", 1e-6)
 
 
 func test_dna_pulse_from_context_signal_and_decay() -> void:
