@@ -438,12 +438,16 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 	var y := left_y + 52.0 - scroll
 	for row2 in rows:
 		var rh := 44.0
-		if y + rh > left_y and y < left_y + left_h - 60.0:
+		# QC r8 batch2.2: the gate keeps the row BOTTOM above the footer block
+		# (fy = left_h − 52) — the old START-gate alone let the last visible
+		# row spill 44px down over the hint + the DNA line at vh 648
+		if y + rh > left_y and y + rh <= left_y + left_h - 52.0:
 			render_row(ci, row2, right_x + 12.0, y, right_w - 24.0, rh)
 		y += rh
 
-	# scrollbar + affordance hint — SIZE/HUE/SAT used to hide below the
-	# fold with no visible way to reach them
+	# scrollbar — SIZE/HUE/SAT used to hide below the fold with no visible
+	# way to reach them. QC r8 batch2.2: the affordance hint moved under the
+	# panel title — at the band bottom it sat ON the last row's glyphs.
 	var content_h := float(rows.size()) * 44.0
 	if content_h > float(list_rect["h"]):
 		var bar_h := maxf(30.0, (float(list_rect["h"]) * float(list_rect["h"])) / content_h)
@@ -452,7 +456,7 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 		ci.draw_rect(Rect2(right_x + right_w - 7.0, bar_y, 3.0, bar_h),
 				RendererScript.css_color("rgba(140,180,230,0.4)"))
 		RendererScript.outlined_text(ci, _game.i18n.tr_key("⟳ wheel scrolls more parts"),
-				right_x + 16.0, left_y + left_h - 62.0,
+				right_x + 16.0, left_y + 40.0,
 				{"size": 10.0, "fill": RendererScript.css_color("rgba(150,190,235,0.55)"), "align": "left"})
 
 	# footer: DNA + close
