@@ -113,6 +113,13 @@ func test_seed_picker_default() -> void:
 	eq(a.world["seed"], a.seed, "world derives from the picked seed")
 	var b = Ctx.new(-5)
 	ok(b.seed >= 0, "explicit negative seed also draws")
+	# QC r6 R6-1: cross-process seed identity (every boot's first NEW LIFE
+	# rolled the same world) is untestable in-process — the global RNG
+	# advances between rolls — so pin the fix at the source: the <0 branch
+	# re-seeds the global RNG before drawing (TS parity: context.ts:98 rolls
+	# Math.random, fresh state every boot).
+	var src := FileAccess.get_file_as_string("res://src/game/context.gd")
+	ok(src.contains("randomize()"), "the default picker re-seeds the global RNG (QC r6 R6-1)")
 
 
 func test_add_dna_fractional_accumulate_and_signal() -> void:

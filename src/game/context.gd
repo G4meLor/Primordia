@@ -75,6 +75,13 @@ func _init(seed_v: int = -1) -> void:
 	# Seed selection is meta-level (outside every sim stream): the only
 	# sanctioned global-RNG use in the repo. Tests always pass explicit seeds.
 	if seed_v < 0:
+		# QC r6 R6-1: the global RNG boots in the same pristine state every
+		# process, so the FIRST unpinned roll of every boot drew the same
+		# seed — every player's first NEW LIFE was the identical world
+		# (parity: TS context.ts:98 rolls Math.random, fresh per boot).
+		# randomize() lives only in this branch — pinned seeds (tests/bots
+		# pass explicit seeds) never touch the global RNG state.
+		randomize()
 		seed_v = randi()
 	seed = seed_v
 	rng = RngScript.new_from(seed)
