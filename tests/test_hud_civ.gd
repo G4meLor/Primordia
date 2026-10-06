@@ -479,8 +479,10 @@ func test_brick_hardening_continue_auto_space() -> void:
 ## Every t() site of the civ surface maps in vi.csv (the TS VI object 1:1 —
 ## grepped src/core/i18n.ts 2026-10-03: the 12 keys below at :183/:193/:197-202/
 ## :294-295/:538-539/:588-589). The RAW composed/unwrapped sites stay raw —
-## normative absences pinned vi_has == false with EN fallback parity. The
-## objective line is the draw-time case (raw assignment at CivStage.ts:121,
+## normative absences pinned vi_has == false with EN fallback parity (QC
+## round-4 batch 1 moved the five armada-refusal/shell/earthquake/unrest
+## templates to the mapped side — native VI completion wraps them in tr()).
+## The objective line is the draw-time case (raw assignment at CivStage.ts:121,
 ## translated at draw — hud.gd:266 tr_key). The transition card keys are the
 ## game-level draw translation (game.gd draw_transition_veil).
 func test_civ_i18n_mapping_1to1() -> void:
@@ -521,20 +523,28 @@ func test_civ_i18n_mapping_1to1() -> void:
 	ok(i.vi_has(SPACE_TITLE) and i.vi_has(SPACE_SUB), "the space card keys map")
 	# the RAW composed/unwrapped sites — normative absences, 1:1 with TS
 	# (QC round-2 B3: '👑 yours' LEFT this list — native translates the
-	# ownership tag, TS:598 renders it raw; see the mapped pin below)
+	# ownership tag, TS:598 renders it raw; see the mapped pin below.
+	# QC round-4 batch 1: the five armada-refusal/shell/earthquake/unrest
+	# templates LEFT too — VI completion wraps them in tr() at the sim, the
+	# value composes after; keys pinned on the mapped side below)
 	for raw in ["+1 %s ← %s",  # TS:210 — composed raw
-			"%s needs 2 output in its lane (raise with Q/W/E)",  # TS:314 raw
-			"%s needs %s+ more output in its lane (5+ total) — raise with Q/W/E, or lower a full slider",  # TS:333 raw
 			"%s %s %s (power %s)",  # TS:348 — raw template AROUND the t('armada →')
 			"JOINS YOUR PLANETARY STATE",  # TS:387/:446 banner suffix, raw
 			"REVOLTS!",  # TS:453 banner suffix, raw
-			"%s shells your capital!",  # TS:409 raw
-			"Earthquake damages %s!",  # TS:467 raw
-			"Unrest in %s! (-40 influence)",  # TS:475 raw
 			"%s DECLARES WAR",  # TS:489 raw
 			"your capital is shelled"]:  # TS:489 raw
 		ok(not i.vi_has(String(raw)), "raw site absent from VI like TS: %s" % raw)
 		eq(i.tr_key(String(raw)), String(raw), "EN fallback parity: %s" % raw)
+	# the five r4-completed templates: mapped natively (TS is EN-only at
+	# CivStage.ts:314/333/409/467/475 — the same native-only shape as the
+	# ownership tag); full value parity lives in test_i18n.gd's r4 block
+	for mapped in ["%s needs 2 output in its lane (raise with Q/W/E)",
+			"%s needs %s+ more output in its lane (5+ total) — raise with Q/W/E, or lower a full slider",
+			"%s shells your capital!", "Earthquake damages %s!",
+			"Unrest in %s! (-40 influence)"]:
+		ok(i.vi_has(String(mapped)), "r4-completed template maps: %s" % mapped)
+	eq(i.tr_key("%s shells your capital!"), "%s nã pháo thủ đô của bạn!",
+			"r4 value parity (shell toast)")
 	# the ownership tag: raw in TS (:598), translated natively (QC r2 B3)
 	ok(i.vi_has("👑 yours"), "ownership tag maps (native-only wrap, TS:598 renders raw)")
 	eq(i.tr_key("👑 yours"), "👑 của bạn", "ownership tag value")

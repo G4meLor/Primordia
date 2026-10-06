@@ -464,7 +464,9 @@ func launch(kind: String) -> void:
 		return  # pacing: no armada-mash (TS:311)
 	var stat: float = mil if kind == "attack" else (culture if kind == "charm" else econ)  # TS:312
 	if stat < 2.0:
-		_fire("hud_toast", ["%s needs 2 output in its lane (raise with Q/W/E)" % kind, "info", "⚖"])  # TS:314
+		# r4 i18n: the template rides tr() BEFORE the kind composes — a raw
+		# compose would make the whole sentence an orphan lookup key (VI leak)
+		_fire("hud_toast", [tr("%s needs 2 output in its lane (raise with Q/W/E)") % kind, "info", "⚖"])  # TS:314
 		return
 	var targets: Array = []
 	for c in cities:
@@ -492,7 +494,7 @@ func launch(kind: String) -> void:
 	# NEGATIVE delta: it spent output to lose ground) (TS:328-335)
 	var rival_def := rival_def_for(true)
 	if power <= rival_def + 2.0:
-		_fire("hud_toast", ["%s needs %s+ more output in its lane (5+ total) — raise with Q/W/E, or lower a full slider"
+		_fire("hud_toast", [tr("%s needs %s+ more output in its lane (5+ total) — raise with Q/W/E, or lower a full slider")
 			% [kind, str(5.0 - stat)], "info", "⚖"])  # TS:333
 		return
 	# spend 2 from the matching slider + start the route cooldown (TS:336-339)
@@ -593,7 +595,7 @@ func tick_second() -> void:
 					var cap: Dictionary = cities[0]
 					cap["hp"] = maxf(20.0, float(cap["hp"]) - float(rival["aggression"]) * 0.4)  # TS:407
 					if rng.chance(0.02):
-						_fire("hud_toast", ["%s shells your capital!" % String(rival["name"]), "bad", "💥"])  # TS:409
+						_fire("hud_toast", [tr("%s shells your capital!") % String(rival["name"]), "bad", "💥"])  # TS:409
 						_fire("cam_shake", [3.0, 0.3])  # TS:410
 				elif String(rival["personality"]) == "culture":
 					for cc in cities:
@@ -662,7 +664,7 @@ func earthquake() -> void:
 	c["burning"] = 4.0  # TS:464
 	_fire("cam_shake", [8.0, 1.0])  # TS:465
 	_fire("audio_play", ["quake", 1.0, 0.0])  # TS audio.play('quake', 1) — audio core: its own task
-	_fire("hud_toast", ["Earthquake damages %s!" % String(c["name"]), "bad", "🫨"])  # TS:467
+	_fire("hud_toast", [tr("Earthquake damages %s!") % String(c["name"]), "bad", "🫨"])  # TS:467
 
 
 func rebellion() -> void:
@@ -676,7 +678,7 @@ func rebellion() -> void:
 		return  # TS:472 — before any rng draw
 	var c: Dictionary = rng.pick(yours)  # TS:473
 	c["influence"] = maxf(-100.0, float(c["influence"]) - 40.0)  # TS:474
-	_fire("hud_toast", ["Unrest in %s! (-40 influence)" % String(c["name"]), "bad", "🔥"])  # TS:475
+	_fire("hud_toast", [tr("Unrest in %s! (-40 influence)") % String(c["name"]), "bad", "🔥"])  # TS:475
 
 
 func golden_age() -> void:

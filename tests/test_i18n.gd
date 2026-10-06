@@ -8,6 +8,10 @@
 extends "res://tests/test_base.gd"
 
 const I18n := preload("res://src/core/i18n.gd")
+const Ctx := preload("res://src/game/context.gd")
+const CivSim := preload("res://src/game/civ/civ_sim.gd")
+const CreatureSim := preload("res://src/game/creature/creature_sim.gd")
+const EditorUiScript := preload("res://src/ui/editor.gd")
 
 const SCRATCH := "user://test_i18n_settings.cfg"
 
@@ -305,4 +309,204 @@ func test_structural_audit() -> void:
 					untranslated.append("%s (field): \"%s\"" % [rel, k.left(50)])
 	eq(unwrapped, [], "no unwrapped hud.toast/float_world/banner display literals")
 	eq(untranslated, [], "every tr_key()/tr() literal in src/game+src/ui has a VI entry")
+	_restore_locale()
+
+
+# ---- QC round-4 batch 1: the VI-completion batch (civ toasts + pack-full) ----
+# The 5 civ toasts + the creature pack-full gate composed their values into
+# the string BEFORE any tr() — the whole sentence became an orphan lookup key
+# and EN leaked into VI (SYNTHESIS-round4 §4 i18n, carried F1/F2). The
+# templates now ride tr() first, the values compose after (the menu.gd:231
+# pattern); EN output is byte-identical and every new key ships in vi.csv.
+
+func _mk_civ() -> Dictionary:
+	var ctx: Variant = Ctx.new(20261006)
+	var rec: Dictionary = {"toasts": []}
+	var hooks: Dictionary = {
+		"hud_toast": func(text, kind, icon): rec["toasts"].append([text, kind, icon]),
+	}
+	var rng: Variant = ctx.rng.branch()
+	var sim: Variant = CivSim.new(ctx, rng, hooks)
+	return {"sim": sim, "rec": rec}
+
+
+func _mk_creature() -> Dictionary:
+	var ctx: Variant = Ctx.new(0xC0FFEE)
+	var rec: Dictionary = {"toasts": []}
+	var hooks: Dictionary = {
+		"hud_toast": func(text, kind, icon): rec["toasts"].append([text, kind, icon]),
+		# the gate toasts ride the 4th window arg (test_charm fixture shape)
+		"hud_toast_gate": func(text, kind, icon, _window): rec["toasts"].append([text, kind, icon]),
+	}
+	var rng: Variant = ctx.rng.branch()
+	var sim: Variant = CreatureSim.new(ctx, rng, hooks)
+	return {"sim": sim, "rec": rec}
+
+
+func _shell_toast(m: Dictionary, suffix: String) -> String:
+	# the shell toast rides a chance(0.02) draw inside tick_second (TS:409) —
+	# loop until it fires (r1 is military by the constructor)
+	for _i in 4000:
+		m["sim"].tick_second()
+		for t in m["rec"]["toasts"]:
+			if String(t[0]).ends_with(suffix):
+				return String(t[0])
+	return ""
+
+
+func _quake_named(sim_v: Variant, text: String, template: String) -> bool:
+	for c in sim_v.cities:
+		if text == template % String(c["name"]):
+			return true
+	return false
+
+
+func test_r4_civ_toasts_vi_then_en() -> void:
+	_wipe()
+	# ---- VI: all five templates come out Vietnamese through the real paths ---
+	var i: Variant = _i18n()
+	i.set_lang("vi")
+
+	# refusal 1 (stat < 2, TS:314) — the kind composes AFTER tr
+	var m := _mk_civ()
+	var sim: Variant = m["sim"]
+	sim.mil = 1.0
+	sim.launch("attack")
+	eq(String(m["rec"]["toasts"][0][0]),
+			"attack cần 2 sức mạnh ở lane của nó (tăng bằng Q/W/E)",
+			"VI: launch refusal-1 toast")
+
+	# refusal 2 (stat 4 → power 8 <= rivalDef 6+2, TS:333)
+	m = _mk_civ()
+	sim = m["sim"]
+	sim.mil = 4.0
+	sim.launch("attack")
+	eq(String(m["rec"]["toasts"][0][0]),
+			"attack cần thêm 1+ sức mạnh ở lane của nó (tổng 5+) — tăng bằng Q/W/E, hoặc hạ một slider đã đầy",
+			"VI: launch refusal-2 toast")
+
+	# shells (TS:409)
+	m = _mk_civ()
+	eq(_shell_toast(m, "nã pháo thủ đô của bạn!"),
+			"Khorate Dominion nã pháo thủ đô của bạn!",
+			"VI: shell toast through tick_second()")
+
+	# earthquake (TS:467) — picks a city; the template + a real name must match
+	m = _mk_civ()
+	sim = m["sim"]
+	sim.earthquake()
+	ok(_quake_named(sim, String(m["rec"]["toasts"][0][0]), "Động đất tàn phá %s!"),
+			"VI: earthquake toast (template translated, name composed)")
+
+	# unrest (TS:475) — needs a you-owned non-capital city (the capital is
+	# excluded BY ID, the TS:471 quirk)
+	m = _mk_civ()
+	sim = m["sim"]
+	sim.cities[1]["owner"] = "you"
+	sim.rebellion()
+	eq(String(m["rec"]["toasts"][0][0]),
+			"Bất ổn ở %s! (-40 ảnh hưởng)" % String(sim.cities[1]["name"]),
+			"VI: unrest toast through rebellion()")
+
+	# ---- EN: byte-identical with the pre-fix strings (same paths, same seed) --
+	i.set_lang("en")
+
+	m = _mk_civ()
+	sim = m["sim"]
+	sim.mil = 1.0
+	sim.launch("attack")
+	eq(String(m["rec"]["toasts"][0][0]), "attack needs 2 output in its lane (raise with Q/W/E)",
+			"EN: refusal-1 unchanged")
+
+	m = _mk_civ()
+	sim = m["sim"]
+	sim.mil = 4.0
+	sim.launch("attack")
+	eq(String(m["rec"]["toasts"][0][0]),
+			"attack needs 1+ more output in its lane (5+ total) — raise with Q/W/E, or lower a full slider",
+			"EN: refusal-2 unchanged")
+
+	m = _mk_civ()
+	eq(_shell_toast(m, "shells your capital!"), "Khorate Dominion shells your capital!",
+			"EN: shell toast unchanged")
+
+	m = _mk_civ()
+	sim = m["sim"]
+	sim.earthquake()
+	ok(_quake_named(sim, String(m["rec"]["toasts"][0][0]), "Earthquake damages %s!"),
+			"EN: earthquake toast unchanged")
+
+	m = _mk_civ()
+	sim = m["sim"]
+	sim.cities[1]["owner"] = "you"
+	sim.rebellion()
+	eq(String(m["rec"]["toasts"][0][0]),
+			"Unrest in %s! (-40 influence)" % String(sim.cities[1]["name"]),
+			"EN: unrest toast unchanged")
+
+	_restore_locale()
+
+
+func test_r4_pack_full_vi_then_en() -> void:
+	_wipe()
+	var i: Variant = _i18n()
+
+	i.set_lang("vi")
+	var m := _mk_creature()
+	var sim: Variant = m["sim"]
+	sim.debug_spawn_pack(2)  # packLimit 2 at the default genome (test_charm pin)
+	sim.spawn_ent(null, float(sim.px) + 40.0, float(sim.pz),
+			{"size": 1, "diet": "herbivore", "legs": 4, "eyes": 2})
+	sim.try_charm()
+	eq(bool(sim.charmActive), false, "pack full: no charm init")
+	eq(String(m["rec"]["toasts"][0][0]),
+			"Đàn của bạn đã đầy (2) — tiến hóa Tay/Não để tăng giới hạn",
+			"VI: pack-full gate toast (the vi.csv dead key now matches)")
+
+	i.set_lang("en")
+	m = _mk_creature()
+	sim = m["sim"]
+	sim.debug_spawn_pack(2)
+	sim.spawn_ent(null, float(sim.px) + 40.0, float(sim.pz),
+			{"size": 1, "diet": "herbivore", "legs": 4, "eyes": 2})
+	sim.try_charm()
+	eq(String(m["rec"]["toasts"][0][0]), "Your pack is full (2) — evolve Arms/Brain for more",
+			"EN: pack-full toast byte-identical")
+
+	_restore_locale()
+
+
+func test_r4_new_keys_translate() -> void:
+	_wipe()
+	var i: Variant = _i18n()
+	i.set_lang("vi")
+	var keys := {
+		"%s needs 2 output in its lane (raise with Q/W/E)":
+				"%s cần 2 sức mạnh ở lane của nó (tăng bằng Q/W/E)",
+		"%s needs %s+ more output in its lane (5+ total) — raise with Q/W/E, or lower a full slider":
+				"%s cần thêm %s+ sức mạnh ở lane của nó (tổng 5+) — tăng bằng Q/W/E, hoặc hạ một slider đã đầy",
+		"%s shells your capital!": "%s nã pháo thủ đô của bạn!",
+		"Earthquake damages %s!": "Động đất tàn phá %s!",
+		"Unrest in %s! (-40 influence)": "Bất ổn ở %s! (-40 ảnh hưởng)",
+		"Your pack is full (%d) — evolve Arms/Brain for more":
+				"Đàn của bạn đã đầy (%d) — tiến hóa Tay/Não để tăng giới hạn",
+	}
+	for k in keys:
+		ok(i.vi_has(k), "vi.csv ships the key: %s" % k)
+		eq(i.tr_key(k), keys[k], "VI translation live: %s" % k)
+	# F1: the CELL PARTS mistranslation ("PART" was left English)
+	eq(i.tr_key("CELL PARTS"), "PHẦN TẾ BÀO", "F1: CELL PARTS reads 'phần', not the EN word")
+	# F2: the editor's diet header resolves the display name through _diet_def
+	# (the lowercase ids never matched the capitalized vi.csv keyspace)
+	var ed: Variant = EditorUiScript.new(RefCounted.new())
+	eq(String(ed._diet_def("herbivore")["name"]), "Herbivore", "F2: _diet_def carries the display name")
+	eq(i.tr_key("Herbivore"), "Ăn cỏ", "F2: VI herbivore through the display-name keyspace")
+	eq(i.tr_key("Omnivore"), "Ăn tạp", "F2: VI omnivore")
+	eq(i.tr_key("Carnivore"), "Ăn thịt", "F2: VI carnivore")
+	# EN passthrough: every touched key comes back byte-identical
+	i.set_lang("en")
+	for k in keys:
+		eq(i.tr_key(k), k, "EN passthrough unchanged: %s" % k)
+	eq(i.tr_key("CELL PARTS"), "CELL PARTS", "EN: CELL PARTS unchanged")
+	eq(i.tr_key("Herbivore"), "Herbivore", "EN: diet display name passthrough")
 	_restore_locale()

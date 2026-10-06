@@ -1173,9 +1173,11 @@ func try_charm() -> void:
 			packCount += 1
 	if packCount >= packLimit:
 		# gate toast: the full-pack condition persists while F is held — the
-		# 4 s window re-shows it once per hold instead of every 1.5 s (r2 B3)
+		# 4 s window re-shows it once per hold instead of every 1.5 s (r2 B3).
+		# r4 i18n: tr() BEFORE the %d composes (the vi.csv:187 key used to be
+		# the bare prefix — an orphan the formatted string never matched)
 		_fire("hud_toast_gate",
-				["Your pack is full (%d) — evolve Arms/Brain for more" % packLimit, "info", "🐾", 4.0])
+				[tr("Your pack is full (%d) — evolve Arms/Brain for more") % packLimit, "info", "🐾", 4.0])
 		return
 	if float(best["genome"]["size"]) > float(ctx.genome["size"]) * 1.6 \
 			and float(ctx.genome.get("brain", 0)) < 2.0:

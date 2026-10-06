@@ -119,7 +119,7 @@ E/D Economy,E/D Kinh tế
 CARGO,HÀNG
 THE PLANET IS UNITED,HÀNH TINH ĐÃ THỐNG NHẤT
 SPECIES EDITOR,TRÌNH CHỈNH SỦA LOÀI
-CELL PARTS,PART TẾ BÀO
+CELL PARTS,PHẦN TẾ BÀO
 BODY PARTS,PART CƠ THỂ
 DIET,CHẾ ĐỘ ĂN
 SKIN PATTERN,HOA VĂN DA
@@ -184,7 +184,7 @@ Omnivore,Ăn tạp
 Carnivore,Ăn thịt
 DNA to switch,DNA để đổi
 It did not like your rhythm.,Nó không thích nhịp của bạn.
-Your pack is full,Đàn của bạn đã đầy
+Your pack is full (%d) — evolve Arms/Brain for more,Đàn của bạn đã đầy (%d) — tiến hóa Tay/Não để tăng giới hạn
 It ignores your squeaking. Grow bigger or smarter.,Nó phớt lờ tiếng kêu của bạn. Hãy to lớn hơn hoặc thông minh hơn.
  evolve for more, để tăng giới hạn
 Ancient bones: +45 DNA,Xương cổ đại: +45 DNA
@@ -458,3 +458,8 @@ The great beast wanders away…,Con thú khổng lồ bỏ đi…
 Drums all night! The tribe is one.,Trống khuya! Bộ tộc là một.
 Falling stars seed the sky with DNA.,Sao băng gieo DNA khắp bầu trời.
 A new hut raises the roof!,Một túp lều mới mọc mái!
+%s needs 2 output in its lane (raise with Q/W/E),%s cần 2 sức mạnh ở lane của nó (tăng bằng Q/W/E)
+"%s needs %s+ more output in its lane (5+ total) — raise with Q/W/E, or lower a full slider","%s cần thêm %s+ sức mạnh ở lane của nó (tổng 5+) — tăng bằng Q/W/E, hoặc hạ một slider đã đầy"
+%s shells your capital!,%s nã pháo thủ đô của bạn!
+Earthquake damages %s!,Động đất tàn phá %s!
+Unrest in %s! (-40 influence),Bất ổn ở %s! (-40 ảnh hưởng)

@@ -360,8 +360,13 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 	RendererScript.outlined_text(ci, NamesScript.self_name(g), left_x + left_w / 2.0, left_y + 52.0,
 			{"size": 22.0, "fill": RendererScript.hsl(float(g["hue"]), float(g["sat"]), 0.72),
 					"weight": "700"})
+	# F2 (QC r3): the raw diet id ("herbivore") misses the capitalized vi.csv
+	# keyspace — resolve the display name through _diet_def, the same source
+	# the diet-switch row uses. EN shows "Herbivore" (was the raw lowercase id;
+	# TS editor.ts:312 leaks the id too — native polish, task-ruled).
 	RendererScript.outlined_text(ci, "%s %d · %s" % [_game.i18n.tr_key("generation"),
-			int(g["generation"]), _game.i18n.tr_key(String(g["diet"]))],
+			int(g["generation"]),
+			_game.i18n.tr_key(String(_diet_def(String(g["diet"]))["name"]))],
 			left_x + left_w / 2.0, left_y + 76.0,
 			{"size": 12.0, "fill": RendererScript.css_color("rgba(200,220,255,0.6)")})
 
