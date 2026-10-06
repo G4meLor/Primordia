@@ -139,7 +139,10 @@ func _save_now() -> void:
 	if bool(actions["save_all"].call()):
 		actions["toast"].call(_game.i18n.tr_key("Game saved"), "good", "💾")
 	else:
-		actions["toast"].call(_game.i18n.tr_key("Save failed — browser storage full"), "bad", "💾")
+		# QC r8 batch2.4: native desktop writes save FILES — the TS web-app
+		# "browser storage" wording pointed desktop players at a browser they
+		# do not have.
+		actions["toast"].call(_game.i18n.tr_key("Save failed — could not write save file"), "bad", "💾")
 
 
 func _act_sound() -> void:

@@ -75,7 +75,8 @@ func close() -> void:
 		dirty_since_save = false
 		# saveAll, not save — the genome write must carry the stage blob too
 		if not _game.save_all():
-			_game.hud["toast"].call(_game.i18n.tr_key("Save failed — browser storage full"), "bad", "💾")
+			# QC r8 batch2.4 — desktop wording (see pause.gd twin)
+			_game.hud["toast"].call(_game.i18n.tr_key("Save failed — could not write save file"), "bad", "💾")
 	# TS audio.play('click') — audio core is its own task
 
 

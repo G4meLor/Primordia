@@ -39,7 +39,7 @@ PAUSED,TẠM DỪNG
 ▶  Resume,▶  Tiếp tục chơi
 💾  Save now,💾  Lưu ngay
 Game saved,Đã lưu game
-Save failed — browser storage full,Lưu thất bại — bộ nhớ trình duyệt đầy
+Save failed — could not write save file,Lưu thất bại — không ghi được tệp lưu
 ❓  How to play,❓  Hướng dẫn chơi
 ⌂  Quit to title,⌂  Về menu chính
 ◀  Back,◀  Trở lại

@@ -457,7 +457,7 @@ func test_pause_resume_and_save_toasts() -> void:
 	eq(int(_rec["saves"]), 2, "second save attempted")
 	eq(String(_rec["toasts"][0][0]), "Game saved", "first toast unchanged")
 	eq(_rec["toasts"].size(), 2, "second toast recorded")
-	eq(String(_rec["toasts"][1][0]), "Save failed — browser storage full", "failure toast key")
+	eq(String(_rec["toasts"][1][0]), "Save failed — could not write save file", "failure toast key")
 	eq(String(_rec["toasts"][1][1]), "bad", "failure kind")
 
 
