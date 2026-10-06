@@ -611,11 +611,11 @@ func update(dt: float, inp: Dictionary) -> void:
 			for ex in out["extinctions"]:
 				ctx.bump_extinction()  # TS:317 — ctx-direct (the tribe/civ precedent)
 				if p["colony"] != null:
-					_fire("hud_toast", ["%s went extinct on %s" % [String(ex["name"]), String(p["name"])],
+					_fire("hud_toast", [tr("%s went extinct on %s") % [String(ex["name"]), String(p["name"])],
 						"chaos", "💀"])  # TS:318
 			for newsp in out["speciations"]:
 				if bool(p["scanned"]):
-					_fire("hud_toast", ["%s evolves on %s" % [String(newsp["name"]), String(p["name"])],
+					_fire("hud_toast", [tr("%s evolves on %s") % [String(newsp["name"]), String(p["name"])],
 						"chaos", "🧬"])  # TS:321
 			if p["colony"] != null:
 				p["colony"]["generations"] = float(p["colony"]["generations"]) + dt * timeScale / 30.0  # TS:323
@@ -735,7 +735,7 @@ func update(dt: float, inp: Dictionary) -> void:
 					"jettison":
 						var dropped: Variant = cargo.pop_back()  # TS:425 — JS .pop() = Godot pop_back
 						if dropped != null:
-							_fire("hud_toast", ["%s released back to the void" % String(dropped["name"]),
+							_fire("hud_toast", [tr("%s released back to the void") % String(dropped["name"]),
 								"info", "🗑"])  # TS:426
 						persist_colonies()  # TS:427
 				break  # TS:429 — the first inside rect dispatches and stops the loop
@@ -840,6 +840,8 @@ func update(dt: float, inp: Dictionary) -> void:
 	if thriving >= 3 and finale == null and not endingDone:
 		# spawn in clear space between sun and outermost orbit (TS:555)
 		finale = {"x": 0.0, "y": -1900.0, "active": true, "t": 0.0}
+		# title/sub stay raw EN keys — the hud's draw-time tr_key resolves
+		# them (vi.csv ships both since the QC r6 sweep)
 		_fire("hud_banner", [{"title": "THE CHAOS CORE AWAKENS",
 			"subtitle": "something pulses beyond the outer light", "kind": "chaos", "ttl": 6}])  # TS:557
 		_fire("audio_play", ["ascend", 1.0, 0.0])  # TS audio.play('ascend', 1) — audio core: its own task
@@ -851,9 +853,12 @@ func update(dt: float, inp: Dictionary) -> void:
 		# (the old one nagged forever over the sandbox) (TS:563-568). The TS
 		# writes hud.showObjective every frame while the finale lives — the
 		# hook fire is the sim-side analog.
+		# QC r6: the template goes through tr FIRST — the draw-time tr_key
+		# (hud.gd) cannot see through a composed string. "up"/"down" ride
+		# their own keys; EN output is byte-identical.
 		_fire("hud_show_objective", [tr("the core sleeps — the sandbox is yours") if endingDone
-			else "THE CHAOS CORE PULLS — fly %dpx %s to the storm" % [roundi(fd),
-			"up" if float(finale["y"]) < sy else "down"]])
+			else tr("THE CHAOS CORE PULLS — fly %dpx %s to the storm") % [roundi(fd),
+			tr("up") if float(finale["y"]) < sy else tr("down")]])
 		if fd < 60.0 and not endingDone:
 			endingDone = true
 			_fire("audio_play", ["ascend", 1.0, 0.0])  # TS:571
@@ -1059,8 +1064,8 @@ func seed_nearest() -> void:
 	ctx.discover(sp["genome"], String(sp["name"]), "space", true)  # TS:728
 	if p["colony"] == null:
 		p["colony"] = {"pop": 0.0, "generations": 0.0}  # TS:729 — the ?? keeps an existing one
-	_fire("hud_banner", [{"title": "%s SEEDED" % String(p["name"]),
-		"subtitle": "%s takes its first breath" % String(item["name"]), "kind": "reward"}])  # TS:730
+	_fire("hud_banner", [{"title": tr("%s SEEDED") % String(p["name"]),
+		"subtitle": tr("%s takes its first breath") % String(item["name"]), "kind": "reward"}])  # TS:730
 	_fire("audio_play", ["levelup", 1.0, 0.0])  # TS audio.play('levelup', 1) — audio core: its own task
 	persist_colonies()  # TS:732
 
@@ -1205,8 +1210,11 @@ func spawn_black_hole() -> void:
 ## TS demandTribute (:851-859).
 func demand_tribute(amount: float) -> void:
 	tributeDemand = amount
+	# QC r6: the subtitle composes through the split keys the TS VI object
+	# ships ('pay' / 'or face the raid'); TS:855 renders the literal raw —
+	# native VI completion. EN output is byte-identical.
 	_fire("hud_banner", [{"title": "THE VOID EMPIRE DEMANDS TRIBUTE",
-		"subtitle": "pay %s DNA (press V) or face the raid" % str(amount),
+		"subtitle": "%s %s DNA (press V) %s" % [tr("pay"), str(amount), tr("or face the raid")],
 		"kind": "danger", "ttl": 8}])  # TS:853-857
 	_fire("audio_play", ["alarm", 1.0, 0.0])  # TS audio.play('alarm', 1) — audio core: its own task
 
@@ -1269,11 +1277,15 @@ func scan_planet(p: Dictionary) -> void:
 		for sp in p["eco"].living():
 			ctx.discover(sp["genome"], String(sp["name"]), "space", bool(sp.get("kin", false)))  # TS:1263-1264
 		ctx.add_dna(15.0)  # survey pay so pacifist runs fund repairs (TS:1266)
-		_fire("hud_toast", ["%s +15" % tr("Scan complete: %d species on %s"
-			% [p["eco"].living().size(), String(p["name"])]), "good", "📡"])  # TS:1267
+		# QC r6: both scan toasts compose through the split keys the TS VI
+		# object ships ('Scan complete:' / 'species on' / 'is lifeless —
+		# bring life!'); composed raw they were orphan-key misses. EN output
+		# is byte-identical.
+		_fire("hud_toast", ["%s %d %s %s +15" % [tr("Scan complete:"), p["eco"].living().size(),
+			tr("species on"), String(p["name"])], "good", "📡"])  # TS:1267
 	else:
-		_fire("hud_toast", ["Scan complete: %s is lifeless — bring life!" % String(p["name"]),
-			"info", "📡"])  # TS:1269
+		_fire("hud_toast", ["%s %s %s" % [tr("Scan complete:"), String(p["name"]),
+			tr("is lifeless — bring life!")], "info", "📡"])  # TS:1269
 	_fire("audio_play", ["dna", 0.7, 0.0])  # TS audio.play('dna', 0.7) — audio core: its own task
 
 

@@ -565,7 +565,10 @@ func resolve_armada(a: Dictionary) -> void:
 	if float(c["influence"]) >= 100.0 and String(c["owner"]) != "you":
 		c["owner"] = "you"
 		c["hp"] = maxf(float(c["hp"]), 40.0)  # TS:386
-		_fire("hud_banner", [{"title": "%s JOINS YOUR PLANETARY STATE" % String(c["name"]).to_upper(),
+		# QC r6: the template goes through tr FIRST — the banner payload is
+		# drawn with a plain tr_key of the composed string, which could never
+		# resolve a key. EN output is byte-identical (tr passthrough).
+		_fire("hud_banner", [{"title": tr("%s JOINS YOUR PLANETARY STATE") % String(c["name"]).to_upper(),
 			"kind": "reward"}])  # TS:387
 		_fire("audio_play", ["levelup", 1.0, 0.0])  # TS audio.play('levelup', 1) — audio core: its own task
 
@@ -637,7 +640,7 @@ func tick_second() -> void:
 		if String(c["owner"]) != "you" and float(c["influence"]) >= 100.0:
 			c["owner"] = "you"  # TS:444
 			_fire("audio_play", ["levelup", 1.0, 0.0])  # TS audio.play('levelup', 1) — audio core: its own task
-			_fire("hud_banner", [{"title": "%s JOINS YOUR PLANETARY STATE" % String(c["name"]).to_upper(),
+			_fire("hud_banner", [{"title": tr("%s JOINS YOUR PLANETARY STATE") % String(c["name"]).to_upper(),
 				"kind": "reward"}])  # TS:446
 		# threshold sits above the unrest-heal step (+0.12 runs earlier in
 		# the tick: -100 heals to -99.88) — a city at -100 must revolt (TS:448-450)
@@ -652,7 +655,7 @@ func tick_second() -> void:
 				former = rivals[0]  # TS ?? this.rivals[0]
 			if former != null:
 				c["owner"] = String(former["id"])
-				_fire("hud_banner", [{"title": "%s REVOLTS!" % String(c["name"]), "kind": "danger"}])  # TS:453
+				_fire("hud_banner", [{"title": tr("%s REVOLTS!") % String(c["name"]), "kind": "danger"}])  # TS:453
 			c["influence"] = -100.0  # TS:454 — runs regardless of `former`
 
 
@@ -694,7 +697,9 @@ func rival_war() -> void:
 	var rival: Dictionary = rng.pick(rivals)  # TS:486
 	var cap: Dictionary = cities[0]
 	cap["hp"] = maxf(15.0, float(cap["hp"]) - 25.0)  # TS:488
-	_fire("hud_banner", [{"title": "%s DECLARES WAR" % String(rival["name"]).to_upper(),
+	# QC r6: the title template goes through tr FIRST; the subtitle stays a
+	# raw EN key — the hud's draw-time tr_key resolves it (vi.csv ships it).
+	_fire("hud_banner", [{"title": tr("%s DECLARES WAR") % String(rival["name"]).to_upper(),
 		"subtitle": "your capital is shelled", "kind": "danger"}])  # TS:489
 	_fire("audio_play", ["alarm", 1.0, 0.0])  # TS audio.play('alarm', 1) — audio core: its own task
 	_fire("cam_shake", [6.0, 0.8])  # TS:491

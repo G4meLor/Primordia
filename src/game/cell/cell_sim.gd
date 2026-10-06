@@ -362,7 +362,7 @@ func update(dt: float, inp: Dictionary) -> void:
 			ctx.mark_extinct(ex["genome"])
 			ctx.add_chaos(0.05)
 			_fire("hud_banner", [{
-				"title": "%s is extinct" % ex["name"],
+				"title": tr("%s is extinct") % ex["name"],
 				"subtitle": "the ocean grows quieter…",
 				"kind": "chaos",
 			}])
@@ -1678,8 +1678,11 @@ func spawn_mutant_wave() -> int:
 		var a: float = rng.next() * TAU
 		spawn_ent(null, px + cos(a) * rng.range(400.0, 700.0),
 				py + sin(a) * rng.range(400.0, 700.0), mutant, {"lifespan": 40})
-		_fire("hud_toast", ["A mutant %s crawls out of the noise" % sp["name"],
-				"chaos", "🧪"])
+		# QC r6: compose through the split keys the TS VI object ships
+		# ('A mutant' / 'crawls out of the noise') — composed raw it was an
+		# orphan-key miss. EN output is byte-identical.
+		_fire("hud_toast", ["%s %s %s" % [tr("A mutant"), String(sp["name"]),
+				tr("crawls out of the noise")], "chaos", "🧪"])
 	ctx.add_chaos(0.02)
 	return count
 

@@ -521,6 +521,15 @@ func test_civ_i18n_mapping_1to1() -> void:
 	ok(i.vi_has("THE FIRST CITY") and i.vi_has("drums become laws; laws become empires"),
 			"the tribe victory card keys map")
 	ok(i.vi_has(SPACE_TITLE) and i.vi_has(SPACE_SUB), "the space card keys map")
+	# QC round-6 batch 1: the DECLARES WAR template + its subtitle LEFT too —
+	# the template composes tr-first at the sim (CivStage.ts:489 renders it
+	# raw; native VI completion), the subtitle is a fixed key the hud's
+	# draw-time tr resolves. The JOIN/REVOLT banner templates joined them
+	# (tr-first at the sim); the bare TS suffix fragments below stay raw —
+	# the native keys carry the '%s ' prefix instead.
+	for mapped in ["%s DECLARES WAR", "your capital is shelled",
+			"%s JOINS YOUR PLANETARY STATE", "%s REVOLTS!"]:
+		ok(i.vi_has(String(mapped)), "r6-completed template maps: %s" % mapped)
 	# the RAW composed/unwrapped sites — normative absences, 1:1 with TS
 	# (QC round-2 B3: '👑 yours' LEFT this list — native translates the
 	# ownership tag, TS:598 renders it raw; see the mapped pin below.
@@ -529,10 +538,8 @@ func test_civ_i18n_mapping_1to1() -> void:
 	# value composes after; keys pinned on the mapped side below)
 	for raw in ["+1 %s ← %s",  # TS:210 — composed raw
 			"%s %s %s (power %s)",  # TS:348 — raw template AROUND the t('armada →')
-			"JOINS YOUR PLANETARY STATE",  # TS:387/:446 banner suffix, raw
-			"REVOLTS!",  # TS:453 banner suffix, raw
-			"%s DECLARES WAR",  # TS:489 raw
-			"your capital is shelled"]:  # TS:489 raw
+			"JOINS YOUR PLANETARY STATE",  # TS:387/:446 banner suffix, raw (the r6 key is the '%s '-prefixed template)
+			"REVOLTS!"]:  # TS:453 banner suffix, raw (the r6 key is the '%s '-prefixed template)
 		ok(not i.vi_has(String(raw)), "raw site absent from VI like TS: %s" % raw)
 		eq(i.tr_key(String(raw)), String(raw), "EN fallback parity: %s" % raw)
 	# the five r4-completed templates: mapped natively (TS is EN-only at

@@ -814,7 +814,10 @@ func launch_rival_raid() -> void:
 			"state": "march",
 		})
 	_fire("hud_banner", [{
-		"title": "%s RAIDS!" % String(rival["name"]).to_upper(),
+		# QC r6: the template goes through tr FIRST (the banner payload is
+		# drawn with a plain tr_key of the composed string — EN byte-identical);
+		# the subtitle stays a raw EN key the draw-time tr resolves.
+		"title": tr("%s RAIDS!") % String(rival["name"]).to_upper(),
 		"subtitle": "defend the huts", "kind": "danger",
 	}])
 	_fire("audio_play", ["alarm", 0.9, 0.0])
@@ -1205,7 +1208,8 @@ func update_rival_warriors(dt: float) -> void:
 						["#ffcf8a"], {"speed": 70.0, "ttl": 0.4})
 			if float(r["hp"]) <= 0.0:
 				_fire("hud_banner", [{
-					"title": "%s JOINS YOUR PEOPLE" % String(r["name"]).to_upper(),
+					# QC r6: tr FIRST, name composes after (see launch_rival_raid).
+					"title": tr("%s JOINS YOUR PEOPLE") % String(r["name"]).to_upper(),
 					"subtitle": "unified by drums", "kind": "reward",
 				}])
 				_fire("audio_play", ["levelup", 1.0, 0.0])

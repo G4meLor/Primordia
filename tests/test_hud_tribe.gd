@@ -173,14 +173,18 @@ func test_tribe_i18n_mapping_1to1() -> void:
 			"fall card keys map (TS:396)")
 	ok(i.vi_has("THE FIRST FIRE") and i.vi_has("THE FIRST CITY"),
 			"founding/victory card titles map")
-	# the absences are 1:1: no tribe banner string exists in the TS VI object
-	for raw in ["THE TRIBE HAS FALLEN", "the wilds take you back — stronger",
+	# QC round-6 batch 1: every tribe banner string LEFT the absence list —
+	# the fixed-format titles/subs ship vi.csv keys the hud's draw-time tr
+	# resolves, and the '%s'-templated raid/join titles compose tr-first at
+	# the sim (TribeStage.ts renders them raw; native VI completion, the r4
+	# armada precedent). Full value parity lives in test_i18n.gd's r6 block.
+	for mapped in ["THE TRIBE HAS FALLEN", "the wilds take you back — stronger",
 			"THE GREAT TOTEM", "your people carve the sky", "defend the huts",
 			"A HUT BURNS", "your people scatter", "unified by drums",
 			"THE BEAST DESTROYS A HUT", "THE GREAT BEAST FALLS",
-			"feast for a week (+60 food)", "LIGHTNING SPLITS A HUT"]:
-		ok(not i.vi_has(raw), "banner key absent from VI like TS: %s" % raw)
-		eq(i.tr_key(raw), raw, "EN fallback parity: %s" % raw)
+			"feast for a week (+60 food)", "LIGHTNING SPLITS A HUT",
+			"%s RAIDS!", "%s JOINS YOUR PEOPLE"]:
+		ok(i.vi_has(mapped), "r6-completed banner key maps: %s" % mapped)
 	i.set_lang("en")
 	TranslationServer.set_locale("en")
 	_wipe_cfg()

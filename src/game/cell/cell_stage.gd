@@ -380,7 +380,7 @@ func _draw_ui(ci: CanvasItem) -> void:
 	# death overlay
 	if sim.deathFade > 0.0:
 		ci.draw_rect(Rect2(0, 0, vw, vh), Color(60.0 / 255.0, 0.0, 10.0 / 255.0, minf(0.55, sim.deathFade * 0.4)))
-		RendererScript.outlined_text(ci, "REBIRTH IS PAINFUL", vw / 2.0, vh / 2.0 - 10.0,
+		RendererScript.outlined_text(ci, tr("REBIRTH IS PAINFUL"), vw / 2.0, vh / 2.0 - 10.0,
 				{"size": 30.0, "fill": Color("#ff9a8a")})
 
 	# tutorial overlay — the Task 8 engine (TS renders it here, above the

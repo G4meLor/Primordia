@@ -500,10 +500,15 @@ func test_space_i18n_mapping_1to1() -> void:
 	# object (:201) although its draw site (:1062) emits it raw.
 	for member in ["THE VOID EMPIRE DEMANDS TRIBUTE", "CARGO"]:
 		ok(i.vi_has(String(member)), "raw-emit VI member maps (draw-time tr): %s" % member)
+	# QC r6 sweep: the AWAKENS banner title+sub LEFT the raw list — fixed
+	# keys the hud's draw-time tr resolves (TS:557 renders raw; native VI
+	# completion, the r4 armada precedent). The composed strings below stay
+	# raw: the native keys are '%s'/'%d' TEMPLATES, so the composed payloads
+	# never match a key.
+	for mapped in ["THE CHAOS CORE AWAKENS", "something pulses beyond the outer light"]:
+		ok(i.vi_has(String(mapped)), "r6-completed banner key maps: %s" % mapped)
 	# the RAW composed/unwrapped sites — normative absences, 1:1 with TS
-	for raw in ["THE CHAOS CORE AWAKENS",  # TS:557 — banner, raw
-			"something pulses beyond the outer light",  # TS:557 raw
-			"THE CHAOS CORE PULLS — fly 1000px up to the storm",  # TS:568 composed
+	for raw in ["THE CHAOS CORE PULLS — fly 1000px up to the storm",  # TS:568 composed (the r6 key is the %dpx/%s template)
 			"pay 30 DNA (press V) or face the raid",  # TS:855 composed (the 'pay'/'or face the raid' fragments ride VI; the composed subtitle never resolves)
 			"Glip went extinct on Lush-1",  # TS:318 composed
 			"Rl evolves on Ocean-2",  # TS:321 composed

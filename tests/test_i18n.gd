@@ -525,11 +525,66 @@ func test_r6_i18n_wave_vi_then_en() -> void:
 	var i: Variant = _i18n()
 	i.set_lang("vi")
 	var keys := {
+		# batch1.3 — the extinction toast (context.gd, tr-first)
 		"%s has gone EXTINCT": "%s đã tuyệt chủng",
+		# batch1.4 — the AWAKENS/PULLS climax pair (space_sim.gd)
+		"THE CHAOS CORE AWAKENS": "CHAOS CORE THỨC TỈNH",
+		"something pulses beyond the outer light":
+				"có gì đó đang đập ngoài vành ánh sáng cuối trời",
+		"THE CHAOS CORE PULLS — fly %dpx %s to the storm":
+				"CHAOS CORE ĐANG HÚT — bay %dpx %s về phía cơn bão",
+		"up": "lên trên",
+		"down": "xuống dưới",
+		# space toasts/banners (tr-first templates)
+		"%s went extinct on %s": "%s đã tuyệt chủng trên %s",
+		"%s evolves on %s": "%s tiến hóa trên %s",
+		"%s released back to the void": "%s được trả về khoảng không",
+		"%s SEEDED": "%s được gieo mầm",
+		"%s takes its first breath": "%s hít hơi thở đầu tiên",
+		# civ banners (tr-first templates + the shelled subtitle)
+		"%s JOINS YOUR PLANETARY STATE": "%s GIA NHẬN NHÀ NƯỚC HÀNH TINH CỦA BẠN",
+		"%s REVOLTS!": "%s NỔI DẬY!",
+		"%s DECLARES WAR": "%s TUYÊN BỐ CHIẾN",
+		"your capital is shelled": "thủ đô của bạn bị pháo kích",
+		# tribe banners (tr-first templates + fixed-format keys)
+		"%s RAIDS!": "%s TẤN CÔNG!",
+		"defend the huts": "phòng thủ các lều",
+		"%s JOINS YOUR PEOPLE": "%s GIA NHẬN DÂN CỦA BẠN",
+		"unified by drums": "thống nhất bằng tiếng trống",
+		"THE TRIBE HAS FALLEN": "BỘ TỘC ĐÃ TAN RÃ",
+		"the wilds take you back — stronger": "bỏ tự nhiên đón bạn trở lại — mạnh hơn",
+		"THE GREAT TOTEM": "GREAT TOTEM",
+		"your people carve the sky": "dân của bạn khắc lên bầu trời",
+		"A HUT BURNS": "MỘT NGÔI NHÀ BỐNG CHÁY",
+		"your people scatter": "dân của bạn tán loạn",
+		"THE BEAST DESTROYS A HUT": "CON THÚ PHÁ MỘT NGÔI NHÀ",
+		"THE GREAT BEAST FALLS": "CON THÚ KHỔNG LỒ ĐỔ NGÃ",
+		"feast for a week (+60 food)": "tiệc cả tuần (+60 thức ăn)",
+		"LIGHTNING SPLITS A HUT": "SÉT CHẺ ĐÔI MỘT NGÔI NHÀ",
+		# creature banners/toasts (tr-first templates + fixed keys)
+		"THE PACK WILL CALL YOU %s": "ĐÀN SẼ GỌI BẠN LÀ %s",
+		"drag yourself forward — the ocean is done with you":
+				"bò tiến về phía trước — đại dương không còn chờ bạn nữa",
+		"%s is extinct": "%s đã tuyệt chủng",
+		"the island falls silent…": "hòn đảo chìm vào im lặng…",
+		"The pack scattered (%d fled)": "Đàn tán loạn (%d con bỏ chạy)",
+		"Mutation storm! %s +1 (free)": "Bão đột biến! %s +1 (miễn phí)",
+		# cell banner sub (fixed key)
+		"the ocean grows quieter…": "đại dương trầm lặng hơn…",
 	}
 	for k in keys:
 		ok(i.vi_has(k), "vi.csv ships the key: %s" % k)
 		eq(i.tr_key(k), keys[k], "VI translation live: %s" % k)
+	# the split-fragment keys the TS VI object already shipped (the mutant
+	# and scan toasts compose through them now — orphan-key misses before)
+	eq(i.tr_key("A mutant"), "Một dị thể", "split fragment: A mutant")
+	eq(i.tr_key("crawls out of the noise"), "bò ra từ tạp âm", "split fragment: crawls out")
+	eq(i.tr_key("Scan complete:"), "Quét xong:", "split fragment: Scan complete:")
+	eq(i.tr_key("species on"), "loài ở", "split fragment: species on")
+	eq(i.tr_key("is lifeless — bring life!"), "không có sự sống — hãy mang sự sống đến!",
+			"split fragment: is lifeless")
+	eq(i.tr_key("pay"), "trả", "split fragment: pay")
+	eq(i.tr_key("or face the raid"), "hoặc đón cơn cướp", "split fragment: or face the raid")
 	# EN passthrough: every touched key comes back byte-identical
 	i.set_lang("en")
 	for k in keys:

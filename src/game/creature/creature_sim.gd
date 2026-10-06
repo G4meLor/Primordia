@@ -327,7 +327,10 @@ func on_enter() -> void:
 		var autoName: String = NamesScript.self_name(ctx.genome)
 		ctx.player_name = autoName
 		_fire("hud_banner", [{
-			"title": "THE PACK WILL CALL YOU %s" % autoName.to_upper(),
+			# QC r6: the template goes through tr FIRST (the banner payload is
+			# drawn with a plain tr_key of the composed string — EN identical);
+			# the subtitle stays a raw EN key the draw-time tr resolves.
+			"title": tr("THE PACK WILL CALL YOU %s") % autoName.to_upper(),
 			"subtitle": "drag yourself forward — the ocean is done with you",
 			"kind": "stage", "ttl": 5,
 		}])
@@ -601,7 +604,7 @@ func update(dt: float, inp: Dictionary) -> void:
 					keptNests.append(n)
 			nests = keptNests
 			_fire("hud_banner", [{
-				"title": "%s is extinct" % ex["name"],
+				"title": tr("%s is extinct") % ex["name"],
 				"subtitle": "the island falls silent…",
 				"kind": "chaos",
 			}])
@@ -672,7 +675,9 @@ func handle_death(dt: float) -> void:
 				e["pack"] = false
 				e["mood"] = "afraid"
 		if scattered > 0:
-			_fire("hud_toast", ["The pack scattered (%d fled)" % scattered, "bad", "🐾"])
+			# QC r6: the template goes through tr FIRST (drawn verbatim on the
+			# toast path); EN output is byte-identical.
+			_fire("hud_toast", [tr("The pack scattered (%d fled)") % scattered, "bad", "🐾"])
 	if deathFade > 1.8:
 		deathFade = 0.0
 		deathStarted = false
@@ -1545,7 +1550,7 @@ func mutation_storm_zap() -> void:
 	if cur < hi:
 		ctx.genome[gene] = cur + 1
 		pStats = StatsScript.compute_creature_stats(ctx.genome)
-		_fire("hud_toast", ["Mutation storm! %s +1 (free)" % gene, "chaos", "🧪"])
+		_fire("hud_toast", [tr("Mutation storm! %s +1 (free)") % gene, "chaos", "🧪"])
 		_fx_burst(px, pz * Z_TO_Y - 20.0, 22, ["#e2a4ff", "#9fd8ff"],
 				{"speed": 150.0, "ttl": 1.0})
 
