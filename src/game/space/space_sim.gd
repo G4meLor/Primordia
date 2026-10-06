@@ -819,9 +819,13 @@ func update(dt: float, inp: Dictionary) -> void:
 		if beamT <= 0.0 and beamTarget != null:
 			finish_abduct(beamTarget)
 
-	# gene lab key (G) (TS:509-512)
-	if pressed.has("KeyG") and cargo.size() >= 2:
-		merge_cargo()
+	# gene lab key (G) (TS:509-512) — the TS guard is silent below 2 cargo;
+	# native adds a one-line toast (QC r8 batch2.5) so the dead key says why
+	if pressed.has("KeyG"):
+		if cargo.size() >= 2:
+			merge_cargo()
+		else:
+			_fire("hud_toast", [tr("Need 2 specimens to splice"), "info", "🧪"])
 
 	# pay the Void Empire's tribute (V) (TS:514-517)
 	if pressed.has("KeyV") and tributeDemand > 0.0:
