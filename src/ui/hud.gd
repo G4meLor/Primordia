@@ -585,6 +585,13 @@ func _draw_arc(ci: CanvasItem, stage_id: String) -> void:
 		RendererScript.outlined_text(ci, _game.i18n.tr_key(hint), x0 - 4.0, y + 31.0,
 				{"size": 10.0, "align": "left",
 						"fill": RendererScript.css_color("rgba(160,200,255,0.75)")})
+	# R7 — the creature's display name rides next to the arc (small, dim). A
+	# player string, not a key — drawn verbatim at draw time like the arc's
+	# own labels (the discover() precedent: names interpolate outside tr).
+	RendererScript.outlined_text(ci, _game.context.get_display_name(),
+			x0 + (states.size() - 1) * dx + 32.0, y,
+			{"size": 11.0, "align": "left",
+					"fill": RendererScript.css_color("rgba(191,230,255,0.8)")})
 
 
 func _button(ci: CanvasItem, r: Dictionary, glyph: String) -> void:

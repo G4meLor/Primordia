@@ -438,7 +438,10 @@ func handle_death(dt: float) -> void:
 		# A listener now observes the post-penalty dna — accepted (defensive).
 		var lost := floori(float(ctx.dna) * 0.12 + 0.5)  # JS Math.round
 		ctx.add_dna(-lost)
-		_fire("hud_toast", ["%s %d DNA" % [tr("You died — lost"), lost], "bad", "💀"])
+		# R7: the toast names the creature (the display name is data — it
+		# interpolates outside tr; the "," is typography, the R2 chip precedent)
+		_fire("hud_toast", ["%s, %s %d DNA" % [ctx.get_display_name(), tr("You died — lost"), lost],
+				"bad", "💀"])
 		ctx.add_chaos(0.03)
 		_fire("context_event", ["playerDeath", "cell"])  # storyteller signal
 		_fire("audio_play", ["die", 0.8, 0.0])

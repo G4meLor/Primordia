@@ -319,8 +319,22 @@ func slot_meta(slot: int) -> Variant:
 		"playtime": float(d.get("playtime", 0.0)),
 		"dna": int(d.get("dna", 0)),
 		"playerName": String(d.get("playerName", "Squish")),
+		"creatureName": String(d.get("creatureName", "")),
 		"savedAt": float(FileAccess.get_modified_time(path)),
 	}
+
+
+## R7 — the save-slot line's name: the creature's chosen display name when
+## set, else the playerName the run auto-derived. The meta is the raw slot
+## JSON read (no live context here to ask get_display_name), so the fallback
+## rides the stored playerName. Pure + static for the headless suite.
+static func slot_display_name(meta: Dictionary) -> String:
+	var pname := String(meta.get("creatureName", ""))
+	if pname.is_empty():
+		pname = String(meta.get("playerName", "Squish"))
+	if pname.length() > 14:
+		pname = pname.substr(0, 13) + "…"
+	return pname
 
 
 ## TS deleteSlot: remove the save; a missing file is ignored.
@@ -471,9 +485,7 @@ func _build_new(vw: float, vh: float, ci: CanvasItem) -> void:
 				"align": "left"})
 		if meta != null:
 			var stage_name: String = String(meta["stage"]).to_upper() if String(meta["stage"]) != "" else "CELL"
-			var pname: String = meta["playerName"]
-			if pname.length() > 14:
-				pname = pname.substr(0, 13) + "…"
+			var pname: String = slot_display_name(meta)
 			var line: String = "%s · %d %s · %d DNA · %s" % [
 				stage_name, roundi(float(meta["playtime"]) / 60.0),
 				game.i18n.tr_key("min"), int(meta["dna"]), pname]

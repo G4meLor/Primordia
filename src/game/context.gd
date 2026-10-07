@@ -23,6 +23,7 @@ const EcoScript := preload("res://src/evo/ecosystem.gd")
 const WorldGenomeScript := preload("res://src/evo/world_genome.gd")
 const PartsScript := preload("res://src/evo/parts.gd")
 const TraitsScript := preload("res://src/evo/world_traits.gd")
+const NamesScript := preload("res://src/evo/names.gd")
 
 ## StageId — plain strings validated by membership (TS string-literal union).
 const STAGES := ["menu", "cell", "creature", "tribe", "civ", "space"]
@@ -50,6 +51,10 @@ var slot := 0             # active save slot
 var playtime := 0.0
 var total_dna_earned := 0
 var player_name: String = "Squish"
+## R7 the creature's chosen display name — "" = not set (every display site
+## falls back to the self_name(genome) suggestion). Written ONLY through
+## set_display_name (the central charset filter + cap).
+var creature_name: String = ""
 var stage: String = "menu"
 
 ## TS Map<string, BestiaryEntry> — Dictionary keyed by genome_hash_lite;
@@ -102,6 +107,23 @@ func bump_extinction() -> void:
 func refresh_stats(land: bool) -> Dictionary:
 	stats = StatsScript.compute_stats(genome, land)
 	return stats
+
+
+## R7 — the creature's display name: the saved pick when set, else the
+## self_name(genome) suggestion. Every display site (editor header, HUD arc,
+## bestiary self entry, the death toasts) reads through here.
+func get_display_name() -> String:
+	return creature_name if not creature_name.is_empty() \
+			else NamesScript.self_name(genome)
+
+
+## The ONE write path for the display name: charset-filter (A-Z a-z 0-9 space
+## apostrophe dash), strip edge whitespace, clamp at 14 (truncate-not-reject);
+## empty/whitespace-only input stores "" (= not set — display falls back to
+## the suggestion). Returns the stored value.
+func set_display_name(raw: String) -> String:
+	creature_name = NamesScript.sanitize_name(raw)
+	return creature_name
 
 
 func add_dna(amount: float, reason: Variant = null, x: Variant = null, y: Variant = null) -> void:
@@ -206,6 +228,7 @@ func to_save_data() -> Dictionary:
 		"playtime": playtime,
 		"totalDnaEarned": total_dna_earned,
 		"playerName": player_name,
+		"creatureName": creature_name,
 		"bestiary": bestiary.values(),
 		"eco": eco.to_json() if eco != null else null,
 		"flags": flags,
@@ -335,6 +358,12 @@ func load(slot_v: int) -> bool:
 	total_dna_earned = int(tde_v) if (tde_v is float or tde_v is int) and is_finite(tde_v) else 0
 	var pn_v: Variant = data.get("playerName")
 	player_name = pn_v if pn_v is String and not (pn_v as String).is_empty() else "Squish"
+	# R7: type-checked (corrupt non-strings read as not-set), then re-run
+	# through the sanitizer — a hand-edited out-of-charset string degrades to
+	# "" and the display falls back to the suggestion; a saved pick is
+	# sanitize-idempotent, so the round-trip is lossless
+	var cn_v: Variant = data.get("creatureName")
+	creature_name = NamesScript.sanitize_name(cn_v) if cn_v is String else ""
 	bestiary = {}
 	for e in best_list:
 		bestiary[e["key"]] = e

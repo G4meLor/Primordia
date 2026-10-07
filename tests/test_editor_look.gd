@@ -210,18 +210,19 @@ func test_hue_sat_sliders_still_work_on_look() -> void:
 	eq(int(_g.context.dna), 500, "sliders stay free")
 
 
-# ---- the inert name placeholder ------------------------------------------------
+# ---- the name row (R7: the picker entry point — the placeholder is gone) -------
 
-func test_name_row_is_inert() -> void:
+func test_name_row_opens_picker_and_stays_free() -> void:
 	var ed: Variant = _editor(500)
 	ed.show("creature")
 	ed.switch_tab("look")
 	var hooks_before: int = _stats_hooks
 	ed.click_row({"kind": "name"}, 10.0, RECT)
+	eq(bool(ed.picker_open), true, "the name row opens the R7 picker")
 	eq(String(_g.context.genome["diet"]), "omnivore", "genome untouched")
 	eq(int(_g.context.dna), 500, "dna untouched")
-	eq(_stats_hooks, hooks_before, "no stats refresh for an inert row")
-	eq(bool(ed.dirty_since_save), false, "an inert row never dirties the save")
+	eq(_stats_hooks, hooks_before, "no stats refresh for the picker entry")
+	eq(bool(ed.dirty_since_save), false, "opening never dirties the save")
 	eq(_g.toasts.size(), 0, "no toast")
 
 

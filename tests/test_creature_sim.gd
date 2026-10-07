@@ -838,6 +838,7 @@ func test_death_and_respawn() -> void:
 	var wild_e: Dictionary = sim.spawn_ent(null, float(sim.px) + 50.0, float(sim.pz))
 	# an ent that will sit within 600 of the respawn point (-1600, 20)
 	var close_e: Dictionary = sim.spawn_ent(null, -1500.0, 20.0)
+	ctx.set_display_name("Mosi")  # R7: the death toast names the creature
 	sim.php = 0.0
 	sim.update(DT, _inp({}))
 	# first frame: the ceremony
@@ -852,9 +853,9 @@ func test_death_and_respawn() -> void:
 	eq(int(ctx.dna), 40 - 5, "DNA -12% (round(40*0.12) = 5)")
 	var lostToast := false
 	for t in m["rec"]["toasts"]:
-		if String(t[0]) == "You died — lost 5 DNA":
+		if String(t[0]) == "Mosi, You died — lost 5 DNA":
 			lostToast = true
-	ok(lostToast, "death toast")
+	ok(lostToast, "death toast carries the display name + the exact loss")
 	eq(bool(pack_e["pack"]), false, "pack scatters")
 	eq(String(pack_e["mood"]), "afraid", "scattered ent afraid")
 	var scatterToast := false

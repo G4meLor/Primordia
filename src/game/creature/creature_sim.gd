@@ -662,7 +662,10 @@ func handle_death(dt: float) -> void:
 		ctx.add_chaos(0.03)
 		var lost := floori(float(ctx.dna) * 0.12 + 0.5)  # JS Math.round
 		ctx.add_dna(-lost)
-		_fire("hud_toast", ["%s %d DNA" % [tr("You died — lost"), lost], "bad", "💀"])
+		# R7: the toast names the creature (the display name is data — it
+		# interpolates outside tr; the "," is typography, the R2 chip precedent)
+		_fire("hud_toast", ["%s, %s %d DNA" % [ctx.get_display_name(), tr("You died — lost"), lost],
+				"bad", "💀"])
 		charmActive = false
 		charmTarget = null
 		# pack scatters (tell the player — silent losses read as bugs)
