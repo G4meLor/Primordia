@@ -67,6 +67,7 @@ extends "res://src/game/stage.gd"
 
 const TribeSimScript := preload("res://src/game/tribe/tribe_sim.gd")
 const ParticlesScript := preload("res://src/gfx/particles.gd")
+const TutorialScript := preload("res://src/ui/tutorial.gd")
 
 const RendererScript := preload("res://src/gfx/renderer.gd")
 const BackdropScript := preload("res://src/gfx/backdrop.gd")
@@ -101,6 +102,16 @@ func _frame_size_sane() -> bool:
 var sim: Variant = null            # TribeSim (RefCounted sim core)
 var fx: Variant = null             # stage Particles pool (TS `new Fx(1000)`)
 var frozen := false                # test seam: render without stepping the sim
+## R1 micro-tutorial (Task 4; the cell-stage T8 pattern) — built once in
+## on_enter from _build_tutorial_steps(); the engine is src/ui/tutorial.gd.
+## Step-entry snapshots (the task-4 ruling): the gather step's done reads the
+## wood snapshot taken at the BUILD (step 0's entry IS the build moment); the
+## hut step snapshots AT ITS OWN ENTRY (the update-side advance check) — the
+## founding village always starts at one hut, so the step reacts to the DELTA
+## the player builds while IT is active, never to the absolute count.
+var tutorial: Variant = null
+var tut_wood_snap := -1.0
+var tut_hut_snap := -1
 ## The overlay instances — installed into the game stub dicts at tree entry
 ## and re-installed on enter (the creature stage's pattern).
 var hud_inst: Variant = null
@@ -507,6 +518,11 @@ func _draw_ui(ci: CanvasItem) -> void:
 		RendererScript.outlined_text(ci, "THE CHIEF HAS FALLEN", vw / 2.0, vh / 2.0,
 				{"size": 26.0, "fill": Color("#ff9a8a")})
 
+	# tutorial overlay — the Task 8 engine (the cell-stage draw slot: above
+	# the death card, screen space); inactive engines draw nothing
+	if tutorial != null:
+		tutorial.draw(ci, vw, vh)
+
 
 ## TS renderHud (TribeStage.ts:1400-1423) — the stockpile panel + the hut and
 ## totem build buttons. The RECTS are re-registered every render by
@@ -815,6 +831,18 @@ func update(dt: float) -> void:
 		if _inside(game.input.mx, game.input.my, b["r"]):
 			game.hover_cursor()
 
+	# tutorial (the cell-stage slot: the engine polls before the sim steps).
+	# Step-entry snapshots: the hut step's done reads the count delta from ITS
+	# OWN entry (the task-4 ruling) — the snapshot lands on the advance into
+	# step 1, before this frame's sim tick, so a hut built while an earlier
+	# step was active never auto-advances the hut step.
+	if tutorial != null:
+		var prev_step: int = tutorial.step_index
+		tutorial.update(dt)
+		if tutorial.active and int(tutorial.step_index) != prev_step \
+				and int(tutorial.step_index) == 1:
+			tut_hut_snap = sim.huts.size()
+
 	var inp: Dictionary = _build_input_snapshot()
 	sim.update(dt, inp)
 	# a hud-panel click the sim consumed sets the snapshot's take_click flag —
@@ -874,6 +902,13 @@ func on_enter(from: Variant = null) -> void:
 	if c2d != null:
 		c2d.enabled = true
 	sim.on_enter()
+	# the first-run tutorial (per save slot; the cell-stage build-once rule).
+	# The WOOD snapshot rides the build — step 0's entry IS the build moment;
+	# the HUT snapshot waits for its own step entry (the update-side advance
+	# check — the task-4 ruling).
+	if tutorial == null:
+		tut_wood_snap = sim.wood
+		tutorial = TutorialScript.new(game, "tutTribe", _build_tutorial_steps())
 
 
 func on_exit() -> void:
@@ -883,6 +918,26 @@ func on_exit() -> void:
 	var c2d: Variant = game.cam.cam2d
 	if c2d != null:
 		c2d.enabled = false
+	# the cell-stage finish rule (CellStage.ts:264-267): the tutorial finishes
+	# on every exit EXCEPT a quit-to-title — the flag persists only on forward
+	# evolution
+	if game.transition_target != "menu" and tutorial != null:
+		tutorial.finish()
+
+
+## Task 4 R1 — the tribe tutorial table (3 steps). Step texts stay raw EN keys
+## (translated at render by the engine, the cell precedent); done lambdas poll
+## the sim directly — pure reads, the wood/hut deltas read the on_enter
+## snapshots.
+func _build_tutorial_steps() -> Array:
+	return [
+		{"id": "gather", "text": "Walk to a tree — a tribesman gathers it",
+			"done": func() -> bool: return sim.wood >= tut_wood_snap + 1.0},
+		{"id": "hut", "text": "Press R — build a hut",
+			"done": func() -> bool: return sim.huts.size() >= tut_hut_snap + 1},
+		{"id": "totem", "text": "Hold T — raise the Great Totem",
+			"done": func() -> bool: return float(sim.totem["progress"]) > 0.0},
+	]
 
 
 ## TS TribeStage.onExit → persistState (TribeStage.ts:193) — the autosave

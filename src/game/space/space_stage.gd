@@ -89,6 +89,7 @@ const CreaturePainter := preload("res://src/gfx/creature_painter.gd")
 const CellPainterScript := preload("res://src/gfx/cell_painter.gd")
 const HudScript := preload("res://src/ui/hud.gd")
 const PauseScript := preload("res://src/ui/pause.gd")
+const TutorialScript := preload("res://src/ui/tutorial.gd")
 
 ## TS:892 — drawSpaceBackdrop's seed argument on the space call (civ used 42).
 const BACKDROP_SEED := 7.0
@@ -100,6 +101,9 @@ const BLACK_HOLE_MID_R := 2.0 + 0.4 * (90.0 - 2.0)
 var sim: Variant = null           # SpaceSim (RefCounted sim core)
 var fx: Variant = null            # stage Particles pool (TS `new Fx(1300)`)
 var frozen := false               # test seam: render without stepping the sim
+## R1 micro-tutorial (Task 4; the cell-stage T8 pattern) — built once in
+## on_enter from _build_tutorial_steps(); the engine is src/ui/tutorial.gd.
+var tutorial: Variant = null
 ## The overlay instances — installed into the game stub dicts at tree entry
 ## and re-installed on enter (the creature/tribe/civ stage pattern).
 var hud_inst: Variant = null
@@ -721,6 +725,12 @@ func _draw_ui_layer(ci: CanvasItem) -> void:
 	RendererScript.outlined_text(ci, "CARGO", cx0 - 10.0 + 40.0, cy - 16.0,
 			{"size": 9.0, "fill": RendererScript.css_color("rgba(180,210,255,0.6)")})
 
+	# tutorial overlay — the Task 8 engine (the cell-stage draw slot: above
+	# the cargo bar, below the panel layer's ending veil); inactive engines
+	# draw nothing
+	if tutorial != null:
+		tutorial.draw(ci, vw, vh)
+
 
 ## TS:1076-1097 — the planet panel (when near) → the ending veil →
 ## renderEnding. The panel frame + rows come from the render-side sync
@@ -1003,6 +1013,9 @@ func _sync_beam_item() -> void:
 func update(dt: float) -> void:
 	if sim == null or frozen:
 		return
+	# tutorial (the cell-stage slot: the engine polls before the sim steps)
+	if tutorial != null:
+		tutorial.update(dt)
 	# panel_rects write-back — TS:1192 rides the RENDER side (the rows are
 	# collected by the render-side sync, _sync_panel_view) and lands each frame
 	# BEFORE sim.update — one frame of positional lag, TS-identical. Out of
@@ -1152,6 +1165,9 @@ func on_enter(from: Variant = null) -> void:
 	if c2d != null:
 		c2d.enabled = true  # cam.begin arms here — the rig carries the world layer
 	sim.on_enter()
+	# the first-run tutorial (per save slot; the cell-stage build-once rule)
+	if tutorial == null:
+		tutorial = TutorialScript.new(game, "tutSpace", _build_tutorial_steps())
 
 
 func on_exit() -> void:
@@ -1161,6 +1177,26 @@ func on_exit() -> void:
 	var c2d: Variant = game.cam.cam2d
 	if c2d != null:
 		c2d.enabled = false
+	# the cell-stage finish rule (CellStage.ts:264-267): the tutorial finishes
+	# on every exit EXCEPT a quit-to-title — the flag persists only on forward
+	# evolution
+	if game.transition_target != "menu" and tutorial != null:
+		tutorial.finish()
+
+
+## Task 4 R1 — the space tutorial table (3 steps). Step texts stay raw EN keys
+## (translated at render by the engine, the cell precedent); done lambdas poll
+## the sim directly — pure reads (the abduct ledger, the gene-lab counter,
+## the colony generation counters).
+func _build_tutorial_steps() -> Array:
+	return [
+		{"id": "abduct", "text": "Fly near a planet — press R to abduct a species",
+			"done": func() -> bool: return sim.abduct_total() >= 1.0},
+		{"id": "genelab", "text": "Press G — open the gene lab",
+			"done": func() -> bool: return sim.gene_lab_opens >= 1},
+		{"id": "evolve", "text": "Press F — evolve a seeded world a generation",
+			"done": func() -> bool: return sim.max_colony_generations() >= 1.0},
+	]
 
 
 ## TS SpaceStage.onExit → persistState — the autosave flush seam

@@ -136,6 +136,9 @@ var rulerGenome: Variant = null
 
 # TS:308 — {attack, charm, trade} (declared mid-file in TS)
 var launchCds: Dictionary = {"attack": 0.0, "charm": 0.0, "trade": 0.0}
+## R1 tutorial seam — armadas actually flown (incremented at the launch
+## success site; the gate refusals above never touch it).
+var launches := 0
 
 
 func _init(ctx_v: Variant, rng_branch: Variant, hooks: Dictionary = {}) -> void:
@@ -219,6 +222,18 @@ func _all_owned() -> bool:
 		if String(c["owner"]) != "you":
 			return false
 	return true
+
+
+## R1 tutorial seam — cities owned by 'you' beyond the capital (ownership
+## lives only on the city dicts, so the tutorial's done-callable polls this
+## read-only count; flips, revolts and CONTINUE restores all read through
+## live — no separate counter to persist).
+func conquest_count() -> int:
+	var n := 0
+	for c in cities:
+		if String(c["owner"]) == "you" and String(c["id"]) != "you":
+			n += 1
+	return n
 
 
 # ---- persist / restore (TS:132-173) -------------------------------------------------
@@ -516,6 +531,7 @@ func launch(kind: String) -> void:
 	armadas.append({"x": float(cap["x"]), "y": float(cap["y"]),
 		"tx": float(target["x"]), "ty": float(target["y"]),
 		"target": target, "kind": kind, "t": 0.0, "alive": true, "power": power})  # TS:346
+	launches += 1  # R1 tutorial seam — the armada actually flew
 	_fire("audio_play", ["warp", 0.5, 0.0])  # TS audio.play('warp', 0.5) — audio core: its own task
 	var icon := "⚔️" if kind == "attack" else ("🎭" if kind == "charm" else "💰")
 	_fire("hud_toast", ["%s %s %s (power %s)" % [kind.to_upper(), tr("armada →"), String(target["name"]), str(power)],

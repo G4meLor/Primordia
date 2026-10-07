@@ -213,6 +213,10 @@ var abductCount: Dictionary = {}  # TS:70 — the abduct pay-curve ledger
 var resurveyCd := 0.0            # TS:71
 var blackHoles: Array = []       # TS:46-48/72 — task 2's
 var cargo: Array = []            # TS:73 — {genome, name} rows
+## R1 tutorial seam — successful gene-lab merges (the G key and the planet
+## panel's GENE LAB button both land in merge_cargo; the cargo/DNA gates
+## filter the dead presses).
+var gene_lab_opens := 0
 
 # TS ChaosScheduler<SpaceStage> (:74) — constructed in _init at the TS stream
 # position on a SECOND rng.branch(); the deck is space_events.gd's
@@ -985,6 +989,28 @@ func nearest_planet() -> Variant:
 	return best
 
 
+## R1 tutorial seam — total abductions ever: the pay-curve ledger's numeric
+## value sum (the ledger IS the abduct counter — finish_abduct writes it and
+## persist_colonies saves it, so CONTINUE restores read through live).
+func abduct_total() -> float:
+	var n := 0.0
+	for v in abductCount.values():
+		if v is float or v is int:
+			n += float(v)
+	return n
+
+
+## R1 tutorial seam — the highest evolved generation across seeded worlds
+## (each colony's `generations` counter is the evolve ledger; the F
+## fast-forward tick is its only writer — pure read, no new state).
+func max_colony_generations() -> float:
+	var best := 0.0
+	for p in planets:
+		if p["colony"] != null:
+			best = maxf(best, float(p["colony"]["generations"]))
+	return best
+
+
 ## TS tryAbduct (:644-670).
 func try_abduct() -> void:
 	if beamT > 0.0:
@@ -1092,6 +1118,7 @@ func merge_cargo() -> void:
 	if not ctx.spend_dna(15):
 		_fire("hud_toast", [tr("Gene splice costs 15 DNA"), "bad", "🧪"])  # TS:739
 		return
+	gene_lab_opens += 1  # R1 tutorial seam — the merge went through
 	var a: Dictionary = cargo[0]
 	var b: Dictionary = cargo[1]
 	# M1/M2 run as the post-crossover table (crossover itself is untouched):

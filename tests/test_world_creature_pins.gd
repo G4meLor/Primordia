@@ -546,7 +546,11 @@ func test_civ_save_continue_restores_board() -> void:
 	eq(float(blob["mil"]), 9.0, "blob carries the sliders")
 	eq(String(blob["lastRaised"]), "econ", "blob carries lastRaised")
 	eq(bool(blob["victoryFired"]), false, "blob victoryFired false")
-	# on_exit persists too (TS:130): leaving the stage rewrites the flags blob
+	# on_exit persists too (TS:130): leaving the stage rewrites the flags blob.
+	# Task 4 R1: the ACTIVE first-run tutorial also finishes on a forward exit
+	# (the cell rule, CellStage.ts:264-267) and its finish() flushes the SLOT —
+	# so the slot's civState now carries the exit-time sliders (mil 5), not the
+	# :536 snapshot (mil 9); run 2 pins the exit-time value below.
 	sim1.mil = 5.0
 	g1.switch_stage("creature")
 	eq(float(JSON.parse_string(String(g1.context.flags["civState"]))["mil"]), 5.0,
@@ -572,7 +576,8 @@ func test_civ_save_continue_restores_board() -> void:
 	eq(float(sim2.cities[2]["influence"]), 55.0, "half-won influence restored")
 	eq(float(sim2.cities[3]["influence"]), inf3,
 			"the untouched rival restored as it stood (one drift tick off −60)")
-	eq(float(sim2.mil), 9.0, "sliders restored — CONTINUE mid-civ no longer resets them")
+	eq(float(sim2.mil), 5.0,
+			"sliders restored as they stood at exit — CONTINUE mid-civ no longer resets them")
 	eq(float(sim2.culture), 2.0, "culture restored")
 	eq(float(sim2.econ), 1.0, "econ restored")
 	eq(String(sim2.lastRaised), "econ", "lastRaised restored (the TS:169-170 first-drip pin)")

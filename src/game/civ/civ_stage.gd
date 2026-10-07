@@ -77,12 +77,16 @@ const BackdropScript := preload("res://src/gfx/backdrop.gd")
 const CreaturePainter := preload("res://src/gfx/creature_painter.gd")
 const HudScript := preload("res://src/ui/hud.gd")
 const PauseScript := preload("res://src/ui/pause.gd")
+const TutorialScript := preload("res://src/ui/tutorial.gd")
 
 ## TS:536 — the space backdrop's seed/strength argument on the civ call.
 const BACKDROP_SEED := 42.0
 
 var sim: Variant = null           # CivSim (RefCounted sim core)
 var frozen := false               # test seam: render without stepping the sim
+## R1 micro-tutorial (Task 4; the cell-stage T8 pattern) — built once in
+## on_enter from _build_tutorial_steps(); the engine is src/ui/tutorial.gd.
+var tutorial: Variant = null
 ## The overlay instances — installed into the game stub dicts at tree entry
 ## and re-installed on enter (the creature/tribe stage pattern).
 var hud_inst: Variant = null
@@ -494,6 +498,11 @@ func _draw_ui(ci: CanvasItem) -> void:
 	RendererScript.vignette(ci, vw, vh, 0.5)
 	# TS:661 `void disc;` is a lint artifact — NOT ported.
 
+	# tutorial overlay — the Task 8 engine (the cell-stage draw slot: topmost
+	# of the stage's screen-space tail); inactive engines draw nothing
+	if tutorial != null:
+		tutorial.draw(ci, vw, vh)
+
 
 ## Per-frame draw hook (Game's render side): re-sync the portrait fixture and
 ## queue all canvases.
@@ -539,6 +548,9 @@ func render() -> void:
 func update(dt: float) -> void:
 	if sim == null or frozen:
 		return
+	# tutorial (the cell-stage slot: the engine polls before the sim steps)
+	if tutorial != null:
+		tutorial.update(dt)
 	sim.update(dt, _build_input_snapshot())
 
 
@@ -659,11 +671,34 @@ func on_enter(from: Variant = null) -> void:
 	if sim == null:
 		return
 	sim.on_enter()
+	# the first-run tutorial (per save slot; the cell-stage build-once rule)
+	if tutorial == null:
+		tutorial = TutorialScript.new(game, "tutCiv", _build_tutorial_steps())
 
 
 func on_exit() -> void:
 	if sim != null:
 		sim.on_exit()
+	# the cell-stage finish rule (CellStage.ts:264-267): the tutorial finishes
+	# on every exit EXCEPT a quit-to-title — the flag persists only on forward
+	# evolution
+	if game.transition_target != "menu" and tutorial != null:
+		tutorial.finish()
+
+
+## Task 4 R1 — the civ tutorial table (3 steps). Step texts stay raw EN keys
+## (translated at render by the engine, the cell precedent); done lambdas
+## poll the sim directly — pure reads (mil vs the 4.0 start value, the launch
+## counter, the conquest accessor).
+func _build_tutorial_steps() -> Array:
+	return [
+		{"id": "mil", "text": "Press Q/A — raise military output",
+			"done": func() -> bool: return sim.mil > 4.0},
+		{"id": "launch", "text": "Press 1 — launch an armada",
+			"done": func() -> bool: return sim.launches >= 1},
+		{"id": "conquer", "text": "Touch an enemy city — conquer it",
+			"done": func() -> bool: return sim.conquest_count() >= 1},
+	]
 
 
 ## TS CivStage.onExit → persistState (CivStage.ts:130) — the autosave flush
