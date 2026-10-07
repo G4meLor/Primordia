@@ -16,10 +16,11 @@
 ##
 ## R6 experience redesign: the list splits into two tabs — BODY (parts + diet
 ## + size + graft: the DNA economy) and LOOK (hue/sat/pattern/coat + an inert
-## name placeholder: free cosmetics priced through look_price, no DNA display
-## on the tab at all). The switch is session-local — every open starts on
-## BODY and nothing rides the save wire. The world backdrop eases to 0.6
-## (hold-to-peek 0.2 via the on-screen hold-button bottom-right or Alt).
+## name placeholder: free cosmetics — PATTERNS/COATS costs are zeroed in the
+## parts.gd data — with no DNA display on the tab at all). The switch is
+## session-local — every open starts on BODY and nothing rides the save wire.
+## The world backdrop eases to 0.6 (hold-to-peek 0.2 via the on-screen
+## hold-button bottom-right or Alt).
 class_name EditorUi
 extends RefCounted
 
@@ -120,17 +121,18 @@ func toggle(mode_v: String) -> void:
 		show(mode_v)
 
 
-## R6 look-tab price — every LOOK cosmetic is free. The freeness lives HERE,
-## never as inline 0 literals at the call sites. Ids outside the LOOK catalog
-## fall back to their standard catalog cost so a future misuse can never
-## silently free a DNA sink.
+## R6 look-tab price — a THIN ACCESSOR over the parts catalog, kept for the
+## test pins. The freeness itself lives in the PATTERNS/COATS data (costs
+## zeroed in parts.gd): the buy path and the display sites read the catalog
+## directly, so the DNA accounting can never diverge from what the data says.
+## Ids outside the LOOK catalog keep their standard catalog cost.
 static func look_price(part_id: String) -> int:
 	for p in PartsScript.PATTERNS:
 		if String(p["id"]) == part_id:
-			return 0
+			return int(p["cost"])
 	for c in PartsScript.COATS:
 		if String(c["id"]) == part_id:
-			return 0
+			return int(c["cost"])
 	var d: Dictionary = PartsScript.part_by_id(part_id)
 	if not d.is_empty():
 		return PartsScript.part_cost(d, 0)
@@ -367,10 +369,11 @@ func click_row(row: Dictionary, mx: float, r: Dictionary) -> void:
 			g["diet"] = String(next["id"])
 			# TS audio.play('dna', 0.7)
 		"pattern":
-			# R6: LOOK cosmetics price through look_price — free, re-switchable
+			# R6: the cost rides the catalog (PATTERNS costs are zeroed in
+			# parts.gd) — free, re-switchable, no inline 0 at the call site
 			var pidx := _pattern_index(String(g["pattern"]))
 			var pnext: Dictionary = PartsScript.PATTERNS[(pidx + 1) % PartsScript.PATTERNS.size()]
-			var pcost := look_price(String(pnext["id"]))
+			var pcost := int(pnext["cost"])
 			if pcost > 0 and int(c.dna) < pcost:
 				_game.hud["toast"].call(_game.i18n.tr_key("Not enough DNA"), "bad", "🧬")
 				return
@@ -380,7 +383,7 @@ func click_row(row: Dictionary, mx: float, r: Dictionary) -> void:
 		"coat":
 			var cidx := _coat_index(String(g["coat"]))
 			var cnext: Dictionary = PartsScript.COATS[(cidx + 1) % PartsScript.COATS.size()]
-			var ccost := look_price(String(cnext["id"]))
+			var ccost := int(cnext["cost"])
 			if ccost > 0 and int(c.dna) < ccost:
 				_game.hud["toast"].call(_game.i18n.tr_key("Not enough DNA"), "bad", "🧬")
 				return
@@ -717,22 +720,20 @@ func render_row(ci: CanvasItem, row: Dictionary, x: float, y: float, w: float, h
 					_game.i18n.tr_key(String(nxt["name"]))], x + w - 16.0, y + h / 2.0,
 					{"size": 11.0, "fill": Color("#9fc8ff"), "align": "right"})
 		"pattern":
-			# R6: the price extra routes through look_price — 0 renders no DNA
-			# text at all (LOOK shows no DNA display)
+			# R6: the price extra reads the catalog — a zeroed cost renders no
+			# DNA text at all (LOOK shows no DNA display)
 			var pat: Dictionary = _pattern_def(String(g["pattern"]))
-			var pprice := look_price(String(pat["id"]))
 			_row_label(ci, x, y, w, h, _game.i18n.tr_key("SKIN PATTERN"),
 					_game.i18n.tr_key(String(pat["name"])),
-					"(%d DNA)" % pprice if pprice > 0 else "")
+					"(%d DNA)" % int(pat["cost"]) if int(pat["cost"]) > 0 else "")
 			RendererScript.outlined_text(ci, _game.i18n.tr_key("switch ▸"), x + w - 16.0, y + h / 2.0,
 					{"size": 11.0, "fill": Color("#9fc8ff"), "align": "right"})
 		"coat":
 			var coat: Dictionary = _coat_def(String(g["coat"]))
-			var cprice := look_price(String(coat["id"]))
 			_row_label(ci, x, y, w, h, _game.i18n.tr_key("COAT"),
 					"%s — %s" % [_game.i18n.tr_key(String(coat["name"])),
 							_game.i18n.tr_key(String(coat["effect"]))],
-					"(%d DNA)" % cprice if cprice > 0 else "")
+					"(%d DNA)" % int(coat["cost"]) if int(coat["cost"]) > 0 else "")
 			RendererScript.outlined_text(ci, _game.i18n.tr_key("switch ▸"), x + w - 16.0, y + h / 2.0,
 					{"size": 11.0, "fill": Color("#9fc8ff"), "align": "right"})
 		"name":

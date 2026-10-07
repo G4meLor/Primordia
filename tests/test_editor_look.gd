@@ -1,12 +1,14 @@
 # Tests for the R6 experience-redesign task: the editor's free LOOK tab + the
 # world peek. The editor splits into BODY (parts + diet + size + graft — the
 # DNA economy) and LOOK (hue/sat/pattern/coat + the inert name placeholder —
-# cosmetics priced 0 via the look_price helper, no DNA display anywhere on the
-# tab) tabs; the world backdrop eases 0.88 → 0.6 with a hold-to-peek 0.2
-# (on-screen hold-button bottom-right + keyboard Alt). The parts catalog
-# prices stay untouched — the freeness lives entirely in the editor's
-# look_price helper (controller ruling, never inline 0 literals at call
-# sites) — so this is UI-only and the cell A-B evidence stays sha-identical.
+# no DNA display anywhere on the tab) tabs; the world backdrop eases
+# 0.88 → 0.6 with a hold-to-peek 0.2 (on-screen hold-button bottom-right +
+# keyboard Alt). The freeness lives in the parts.gd DATA (PATTERNS/COATS
+# costs zeroed — single source of truth; the buy path reads the catalog), and
+# EditorUi.look_price stays as the thin accessor the tests pin. Diet/parts
+# prices and the refund logic stay untouched, so the only economy delta is
+# the LOOK cosmetics — the cell sim dump is unchanged (A-B evidence
+# sha-identical, re-verified by tools/ab_test.sh on this task).
 extends "res://tests/test_base.gd"
 
 const EditorUiScript := preload("res://src/ui/editor.gd")
@@ -250,12 +252,13 @@ func test_body_prices_untouched() -> void:
 	ed.click_part({"kind": "part", "def": PartsScript.part_by_id("flagella")}, "+")
 	eq(int(_g.context.genome["flagella"]), before + 1, "part buy on BODY")
 	eq(int(_g.context.dna), 440 - cost, "part buy still charges part_cost")
-	# the catalog prices themselves are UNTOUCHED (the freeness lives in the
-	# editor helper — parts.gd is byte-identical)
-	eq(int(PartsScript.PATTERNS[1]["cost"]), 15, "spots catalog cost pinned")
-	eq(int(PartsScript.PATTERNS[3]["cost"]), 45, "glow catalog cost pinned")
-	eq(int(PartsScript.COATS[1]["cost"]), 25, "fur catalog cost pinned")
-	eq(int(PartsScript.COATS[3]["cost"]), 55, "plates catalog cost pinned")
+	# the freeness lives in the parts.gd DATA (the re-ruled single source of
+	# truth): the LOOK cosmetics' catalog costs are zeroed there, while every
+	# diet/parts price and the refund logic stay untouched
+	eq(int(PartsScript.PATTERNS[1]["cost"]), 0, "spots catalog cost zeroed in the data (R6)")
+	eq(int(PartsScript.PATTERNS[3]["cost"]), 0, "glow catalog cost zeroed in the data (R6)")
+	eq(int(PartsScript.COATS[1]["cost"]), 0, "fur catalog cost zeroed in the data (R6)")
+	eq(int(PartsScript.COATS[3]["cost"]), 0, "plates catalog cost zeroed in the data (R6)")
 
 
 # ---- graft rows stay on the DNA tab ---------------------------------------------

@@ -138,7 +138,10 @@ func test_shop_catalogs() -> void:
 	eq(Parts.DIETS[1], {"id": "omnivore", "name": "Omnivore",
 			"desc": "Eats everything. Regrets nothing.", "cost": 40}, "omnivore entry matches TS")
 	eq(Parts.DIETS[2]["cost"], 60, "carnivore cost 60")
-	eq(Parts.PATTERNS[3], {"id": "glow", "name": "Bioluminescent", "cost": 45}, "glow entry matches TS")
-	eq(Parts.COATS[3], {"id": "plates", "name": "Bone Plates", "cost": 55,
-			"effect": "++defense, -speed"}, "plates entry matches TS")
+	# R6: the cosmetic costs are zeroed IN THE DATA (the LOOK tab is free) —
+	# the deliberate divergence from the frozen TS catalog (15/15/45, 25/35/55)
+	eq(Parts.PATTERNS[3], {"id": "glow", "name": "Bioluminescent", "cost": 0},
+			"glow entry — R6 zeroed cosmetic cost")
+	eq(Parts.COATS[3], {"id": "plates", "name": "Bone Plates", "cost": 0,
+			"effect": "++defense, -speed"}, "plates entry — R6 zeroed cosmetic cost")
 	eq(Parts.COATS[0]["effect"], "—", "skin effect is the TS em-dash")
