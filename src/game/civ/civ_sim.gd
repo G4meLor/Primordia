@@ -155,7 +155,9 @@ func _init(ctx_v: Variant, rng_branch: Variant, hooks: Dictionary = {}) -> void:
 	]
 
 	# your capital + 3 rival cities on a continent (TS:91-107)
-	cities.append({"id": "you", "name": "%sgrad" % String(ctx.player_name), "owner": "you",
+	# R9 identity ruling: the chosen creature name outranks the derived
+	# player_name for the player's capital (fallback unchanged when not set)
+	cities.append({"id": "you", "name": "%sgrad" % ctx.get_player_display(), "owner": "you",
 		"x": 0.0, "y": 120.0, "hp": 100.0, "influence": 100.0, "pop": 8.0, "burning": 0.0})
 	for i in 3:
 		var r: Dictionary = rival_defs[i]  # TS rivalDefs[i]!

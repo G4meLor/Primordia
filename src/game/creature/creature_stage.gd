@@ -54,6 +54,17 @@ const HudScript := preload("res://src/ui/hud.gd")
 const EditorUiScript := preload("res://src/ui/editor.gd")
 const PauseScript := preload("res://src/ui/pause.gd")
 const TutorialScript := preload("res://src/ui/tutorial.gd")
+const CardScript := preload("res://src/gfx/creature_card.gd")
+
+# R9 pack portrait row — a top-left band under the R3 arc (clear of the
+# banner zone at y 70..144, the bottom docks and the toast column).
+const PACK_SLOT_W := 52.0
+const PACK_SLOT_H := 58.0
+const PACK_ROW_X := 16.0
+const PACK_ROW_Y := 150.0
+const PACK_ROW_GAP := 5.0
+# R8 extinction moment card — center stage, just under the banner zone.
+const SPECIES_CARD_TTL := 6.0
 
 ## Below this a viewport dimension cannot be a real playable window (the QC r1
 ## B4 collapse reported 0–300 px against an 1152×648 window) — a transient
@@ -105,6 +116,12 @@ var pause_canvas: Node2D = null
 var _body_pool: Array = []
 var _extra_pool: Array = []
 
+# R9 pack portrait row (pooled PackCardItem slots, one per packLimit seat)
+var _pack_row: Array = []
+# R8 extinction moment card — one at a time on its own item
+var _species_card: Variant = null
+var _species_card_ttl := 0.0
+
 
 class StageCanvas extends Node2D:
 	var stage: Variant = null
@@ -152,6 +169,7 @@ class CreatureExtraItem extends Node2D:
 	var marker_x := 0.0
 	var marker_y := 0.0
 	var marker_bob := 0.0
+	var plate := ""          # R9 packmate nameplate ("" = none)
 
 	func _draw() -> void:
 		if bar_frac >= 0.0:
@@ -160,6 +178,96 @@ class CreatureExtraItem extends Node2D:
 		if marker:
 			RendererScript.outlined_text(self, "🐾", marker_x, marker_y - 52.0 + marker_bob,
 					{"size": 11.0, "fill": Color("#cfe8ff")})
+		if plate != "":
+			# R9: the packmate's name above the paw — a proper noun composed
+			# at charm time, drawn verbatim (the discover precedent: names
+			# interpolate outside tr)
+			RendererScript.outlined_text(self, plate, marker_x, marker_y - 66.0 + marker_bob * 0.4,
+					{"size": 9.0, "fill": Color(0.85, 0.93, 1.0, 0.9)})
+
+
+## R9 pack portrait row — one pooled SCREEN-SPACE card per packLimit slot
+## (portrait-only: the 52-wide slot leaves the card's name column under its
+## 12px gate). The card renderer contract (creature_card.gd header):
+## canvas_item_clear before EVERY draw_into (MUST 1 — this item draws nothing
+## else) and release(ci) on teardown (MUST 2 — stage on_exit + PREDELETE; the
+## stage node is persistent, freed only at process quit). Redrawn per frame:
+## the card is deterministic per (genome, meta, rect) so the redraw only
+## re-stamps identical content — the scene leak test proves the churn frees.
+## The item node stays at IDENTITY (the painter pattern): slot is the screen
+## rect mapped through the live camera inverse, so the card's rect-space
+## commands land world-side exactly where the camera projects them.
+class PackCardItem extends Node2D:
+	const Card := preload("res://src/gfx/creature_card.gd")
+
+	var genome: Dictionary = {}
+	var meta: Dictionary = {}
+	var slot := Rect2()
+
+	func _draw() -> void:
+		RenderingServer.canvas_item_clear(get_canvas_item())  # MUST 1
+		if genome.is_empty():
+			return
+		Card.draw_into(self, genome, meta, slot)
+
+	func _notification(what: int) -> void:
+		if what == NOTIFICATION_PREDELETE:
+			Card.release(self)  # MUST 2 — the registry entry dies with the item
+
+
+## R8 extinction-moment card — ONE at a time on its own item (MUST 1/2 as the
+## pack row): doom panel + CreatureCard portrait + the EXTINCT stamp (vi:
+## TỆT CHỦNG) + the island-silent line. The context queues one card per
+## species extinction event (guarded at the bestiary entry); the stage drains
+## the queue in update() and shows it here. Same identity mapping as the pack
+## row: node identity, the screen rect rides the live camera inverse.
+class SpeciesCardItem extends Node2D:
+	const Card := preload("res://src/gfx/creature_card.gd")
+
+	var genome: Dictionary = {}
+	var meta: Dictionary = {}
+	var screen_rect := Rect2()  # screen coords, fixed at show time
+	var frame := Rect2()        # screen_rect through the live camera inverse
+
+	func show_card(g: Dictionary, name: String, vw: float, vh: float) -> void:
+		genome = g
+		meta = {"species": name, "epithet": ""}
+		screen_rect = Rect2(vw / 2.0 - 170.0, 160.0, 340.0, 140.0)
+		visible = true
+
+	func _draw() -> void:
+		RenderingServer.canvas_item_clear(get_canvas_item())  # MUST 1
+		if genome.is_empty():
+			return
+		RendererScript.panel(self, frame.position.x, frame.position.y,
+				frame.size.x, frame.size.y, {
+			"fill": RendererScript.css_color("rgba(42,10,20,0.92)"),
+			"stroke": RendererScript.css_color("#ff5a8a"),
+			"lw": 2.0,
+			"shadow": RendererScript.css_color("rgba(255,90,138,0.3)"),
+		})
+		Card.draw_into(self, genome, meta, Rect2(
+				frame.position.x + 8.0, frame.position.y + 24.0,
+				frame.size.x - 16.0, frame.size.y - 40.0))
+		# draw_into left the painter's cam on the command stream — reset to
+		# identity for the card's own text (the item node is identity, so the
+		# command transform composes with the camera alone)
+		draw_set_transform_matrix(Transform2D())
+		var stamp: String = tr("EXTINCT")
+		var stamp_pos := Vector2(frame.position.x + frame.size.x * 0.5,
+				frame.position.y + frame.size.y * 0.5)
+		draw_set_transform_matrix(Transform2D(-0.22, stamp_pos))
+		RendererScript.outlined_text(self, stamp, 0.0, 0.0,
+				{"size": 30.0, "fill": RendererScript.css_color("#ff5a8a"),
+						"weight": "700", "alpha": 0.85})
+		draw_set_transform_matrix(Transform2D())
+		RendererScript.outlined_text(self, tr("the island falls silent…"),
+				frame.position.x + frame.size.x / 2.0, frame.position.y + frame.size.y - 12.0,
+				{"size": 11.0, "fill": RendererScript.css_color("rgba(255,200,190,0.8)")})
+
+	func _notification(what: int) -> void:
+		if what == NOTIFICATION_PREDELETE:
+			Card.release(self)  # MUST 2
 
 
 func _init(game_v: Variant) -> void:
@@ -240,6 +348,13 @@ func _ready() -> void:
 	pause_canvas.name = "PauseCanvas"
 	pause_canvas.visible = false
 	add_child(pause_canvas)
+	# R8/R9 card layer: the extinction card item lives here from boot; the
+	# pooled pack-row cards insert at the same layer when first synced
+	# (_card_layer_index — over the hud, never over the editor/pause veils)
+	_species_card = SpeciesCardItem.new()
+	add_child(_species_card)
+	move_child(_species_card, _card_layer_index())
+	_species_card.visible = false
 
 
 ## Same overlay wiring as the cell stage (Task 8 ruling — the dict shapes and
@@ -632,12 +747,18 @@ func render() -> void:
 	if not _frame_size_sane():
 		return
 	_sync_creature_items()
+	_sync_pack_row()
 	sky_canvas.queue_redraw()
 	ground_canvas.queue_redraw()
 	fx_canvas.queue_redraw()
 	ui_canvas.queue_redraw()
 	veil_canvas.queue_redraw()
 	hud_canvas.queue_redraw()
+	# R8: the extinction card re-anchors through the live camera inverse and
+	# repaints (the clear-per-redraw contract keeps RIDs flat)
+	if _species_card != null and _species_card.visible:
+		_species_card.frame = _screen_inv() * _species_card.screen_rect
+		_species_card.queue_redraw()
 	var editor_open: bool = bool(game.editor["open"])
 	editor_canvas.visible = editor_open
 	if editor_open:
@@ -645,6 +766,91 @@ func render() -> void:
 	pause_canvas.visible = bool(game.paused)
 	if pause_canvas.visible:
 		pause_canvas.queue_redraw()
+
+
+## R9 pack portrait row — packLimit slots, LIVING members only (the corpse's
+## toast + bestiary note fired at the kill), screen-anchored through the live
+## camera inverse. Pooled items; a hidden slot releases its card registry
+## (MUST 2: no stale triple may outlive its membership).
+func _sync_pack_row() -> void:
+	var members: Array = pack_row_members(sim.ents)
+	var slots: int = maxi(1, int(sim.packLimit))
+	while _pack_row.size() < slots:
+		var card: PackCardItem = PackCardItem.new()
+		add_child(card)
+		# the cards sit between the hud and the editor/pause canvases (tree
+		# order draws later siblings above) — never over the pause veil
+		move_child(card, _card_layer_index())
+		_pack_row.append(card)
+	var inv := _screen_inv()
+	for i in _pack_row.size():
+		var card: PackCardItem = _pack_row[i]
+		if i >= members.size() or i >= slots:
+			if card.visible or not card.genome.is_empty():
+				CardScript.release(card)
+				card.genome = {}
+				card.visible = false
+			continue
+		var e: Dictionary = members[i]
+		card.visible = true
+		card.genome = e["genome"]
+		card.meta = {"species": String(e.get("packName", "")), "epithet": ""}
+		card.slot = inv * Rect2(PACK_ROW_X + float(i) * (PACK_SLOT_W + PACK_ROW_GAP),
+				PACK_ROW_Y, PACK_SLOT_W, PACK_SLOT_H)
+		card.queue_redraw()
+
+
+## The tree index just above the hud canvas (the editor canvas's slot) — the
+## card layer draws over the hud but never over the editor/pause veils.
+func _card_layer_index() -> int:
+	var idx := get_children().find(editor_canvas)
+	return idx if idx >= 0 else get_children().size()
+
+
+## R9 MUST 2 (stage teardown): every card item's registry entry dies with the
+## stage's leave (the stage node itself is persistent — the quit path frees
+## it, where PREDELETE covers the rest).
+func _release_pack_row() -> void:
+	for card in _pack_row:
+		CardScript.release(card)
+		card.genome = {}
+		card.visible = false
+
+
+## R8 — drain the context's extinction card queue: one card at a time, the
+## next appears when the current expires (transient UI — a save/load drops
+## pending cards).
+func _update_species_card(dt: float) -> void:
+	if _species_card == null:
+		return
+	if _species_card_ttl > 0.0:
+		_species_card_ttl -= dt
+		if _species_card_ttl <= 0.0:
+			_release_species_card()
+		return
+	if _species_card.genome.is_empty() and not game.context.species_cards.is_empty():
+		var card_data: Dictionary = game.context.species_cards.pop_front()
+		_species_card.show_card(card_data["genome"], String(card_data["name"]),
+				game.vw, game.vh)
+		_species_card_ttl = SPECIES_CARD_TTL
+
+
+func _release_species_card() -> void:
+	_species_card_ttl = 0.0
+	if _species_card != null:
+		CardScript.release(_species_card)  # MUST 2
+		_species_card.genome = {}
+		_species_card.visible = false
+
+
+## R9 row data: living pack members only (the portrait row never shows
+## corpses). Static + pure for the headless suite.
+static func pack_row_members(ents: Array) -> Array:
+	var out: Array = []
+	for e in ents:
+		if bool(e["pack"]) and not e.has("corpseT"):
+			out.append(e)
+	return out
 
 
 ## TS render()'s entity pass (CreatureStage.ts:1445-1452): ents z-sorted, the
@@ -698,6 +904,7 @@ func _sync_creature_items() -> void:
 func _configure_player(body: CreatureItem, extra: CreatureExtraItem) -> void:
 	extra.bar_frac = -1.0
 	extra.marker = false
+	extra.plate = ""
 	if sim.deathFade > 0.4:
 		body.genome = {}
 		body.visible = false
@@ -740,6 +947,7 @@ func _configure_ent(body: CreatureItem, extra: CreatureExtraItem, e: Dictionary)
 		body.opts = {"t": sim.time, "alpha": minf(1.0, float(e["corpseT"]) / 3.0)}
 		extra.bar_frac = -1.0
 		extra.marker = false
+		extra.plate = ""
 		return
 	body.genome = e["genome"]
 	body.pose = {
@@ -762,12 +970,15 @@ func _configure_ent(body: CreatureItem, extra: CreatureExtraItem, e: Dictionary)
 	extra.marker_x = float(e["x"])
 	extra.marker_y = y
 	extra.marker_bob = sin(sim.time * 3.0 + float(e["seed"])) * 3.0
+	# R9 nameplate: living packmates carry their name above the paw marker
+	extra.plate = String(e.get("packName", "")) if bool(e["pack"]) else ""
 
 
 ## TS update() scene-side halves (CreatureStage.ts:466-604) around sim.update.
 func update(dt: float) -> void:
 	if sim == null or frozen:
 		return
+	_update_species_card(dt)  # R8: drain + tick the extinction card
 	var editor_open: bool = bool(game.editor["open"])
 
 	# editor (Tab or E) — charm is on F (TS:467-475). TS early-returns here;
@@ -898,6 +1109,11 @@ func on_exit() -> void:
 	# (a carried-open editor re-paints through the adopting stage's instance)
 	if editor_inst != null:
 		editor_inst.free_preview_rids()
+	# R9/R8 card MUST 2: every CreatureCard registry entry dies with the
+	# stage's leave (the quit-to-title path lands here; the process-quit path
+	# frees the stage nodes where PREDELETE covers the rest)
+	_release_pack_row()
+	_release_species_card()
 	# rig ownership: restore the disabled default the other stages expect
 	var c2d: Variant = game.cam.cam2d
 	if c2d != null:

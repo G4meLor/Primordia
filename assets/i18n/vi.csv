@@ -522,7 +522,6 @@ Space,Không gian
 BODY,CƠ THỂ
 LOOK,DIỆN MẠO
 NAME,TÊN
-naming comes next,sắp có phần đặt tên
 PEEK (hold),NGÓ (giữ)
 hold to peek the world (Alt),giữ để ngó thế giới (Alt)
 Accept,Chấp nhận
@@ -531,3 +530,9 @@ Backspace,Xóa
 Max 14,Tối đa 14
 accept or edit,chấp nhận hoặc sửa
 edit ▸,sửa ▸
+📖  Bestiary,📖  Sổ Loài
+Bestiary,Sổ Loài
+EXTINCT,TỆT CHỦNG
+you,bạn
+"fell at gen %d","gục ngã ở thế hệ %d"
+"%s fell — gen %d","%s gục ngã — thế hệ %d"

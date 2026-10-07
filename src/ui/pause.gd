@@ -1,4 +1,5 @@
-## Pause overlay: resume, save, sound, help, world-genome codex, quit to title.
+## Pause overlay: resume, save, sound, help, world-genome codex, bestiary
+## (R8 — text rows only in v1), quit to title.
 ## Port of Spore src/ui/pause.ts (frozen). Task 8 ruling: RefCounted; button
 ## ACTIONS route through the `actions` hook dict (close_pause / save_all /
 ## toggle_mute / go_to / toast) — the owning stage wires the real game methods
@@ -26,9 +27,15 @@ const HELP_LINES := [
 	["", "Wild worlds give more DNA — and worse problems."],
 ]
 
+## R8 bestiary page: a FIXED 8-row window (the world codex compresses
+## instead; the bestiary scrolls — wheel, the editor's scroll precedent).
+const BESTIARY_WINDOW := 8
+
 var items: Array = []            # {label, action, w, h, x, y}
 var show_help := false
 var show_world := false
+var show_bestiary := false
+var _bestiary_scroll := 0.0
 
 ## Stub-safe defaults — the owner replaces this dict at install time.
 var actions: Dictionary = {
@@ -49,6 +56,8 @@ func _init(game_v: Variant) -> void:
 func open() -> void:
 	show_help = false
 	show_world = false
+	show_bestiary = false
+	_bestiary_scroll = 0.0
 	rebuild()
 
 
@@ -61,6 +70,10 @@ func rebuild() -> void:
 		# codex Back hit-testing shares the worldLayout math with the draw
 		var wl: Dictionary = world_layout(vh, world_codex()["rows"].size())
 		items.append(_mk(_game.i18n.tr_key("◀  Back"), _act_back_world, float(wl["backY"]), cx))
+	elif show_bestiary:
+		# bestiary Back hit-testing shares the bestiary_layout math with the draw
+		var bl: Dictionary = bestiary_layout(vh)
+		items.append(_mk(_game.i18n.tr_key("◀  Back"), _act_back_bestiary, float(bl["backY"]), cx))
 	elif show_help:
 		var hl: Dictionary = help_layout(vh)
 		items.append(_mk(_game.i18n.tr_key("◀  Back"), _act_back_help, float(hl["backY"]), cx))
@@ -83,11 +96,19 @@ func rebuild() -> void:
 		y += stride
 		items.append(_mk(_game.i18n.tr_key("🌍  World Genome"), _act_world, y, cx))
 		y += stride
+		items.append(_mk(_game.i18n.tr_key("📖  Bestiary"), _act_bestiary, y, cx))
+		y += stride
 		items.append(_mk(_game.i18n.tr_key("⌂  Quit to title"), _act_quit, y, cx))
 
 
 func update(dt: float) -> void:
 	var input: Variant = _game.input
+	# R8 bestiary page: wheel scroll runs before the click gate (the editor's
+	# scroll precedent) — the window clamps at both ends
+	if show_bestiary:
+		var w := float(input.wheel())
+		if w != 0.0:
+			_scroll_bestiary(w)
 	if not input.was_clicked():
 		return
 	var mx := float(input.mx)
@@ -109,6 +130,8 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 			{"size": 34.0, "fill": Color("#bfe6ff"), "weight": "700"})
 	if show_world:
 		_draw_world(ci, vw, vh)
+	elif show_bestiary:
+		_draw_bestiary(ci, vw, vh)
 	elif not show_help:
 		for it in items:
 			var hover := _hover(it)
@@ -166,6 +189,22 @@ func _act_world() -> void:
 	rebuild()
 
 
+func _act_bestiary() -> void:
+	show_bestiary = true
+	_bestiary_scroll = 0.0
+	rebuild()
+
+
+func _act_back_bestiary() -> void:
+	show_bestiary = false
+	rebuild()
+
+
+## Wheel scroll in ROW units — 2 rows per notch (the wheel delta is ±100).
+func _scroll_bestiary(delta: float) -> void:
+	_bestiary_scroll = clampf(_bestiary_scroll + delta / 50.0, 0.0, bestiary_max_scroll())
+
+
 func _act_back_help() -> void:
 	show_help = false
 	rebuild()
@@ -219,13 +258,13 @@ func _hover(it: Dictionary) -> bool:
 
 # ---- layouts (TS rulings T8-I2 verbatim) --------------------------------------
 
-## Main pause list: 7 items at stride 56 from vh/2−120; tight viewports
+## Main pause list: 8 items at stride 56 from vh/2−120; tight viewports
 ## compress the stride (floor 40) so Resume..Quit clear the bottom edge.
 func main_layout(vh: float) -> Dictionary:
 	var y0 := vh / 2.0 - 120.0
-	if y0 + 6.0 * 56.0 + 46.0 <= vh - 8.0:
+	if y0 + 7.0 * 56.0 + 46.0 <= vh - 8.0:
 		return {"y0": y0, "stride": 56.0}
-	return {"y0": y0, "stride": maxf(40.0, floorf((vh - 8.0 - y0 - 46.0) / 6.0))}
+	return {"y0": y0, "stride": maxf(40.0, floorf((vh - 8.0 - y0 - 46.0) / 7.0))}
 
 
 ## Help view: 9 lines at stride ≤34 in a panel from vh/2−176; tight viewports
@@ -248,6 +287,57 @@ func world_layout(vh: float, row_count: int) -> Dictionary:
 	var back_y := minf(y0 + 110.0 + float(rows - 1) * stride + 34.0, vh - 54.0)
 	var panel_h := minf(back_y + 60.0, vh - 8.0) - y0
 	return {"y0": y0, "backY": back_y, "panelH": panel_h, "stride": stride}
+
+
+## Bestiary layout: a FIXED 8-row window (more rows scroll — see
+## _scroll_bestiary) with the Back band below the panel. The stride is fixed,
+## unlike the codex's compress-to-fit.
+func bestiary_layout(vh: float) -> Dictionary:
+	var y0 := vh / 2.0 - 190.0
+	var stride := 24.0
+	var panel_h := 64.0 + float(BESTIARY_WINDOW) * stride + 10.0
+	var back_y := minf(y0 + panel_h + 34.0, vh - 54.0)
+	return {"y0": y0, "backY": back_y, "panelH": panel_h, "stride": stride}
+
+
+func bestiary_window() -> int:
+	return BESTIARY_WINDOW
+
+
+## The scroll clamp in row units: rows beyond the fixed window.
+func bestiary_max_scroll() -> float:
+	return maxf(0.0, float(bestiary_rows().size()) - float(BESTIARY_WINDOW))
+
+
+## Bestiary page data (pure — headless-testable): the SELF entry first (the
+## chosen display name — Task 7 ruling: never raw self_name), then the
+## discovered entries in book order (name · first stage · fell note · extinct
+## stamp), then "???" rows for eco species the book never saw. Rows are
+## {text, kind} — kind self/normal/gone/unknown drives the draw tint.
+func bestiary_rows() -> Array:
+	var c: Variant = _game.context
+	var rows: Array = []
+	rows.append({"text": "%s · %s" % [c.get_display_name(), _game.i18n.tr_key("you")],
+			"kind": "self"})
+	var seen := {}
+	for entry in c.bestiary.values():
+		seen[String(entry["key"])] = true
+		var line := String(entry["name"])
+		var stage_key := String(entry["stage"])
+		if stage_key.length() > 0:
+			stage_key = stage_key[0].to_upper() + stage_key.substr(1)
+		line += " · " + _game.i18n.tr_key(stage_key)
+		var fell := String(entry.get("fell", ""))
+		if fell != "":
+			line += " · ☠ " + fell
+		if bool(entry["extinct"]):
+			line += " · 💀 " + _game.i18n.tr_key("EXTINCT")
+		rows.append({"text": line, "kind": "gone" if bool(entry["extinct"]) else "normal"})
+	if c.eco != null:
+		for sp in c.eco.species:
+			if not seen.has(String(c.genome_hash_lite(sp["genome"]))):
+				rows.append({"text": "❓ ???", "kind": "unknown"})
+	return rows
 
 
 # ---- views --------------------------------------------------------------------
@@ -309,6 +399,44 @@ func _draw_world(ci: CanvasItem, vw: float, vh: float) -> void:
 				{"size": 14.0, "fill": Color("#dfeaff"), "align": "left", "maxWidth": pw - 48.0})
 		ry += float(wl["stride"])
 	# visible Back for the world view — same pattern as the help view
+	_draw_back_band(ci)
+
+
+## 'Bestiary' view: TEXT ROWS ONLY in v1 (RID discipline — no thumbnails).
+## The self entry first, then the book; unseen eco species render "???".
+## The 8-row window rides the wheel scroll offset (snapped to whole rows).
+func _draw_bestiary(ci: CanvasItem, vw: float, vh: float) -> void:
+	var rows: Array = bestiary_rows()
+	var bl: Dictionary = bestiary_layout(vh)
+	var pw := minf(480.0, vw - 24.0)
+	var px := vw / 2.0 - pw / 2.0
+	RendererScript.panel(ci, px, float(bl["y0"]), pw, float(bl["panelH"]), {
+		"fill": RendererScript.css_color("rgba(8,14,32,0.92)"),
+		"stroke": RendererScript.css_color("rgba(120,180,255,0.3)"),
+	})
+	RendererScript.outlined_text(ci, "📖 %s" % _game.i18n.tr_key("Bestiary"),
+			vw / 2.0, float(bl["y0"]) + 26.0, {"size": 18.0, "fill": Color("#9fe8d8")})
+	var first := int(floorf(_bestiary_scroll))
+	for i in BESTIARY_WINDOW:
+		var idx := first + i
+		if idx >= rows.size():
+			break
+		var row: Dictionary = rows[idx]
+		var col := Color("#dfeaff")
+		match String(row["kind"]):
+			"self":
+				col = Color("#ffe9b0")
+			"gone":
+				col = Color("#ff9a8a")
+			"unknown":
+				col = RendererScript.css_color("rgba(160,200,255,0.5)")
+		RendererScript.outlined_text(ci, String(row["text"]), px + 20.0,
+				float(bl["y0"]) + 56.0 + float(i) * float(bl["stride"]),
+				{"size": 13.0, "fill": col, "align": "left", "maxWidth": pw - 40.0})
+	if bestiary_max_scroll() > 0.0:
+		RendererScript.outlined_text(ci, "%d/%d" % [first + 1, rows.size()],
+				px + pw - 24.0, float(bl["y0"]) + 26.0,
+				{"size": 10.0, "fill": RendererScript.css_color("rgba(160,200,255,0.6)")})
 	_draw_back_band(ci)
 
 

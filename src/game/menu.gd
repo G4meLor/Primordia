@@ -228,7 +228,8 @@ func continue_slot(slot: int) -> void:
 	# survivesQuit: a CONTINUE clicked during the quit fade is live, not stale
 	game.go_to(stage_id, {
 		"title": "WELCOME BACK",
-		"sub": "%s %s" % [game.i18n.tr_key("the soup remembers"), game.context.player_name],
+		# R9 identity ruling: the chosen creature name reads here when set
+		"sub": "%s %s" % [game.i18n.tr_key("the soup remembers"), game.context.get_player_display()],
 	}, {"survivesQuit": true})
 
 

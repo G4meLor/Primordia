@@ -870,8 +870,11 @@ func toggle_mute() -> void:
 ## existing call sites and test recorders, so the genome rides slot 2 and
 ## pan stays 0.0 for now (positional voice is future work).
 func audio_play(name: String, vol: Variant = 1.0, _pan: Variant = 0.0) -> void:
-	if name == "call" and vol is Dictionary:
-		audio.play_call(vol)
+	# Task 8 hardening: ANY "call" routes to the voice core — a future
+	# positional call (float vol) must not silently vanish into the stub
+	# (the genome-less degrade plays the default voice)
+	if name == "call":
+		audio.play_call(vol if vol is Dictionary else {})
 		return
 	audio.play(name)
 

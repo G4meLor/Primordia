@@ -429,10 +429,11 @@ func test_pause_open_builds_main_items() -> void:
 	var g: Variant = MockGame.new()
 	var p: Variant = _wired_pause(g)
 	p.open()
-	eq(p.items.size(), 7, "main view: resume/save/sound/language/help/world/quit")
+	eq(p.items.size(), 8, "main view: resume/save/sound/language/help/world/bestiary/quit")
 	eq(String(p.items[0]["label"]), "▶  Resume", "labels are the TS keys (EN passthrough)")
 	eq(String(p.items[1]["label"]), "💾  Save now", "save label")
-	eq(String(p.items[6]["label"]), "⌂  Quit to title", "quit label")
+	eq(String(p.items[6]["label"]), "📖  Bestiary", "bestiary label")
+	eq(String(p.items[7]["label"]), "⌂  Quit to title", "quit label")
 
 
 func test_pause_resume_and_save_toasts() -> void:
@@ -498,7 +499,7 @@ func test_pause_help_view_round_trip() -> void:
 	eq(String(p.items[0]["label"]), "◀  Back", "back label")
 	_click(g, 512.0, float(p.items[0]["y"]) + 23.0)
 	p.update(DT)
-	eq(p.items.size(), 7, "back returns to the main view")
+	eq(p.items.size(), 8, "back returns to the main view")
 
 
 func test_pause_world_view_round_trip() -> void:
@@ -512,7 +513,7 @@ func test_pause_world_view_round_trip() -> void:
 	eq(String(p.items[0]["label"]), "◀  Back", "back label")
 	_click(g, 512.0, float(p.items[0]["y"]) + 23.0)
 	p.update(DT)
-	eq(p.items.size(), 7, "back returns to the main view")
+	eq(p.items.size(), 8, "back returns to the main view")
 
 
 func test_pause_quit_chain() -> void:
@@ -520,7 +521,7 @@ func test_pause_quit_chain() -> void:
 	var g: Variant = MockGame.new()
 	var p: Variant = _wired_pause(g)
 	p.open()
-	_click(g, 512.0, float(p.items[6]["y"]) + 23.0)  # Quit to title
+	_click(g, 512.0, float(p.items[7]["y"]) + 23.0)  # Quit to title
 	p.update(DT)
 	eq(int(_rec["saves"]), 1, "quit saves first (TS order)")
 	eq(int(_rec["closed"]), 1, "quit closes the pause")

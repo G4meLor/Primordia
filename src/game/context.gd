@@ -57,6 +57,12 @@ var player_name: String = "Squish"
 var creature_name: String = ""
 var stage: String = "menu"
 
+## R8 — the extinction-moment card queue: one entry per species extinction
+## event (the same not-yet-extinct guard as the toast appends it). The live
+## stage drains it (the creature stage shows the card through CreatureCard);
+## transient UI state — never persisted, a pending card dies with save/load.
+var species_cards: Array = []
+
 ## TS Map<string, BestiaryEntry> — Dictionary keyed by genome_hash_lite;
 ## insertion order is the TS Map iteration order (rare_gene reads it).
 var bestiary: Dictionary = {}
@@ -115,6 +121,15 @@ func refresh_stats(land: bool) -> Dictionary:
 func get_display_name() -> String:
 	return creature_name if not creature_name.is_empty() \
 			else NamesScript.self_name(genome)
+
+
+## R9 identity ruling — the player_name consumers (civ "{name}grad", the
+## WELCOME BACK card, the founding handoff) read the CHOSEN creature name
+## when set and the derived player_name otherwise. (Distinct from
+## get_display_name, whose fallback is the self_name suggestion — the
+## arrival banner's seam.)
+func get_player_display() -> String:
+	return creature_name if not creature_name.is_empty() else player_name
 
 
 ## The ONE write path for the display name: charset-filter (A-Z a-z 0-9 space
@@ -208,6 +223,23 @@ func mark_extinct(genome_v: Dictionary) -> void:
 		# could never resolve a key. "%s has gone EXTINCT" ships in vi.csv;
 		# EN output is byte-identical (tr passthrough).
 		toast.emit(tr("%s has gone EXTINCT") % e["name"], "chaos", "💀")
+		# R8: the extinction-moment card — this guard IS the once-per-event
+		# flag (the entry never un-marks, so a tideBorn revival that re-dies
+		# never re-fires; TS-true).
+		species_cards.append({"genome": e["genome"], "name": e["name"]})
+
+
+## R9 — a named packmate died: the bestiary entry records the fell note (the
+## pause page renders it after the species name; the kill site composes the
+## toast). An undiscovered species gains its entry here — a packmate dying IS
+## a sighting. The note is the LATEST death of that species (v1 cheap: one
+## line per entry).
+func note_pack_fell(genome_v: Dictionary, pack_name: String, gen: int) -> void:
+	var key := genome_hash_lite(genome_v)
+	var e: Variant = bestiary.get(key)
+	if e == null:
+		e = discover(genome_v, pack_name, "creature", false)
+	e["fell"] = "%s %s" % [pack_name, tr("fell at gen %d") % gen]
 
 
 # ---- persistence ---------------------------------------------------------
@@ -367,6 +399,9 @@ func load(slot_v: int) -> bool:
 	bestiary = {}
 	for e in best_list:
 		bestiary[e["key"]] = e
+	# R8: the extinction card queue is transient UI — a CONTINUE starts its
+	# card state clean (the comment on the field is the contract)
+	species_cards = []
 	flags = flags_v
 	# world genome: always re-derive from the seed first (deterministic, so
 	# blob-less saves gain their world for free), then overlay the blob's
