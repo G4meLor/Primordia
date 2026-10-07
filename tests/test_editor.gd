@@ -110,18 +110,20 @@ func test_cell_row_scope_matches_ts() -> void:
 	var ed: Variant = _editor()
 	ed.show("cell")
 	var rows: Array = ed.rows
-	# 9 cell/both parts + diet + pattern + size + hue + sat = 14 (coat is
-	# creature-only, editor.ts:86-87)
-	eq(rows.size(), 14, "cell editor shows 14 rows")
+	# R6 split: 9 cell/both parts + diet + size = 11 on BODY (the cosmetic
+	# pattern/hue/sat rows moved to the LOOK tab; coat stays creature-only)
+	eq(rows.size(), 11, "cell editor BODY tab shows 11 rows")
 	var ids := []
 	for r in rows:
 		ids.append(String(r["kind"]) if r["kind"] != "part" else String(r["def"]["id"]))
 	var want := ["flagella", "cilia", "spikes", "jaw", "toxin", "proboscis", "electro",
-			"jet", "legs", "diet", "pattern", "size", "hue", "sat"]
-	eq(ids, want, "row order is PARTS-filtered then the five special rows")
+			"jet", "legs", "diet", "size"]
+	eq(ids, want, "row order is PARTS-filtered then diet + size")
 	ok(not ids.has("arms") and not ids.has("eyes") and not ids.has("brain"),
 			"creature-only parts filtered out")
 	ok(not ids.has("coat"), "coat row is creature-only")
+	ok(not ids.has("pattern") and not ids.has("hue") and not ids.has("sat"),
+			"cosmetic rows moved to the LOOK tab (R6)")
 
 
 func test_buy_flagella_spends_part_cost_and_bumps_gene() -> void:
@@ -238,9 +240,10 @@ func test_diet_gate_blocks_without_dna() -> void:
 func test_pattern_row_buys_next() -> void:
 	var ed: Variant = _editor(500)
 	ed.show("cell")
+	ed.switch_tab("look")
 	ed.click_row({"kind": "pattern"}, 10.0, {"x": 0.0, "y": 0.0, "w": 300.0, "h": 44.0})
 	eq(String(_g.context.genome["pattern"]), "spots", "plain → spots")
-	eq(int(_g.context.dna), 500 - 15, "spots cost 15")
+	eq(int(_g.context.dna), 500, "LOOK cosmetics are free (R6)")
 
 
 func test_size_row_shrinks_free_grows_30() -> void:
@@ -276,7 +279,7 @@ func test_scroll_clamps_to_content() -> void:
 	var ed: Variant = _editor()
 	ed.show("cell")
 	ed.list_rect = {"x": 0.0, "y": 0.0, "w": 100.0, "h": 110.0}
-	var max_scroll: float = 14.0 * 44.0 - 110.0
+	var max_scroll: float = float(ed.rows.size()) * 44.0 - 110.0
 	var wheel_down := InputEventMouseButton.new()
 	wheel_down.button_index = MOUSE_BUTTON_WHEEL_DOWN
 	wheel_down.pressed = true
@@ -325,18 +328,20 @@ func test_creature_row_scope_matches_ts() -> void:
 	var ed: Variant = _editor()
 	ed.show("creature")
 	var rows: Array = ed.rows
-	# 10 creature/both parts + coat + diet + pattern + size + hue + sat = 16
-	# (editor.ts:83-87 — coat is creature-only)
-	eq(rows.size(), 16, "creature editor shows 16 rows")
+	# R6 split: 10 creature/both parts + diet + size = 12 on BODY (coat +
+	# pattern + hue + sat moved to the LOOK tab, editor.ts:83-87 origin)
+	eq(rows.size(), 12, "creature editor BODY tab shows 12 rows")
 	var ids := []
 	for r in rows:
 		ids.append(String(r["kind"]) if r["kind"] != "part" else String(r["def"]["id"]))
 	var want := ["spikes", "jaw", "toxin", "legs", "arms", "eyes", "horns", "tail",
-			"wings", "brain", "coat", "diet", "pattern", "size", "hue", "sat"]
-	eq(ids, want, "row order is PARTS-filtered then coat + the five special rows")
+			"wings", "brain", "diet", "size"]
+	eq(ids, want, "row order is PARTS-filtered then diet + size")
 	ok(not ids.has("flagella") and not ids.has("cilia") and not ids.has("proboscis")
 			and not ids.has("electro") and not ids.has("jet"),
 			"cell-only parts filtered out of creature mode")
+	ok(not ids.has("coat") and not ids.has("pattern") and not ids.has("hue")
+			and not ids.has("sat"), "cosmetic rows moved to the LOOK tab (R6)")
 
 
 func test_creature_buy_arm_refreshes_land_stats() -> void:
@@ -354,18 +359,18 @@ func test_creature_buy_arm_refreshes_land_stats() -> void:
 			"creature-mode refresh computes the land stat shape")
 
 
-func test_creature_coat_row_cycles_with_cost_gate() -> void:
+func test_creature_coat_row_cycles_free_on_look() -> void:
 	var ed: Variant = _editor(30)
 	ed.show("creature")
+	ed.switch_tab("look")
 	eq(String(_g.context.genome["coat"]), "skin", "starter coat")
 	ed.click_row({"kind": "coat"}, 10.0, {"x": 0.0, "y": 0.0, "w": 300.0, "h": 44.0})
 	eq(String(_g.context.genome["coat"]), "fur", "skin → fur (COATS order)")
-	eq(int(_g.context.dna), 5, "fur costs 25")
+	eq(int(_g.context.dna), 30, "fur costs 0 on LOOK (R6)")
 	ed.click_row({"kind": "coat"}, 10.0, {"x": 0.0, "y": 0.0, "w": 300.0, "h": 44.0})
-	eq(String(_g.context.genome["coat"]), "fur", "insufficient DNA for scales (35) — blocked")
-	eq(int(_g.context.dna), 5, "blocked cycle leaves the DNA untouched")
-	eq(_g.toasts.size(), 1, "gate toast")
-	eq(String(_g.toasts[0][0]), "Not enough DNA", "coat gate toast key")
+	eq(String(_g.context.genome["coat"]), "scales", "fur → scales — no DNA gate on LOOK")
+	eq(int(_g.context.dna), 30, "the cycle leaves the DNA untouched")
+	eq(_g.toasts.size(), 0, "no gate toast — cosmetics never charge")
 
 
 func test_creature_preview_paints_and_frees_caller_rids() -> void:
@@ -408,7 +413,7 @@ func test_graft_rows_for_fired_combo_and_extinct_bestiary() -> void:
 	c.bestiary["extinct1"] = extinct
 	ed.show("cell")
 	var rows: Array = ed.rows
-	eq(rows.size(), 15, "one graft row unshifted in front")
+	eq(rows.size(), 12, "one graft row unshifted in front of the BODY tab (11 rows + graft)")
 	eq(String(rows[0]["kind"]), "graft", "graft row first")
 	eq(String(rows[0]["def"]["id"]), "jaw", "the standout part of the extinct genome")
 	eq(int(rows[0]["level"]), 4, "graft target level")
@@ -423,7 +428,7 @@ func test_graft_rows_for_fired_combo_and_extinct_bestiary() -> void:
 	for l in range(1, 4):
 		want_cost += PartsScript.part_cost(_part_def("jaw"), l)
 	eq(int(c.dna), dna_before - want_cost, "standard part price, no discount")
-	eq(ed.rows.size(), 14, "the slot is spent — the graft rows drop immediately (TS:216)")
+	eq(ed.rows.size(), 11, "the slot is spent — the graft rows drop immediately (TS:216)")
 
 
 # ---- QC round-5 MN-1: the COLOR / SATURATION / switch ▸ draw sites -----------

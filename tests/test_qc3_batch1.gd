@@ -235,6 +235,7 @@ func _hue_editor() -> Dictionary:
 	g.loop.is_active_cb = func() -> bool: return false
 	var ed: Variant = EditorUi.new(g)
 	ed.show("cell")
+	ed.switch_tab("look")  # R6: the hue row lives on the LOOK tab
 	var hue_row := {}
 	for r in ed.rows:
 		if String(r["kind"]) == "hue":

@@ -135,7 +135,8 @@ func test_code_map_round_trips_every_key() -> void:
 	var inp: Variant = InputScript.new()
 	var codes: Dictionary = InputScript.CODES
 	# exact pin: 23 audited frozen-game code strings + Enter (placeholder menu)
-	eq(codes.size(), 24, "map is complete for the frozen game")
+	# + Alt (R6 editor world-peek — a native-only key, no TS counterpart)
+	eq(codes.size(), 25, "map is complete for the frozen game")
 	eq(codes.get("Space"), KEY_SPACE, "Space")
 	eq(codes.get("KeyShift"), KEY_SHIFT, "KeyShift")
 	eq(codes.get("KeyF"), KEY_F, "KeyF (creature)")
@@ -148,6 +149,7 @@ func test_code_map_round_trips_every_key() -> void:
 	eq(codes.get("Digit2"), KEY_2, "Digit2")
 	eq(codes.get("KeyM"), KEY_M, "KeyM")
 	eq(codes.get("KeyE"), KEY_E, "KeyE")
+	eq(codes.get("Alt"), KEY_ALT, "Alt (R6 editor peek)")
 	for code in codes:
 		var phys: int = codes[code]
 		inp.handle_event(_key_ev(phys, true))

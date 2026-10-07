@@ -13,6 +13,13 @@
 ## hit-tests row_rects recorded by draw() (TS records them in renderRow);
 ## click_part(row, btn) is the programmatic path (TS-test parity,
 ## bot.test.ts:132). All display literals ride tr_key INLINE (T2 audit).
+##
+## R6 experience redesign: the list splits into two tabs — BODY (parts + diet
+## + size + graft: the DNA economy) and LOOK (hue/sat/pattern/coat + an inert
+## name placeholder: free cosmetics priced through look_price, no DNA display
+## on the tab at all). The switch is session-local — every open starts on
+## BODY and nothing rides the save wire. The world backdrop eases to 0.6
+## (hold-to-peek 0.2 via the on-screen hold-button bottom-right or Alt).
 class_name EditorUi
 extends RefCounted
 
@@ -28,18 +35,27 @@ const CreaturePainter := preload("res://src/gfx/creature_painter.gd")
 
 var open := false
 var mode := "cell"            # 'cell' | 'creature' (TS Editor.mode)
+## R6 tab: 'body' | 'look' — session-local, every show() resets to 'body'.
+var tab := "body"
 var rows: Array = []          # TS private rows — public for the headless tests
 var scroll := 0.0
 var preview_t := 0.0
 var gait := 0.0
 var open_t := 0.0
 var dirty_since_save := false
+## R6 world peek — true while the on-screen hold-button or Alt is down.
+var peeking := false
 ## TS private sliderDrag: 'hue' | 'sat' | null — "" natively.
 var slider_drag := ""
 var slider_rects := {"hue": null, "sat": null}
 ## TS private listRect/closeRect — draw-computed (update reads the last pass).
 var list_rect := {"x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0}
 var close_rect := {"x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0}
+## R6 draw-computed rects — the tab pair (top of the parts panel) and the
+## peek hold-button (bottom-right strip).
+var tab_rects := {"body": {"x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0},
+		"look": {"x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0}}
+var peek_rect := {"x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0}
 ## {row, r, btn} records — rebuilt every draw pass (draw-populated, TS order).
 var row_rects: Array = []
 ## TS notifyStatsChanged hook — the owning stage binds sim.on_stats_changed.
@@ -60,6 +76,7 @@ func show(mode_v: String) -> void:
 	mode = mode_v
 	open = true
 	_sync_open()
+	tab = "body"  # R6: the switch is session-local — every open starts on BODY
 	scroll = 0.0
 	rows = build_rows()
 	# TS audio.play('warp', 0.5) — audio core is its own task
@@ -103,18 +120,65 @@ func toggle(mode_v: String) -> void:
 		show(mode_v)
 
 
+## R6 look-tab price — every LOOK cosmetic is free. The freeness lives HERE,
+## never as inline 0 literals at the call sites. Ids outside the LOOK catalog
+## fall back to their standard catalog cost so a future misuse can never
+## silently free a DNA sink.
+static func look_price(part_id: String) -> int:
+	for p in PartsScript.PATTERNS:
+		if String(p["id"]) == part_id:
+			return 0
+	for c in PartsScript.COATS:
+		if String(c["id"]) == part_id:
+			return 0
+	var d: Dictionary = PartsScript.part_by_id(part_id)
+	if not d.is_empty():
+		return PartsScript.part_cost(d, 0)
+	for diet in PartsScript.DIETS:
+		if String(diet["id"]) == part_id:
+			return int(diet["cost"])
+	return 0
+
+
+## R6 world peek — the backdrop alpha while the editor is open: 0.6 at rest
+## (the old full-black wall eased down), 0.2 while the hold-button or Alt is
+## down. Both constants live here, never at the draw site.
+static func world_dim(peeking_v: bool) -> float:
+	return 0.2 if peeking_v else 0.6
+
+
+## R6 tab switch — session-local (show() resets to BODY; nothing is saved).
+func switch_tab(t: String) -> void:
+	if t == tab:
+		return
+	tab = t
+	scroll = 0.0
+	rows = build_rows()
+
+
+## R6: the DNA economy display (the footer counter) exists on BODY only —
+## LOOK is free cosmetics and hides ALL DNA display while on the tab.
+func dna_visible() -> bool:
+	return tab == "body"
+
+
 func build_rows() -> Array:
 	var out: Array = []
+	if tab == "look":
+		# ruling order: hue/sat/pattern/coat + the inert name row last
+		out.append({"kind": "hue"})
+		out.append({"kind": "sat"})
+		out.append({"kind": "pattern"})
+		if mode == "creature":
+			out.append({"kind": "coat"})
+		# R7 replaces this placeholder with the on-canvas name picker
+		out.append({"kind": "name"})
+		return out
 	for def in PartsScript.PARTS:
 		if String(def["stage"]) == mode or String(def["stage"]) == "both":
 			out.append({"kind": "part", "def": def})
-	if mode == "creature":
-		out.append({"kind": "coat"})
 	out.append({"kind": "diet"})
-	out.append({"kind": "pattern"})
 	out.append({"kind": "size"})
-	out.append({"kind": "hue"})
-	out.append({"kind": "sat"})
 	# borrowed_flesh: the ONE graft slot — offer an extinct species' standout
 	# part (standard DNA price, no discount). One graft per run.
 	var c: Variant = _game.context
@@ -143,6 +207,11 @@ func update(dt: float) -> void:
 	gait += dt * 6.0
 	open_t += dt
 	var input: Variant = _game.input
+
+	# R6 world peek — re-derived every frame from the held state (Alt through
+	# the GameInput live poll, the button through the cursor over its rect)
+	peeking = bool(input.key("Alt")) \
+			or (bool(input.is_down()) and _hit(float(input.mx), float(input.my), peek_rect))
 
 	if input.key_pressed("KeyE") or input.key_pressed("Tab"):
 		close()
@@ -176,6 +245,17 @@ func update(dt: float) -> void:
 		input.take_click()
 		close()
 		return
+	# R6 peek hold-button — consume the press so a hold there never buys a
+	# part or latches a slider; the held state itself is read at the top
+	if _hit(mx, my, peek_rect):
+		input.take_click()
+		return
+	# R6 tab bar
+	for t in tab_rects:
+		if _hit(mx, my, tab_rects[t]):
+			input.take_click()
+			switch_tab(String(t))
+			return
 	# list interactions
 	for rr in row_rects:
 		if not _hit(mx, my, rr["r"]):
@@ -272,6 +352,8 @@ func click_row(row: Dictionary, mx: float, r: Dictionary) -> void:
 	if String(row["kind"]) == "graft":
 		click_graft(row)
 		return
+	if String(row["kind"]) == "name":
+		return  # R6 inert placeholder — R7 turns this row into the picker
 	match String(row["kind"]):
 		"diet":
 			var idx := _diet_index(String(g["diet"]))
@@ -285,22 +367,25 @@ func click_row(row: Dictionary, mx: float, r: Dictionary) -> void:
 			g["diet"] = String(next["id"])
 			# TS audio.play('dna', 0.7)
 		"pattern":
+			# R6: LOOK cosmetics price through look_price — free, re-switchable
 			var pidx := _pattern_index(String(g["pattern"]))
 			var pnext: Dictionary = PartsScript.PATTERNS[(pidx + 1) % PartsScript.PATTERNS.size()]
-			var pcost := int(pnext["cost"])
-			if int(c.dna) < pcost:
+			var pcost := look_price(String(pnext["id"]))
+			if pcost > 0 and int(c.dna) < pcost:
 				_game.hud["toast"].call(_game.i18n.tr_key("Not enough DNA"), "bad", "🧬")
 				return
-			c.spend_dna(pcost)
+			if pcost > 0:
+				c.spend_dna(pcost)
 			g["pattern"] = String(pnext["id"])
 		"coat":
 			var cidx := _coat_index(String(g["coat"]))
 			var cnext: Dictionary = PartsScript.COATS[(cidx + 1) % PartsScript.COATS.size()]
-			var ccost := int(cnext["cost"])
-			if int(c.dna) < ccost:
+			var ccost := look_price(String(cnext["id"]))
+			if ccost > 0 and int(c.dna) < ccost:
 				_game.hud["toast"].call(_game.i18n.tr_key("Not enough DNA"), "bad", "🧬")
 				return
-			c.spend_dna(ccost)
+			if ccost > 0:
+				c.spend_dna(ccost)
 			g["coat"] = String(cnext["id"])
 		"size":
 			var half := float(r["x"]) + float(r["w"]) / 2.0
@@ -343,12 +428,16 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 	var c: Variant = _game.context
 	var g := _g()
 
-	# backdrop
-	ci.draw_rect(Rect2(0.0, 0.0, vw, vh), RendererScript.css_color("rgba(3,6,16,0.88)"))
+	# backdrop — R6: the alpha rides world_dim (0.6 rest, 0.2 while peeking;
+	# both constants live on the helper, never here)
+	ci.draw_rect(Rect2(0.0, 0.0, vw, vh),
+			Color(3.0 / 255.0, 6.0 / 255.0, 16.0 / 255.0, world_dim(peeking)))
 
 	var pad := 24.0
 	var top := 70.0
-	var bottom_pad := 24.0
+	# R6: 64 — the panels stop above a bottom strip so the peek hold-button
+	# sits alone at the bottom-right (over the world when peeking)
+	var bottom_pad := 64.0
 	var left_w := minf(460.0, vw * 0.42)
 	var left_x := pad
 	var left_y := top
@@ -426,10 +515,33 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 		"stroke": RendererScript.css_color("rgba(120,180,255,0.3)"),
 	})
 	list_rect = {"x": right_x + 12.0, "y": left_y + 46.0, "w": right_w - 24.0, "h": left_h - 110.0}
-	RendererScript.outlined_text(ci,
-			_game.i18n.tr_key("CELL PARTS") if mode == "cell" else _game.i18n.tr_key("BODY PARTS"),
-			right_x + right_w / 2.0, left_y + 24.0,
-			{"size": 13.0, "fill": Color("#8fd0ff"), "weight": "700"})
+	# R6 tab bar — the title goes left-aligned, the BODY/LOOK pair sits
+	# top-right; the switch is session-local (never persisted)
+	var tab_w := 78.0
+	var look_x := right_x + right_w - 12.0 - tab_w
+	tab_rects["look"] = {"x": look_x, "y": left_y + 9.0, "w": tab_w, "h": 30.0}
+	tab_rects["body"] = {"x": look_x - 6.0 - tab_w, "y": left_y + 9.0, "w": tab_w, "h": 30.0}
+	if tab == "look":
+		RendererScript.outlined_text(ci, _game.i18n.tr_key("LOOK"), right_x + 16.0, left_y + 24.0,
+				{"size": 13.0, "fill": Color("#8fd0ff"), "weight": "700", "align": "left"})
+	else:
+		RendererScript.outlined_text(ci,
+				_game.i18n.tr_key("CELL PARTS") if mode == "cell" else _game.i18n.tr_key("BODY PARTS"),
+				right_x + 16.0, left_y + 24.0,
+				{"size": 13.0, "fill": Color("#8fd0ff"), "weight": "700", "align": "left"})
+	for t in ["body", "look"]:
+		var tb: Dictionary = tab_rects[String(t)]
+		var active := tab == String(t)
+		RendererScript.panel(ci, float(tb["x"]), float(tb["y"]), float(tb["w"]), float(tb["h"]), {
+			"fill": RendererScript.css_color("rgba(50,110,220,0.9)") if active
+					else RendererScript.css_color("rgba(20,34,64,0.85)"),
+			"stroke": RendererScript.css_color("rgba(160,210,255,0.7)") if active
+					else RendererScript.css_color("rgba(120,180,255,0.3)"),
+		})
+		RendererScript.outlined_text(ci,
+				_game.i18n.tr_key("BODY") if String(t) == "body" else _game.i18n.tr_key("LOOK"),
+				float(tb["x"]) + float(tb["w"]) / 2.0, float(tb["y"]) + 19.0,
+				{"size": 13.0, "fill": Color("#fff") if active else Color("#9fc8ff")})
 
 	# TS clips the rows to the right panel (ctx.rect+clip); Godot CanvasItem
 	# has no draw-time rect clip — the visibility gate below keeps rows inside
@@ -459,11 +571,13 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 				right_x + 16.0, left_y + 40.0,
 				{"size": 10.0, "fill": RendererScript.css_color("rgba(150,190,235,0.55)"), "align": "left"})
 
-	# footer: DNA + close
+	# footer: DNA + close — R6: the DNA counter draws on BODY only (LOOK
+	# hides ALL DNA display while on the tab)
 	var fy := left_y + left_h - 52.0
-	RendererScript.outlined_text(ci, "🧬 %s %s" % [PMathScript.format_num(float(c.dna)),
-			_game.i18n.tr_key("DNA available")], right_x + 16.0, fy + 20.0,
-			{"size": 16.0, "fill": Color("#bfe6ff"), "align": "left"})
+	if dna_visible():
+		RendererScript.outlined_text(ci, "🧬 %s %s" % [PMathScript.format_num(float(c.dna)),
+				_game.i18n.tr_key("DNA available")], right_x + 16.0, fy + 20.0,
+				{"size": 16.0, "fill": Color("#bfe6ff"), "align": "left"})
 	close_rect = {"x": right_x + right_w - 130.0, "y": fy + 2.0, "w": 116.0, "h": 40.0}
 	RendererScript.panel(ci, float(close_rect["x"]), float(close_rect["y"]),
 			float(close_rect["w"]), float(close_rect["h"]), {
@@ -473,6 +587,23 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 	RendererScript.outlined_text(ci, _game.i18n.tr_key("DONE (E)"),
 			float(close_rect["x"]) + float(close_rect["w"]) / 2.0,
 			float(close_rect["y"]) + 20.0, {"size": 14.0, "fill": Color("#fff")})
+
+	# R6 peek hold-button — alone in the bottom-right strip (below the panels);
+	# lights up while the hold shows the world through the backdrop
+	peek_rect = {"x": right_x + right_w - 130.0, "y": vh - 58.0, "w": 116.0, "h": 40.0}
+	RendererScript.panel(ci, float(peek_rect["x"]), float(peek_rect["y"]),
+			float(peek_rect["w"]), float(peek_rect["h"]), {
+				"fill": RendererScript.css_color("rgba(80,160,255,0.95)") if peeking
+						else RendererScript.css_color("rgba(50,110,220,0.9)"),
+				"stroke": RendererScript.css_color("rgba(160,210,255,0.7)"),
+			})
+	RendererScript.outlined_text(ci, _game.i18n.tr_key("PEEK (hold)"),
+			float(peek_rect["x"]) + float(peek_rect["w"]) / 2.0,
+			float(peek_rect["y"]) + 20.0, {"size": 14.0, "fill": Color("#fff")})
+	RendererScript.outlined_text(ci, _game.i18n.tr_key("hold to peek the world (Alt)"),
+			float(peek_rect["x"]) - 12.0, float(peek_rect["y"]) + 20.0,
+			{"size": 11.0, "fill": RendererScript.css_color("rgba(150,190,235,0.55)"),
+					"align": "right"})
 	update_editor_cursor()
 
 
@@ -484,6 +615,13 @@ func update_editor_cursor() -> void:
 	if _hit(mx, my, close_rect):
 		_game.hover_cursor()
 		return
+	if _hit(mx, my, peek_rect):
+		_game.hover_cursor()
+		return
+	for t in tab_rects:
+		if _hit(mx, my, tab_rects[t]):
+			_game.hover_cursor()
+			return
 	for rr in row_rects:
 		if _hit(mx, my, rr["r"]):
 			_game.hover_cursor()
@@ -579,20 +717,30 @@ func render_row(ci: CanvasItem, row: Dictionary, x: float, y: float, w: float, h
 					_game.i18n.tr_key(String(nxt["name"]))], x + w - 16.0, y + h / 2.0,
 					{"size": 11.0, "fill": Color("#9fc8ff"), "align": "right"})
 		"pattern":
+			# R6: the price extra routes through look_price — 0 renders no DNA
+			# text at all (LOOK shows no DNA display)
 			var pat: Dictionary = _pattern_def(String(g["pattern"]))
+			var pprice := look_price(String(pat["id"]))
 			_row_label(ci, x, y, w, h, _game.i18n.tr_key("SKIN PATTERN"),
 					_game.i18n.tr_key(String(pat["name"])),
-					"(%d DNA)" % int(pat["cost"]) if int(pat["cost"]) > 0 else "")
+					"(%d DNA)" % pprice if pprice > 0 else "")
 			RendererScript.outlined_text(ci, _game.i18n.tr_key("switch ▸"), x + w - 16.0, y + h / 2.0,
 					{"size": 11.0, "fill": Color("#9fc8ff"), "align": "right"})
 		"coat":
 			var coat: Dictionary = _coat_def(String(g["coat"]))
+			var cprice := look_price(String(coat["id"]))
 			_row_label(ci, x, y, w, h, _game.i18n.tr_key("COAT"),
 					"%s — %s" % [_game.i18n.tr_key(String(coat["name"])),
 							_game.i18n.tr_key(String(coat["effect"]))],
-					"(%d DNA)" % int(coat["cost"]) if int(coat["cost"]) > 0 else "")
+					"(%d DNA)" % cprice if cprice > 0 else "")
 			RendererScript.outlined_text(ci, _game.i18n.tr_key("switch ▸"), x + w - 16.0, y + h / 2.0,
 					{"size": 11.0, "fill": Color("#9fc8ff"), "align": "right"})
+		"name":
+			# R6 inert placeholder — the row draws but never takes a click rect
+			# (the return skips the trailing full-row append below)
+			_row_label(ci, x, y, w, h, _game.i18n.tr_key("NAME"),
+					_game.i18n.tr_key("naming comes next"), "")
+			return
 		"size":
 			var b2: Dictionary = GenomeScript.GENE_BOUNDS["size"]
 			_row_label(ci, x, y, w, h, _game.i18n.tr_key("BODY SIZE"),

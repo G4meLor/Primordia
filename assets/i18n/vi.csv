@@ -519,3 +519,9 @@ Creature,Sinh vật
 Tribe,Bộ tộc
 Civ,Văn minh
 Space,Không gian
+BODY,CƠ THỂ
+LOOK,DIỆN MẠO
+NAME,TÊN
+naming comes next,sắp có phần đặt tên
+PEEK (hold),NGÓ (giữ)
+hold to peek the world (Alt),giữ để ngó thế giới (Alt)
