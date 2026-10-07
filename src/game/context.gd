@@ -27,6 +27,15 @@ const NamesScript := preload("res://src/evo/names.gd")
 
 ## StageId — plain strings validated by membership (TS string-literal union).
 const STAGES := ["menu", "cell", "creature", "tribe", "civ", "space"]
+## R15 karma profile — the four sim stages' slots in karma_by_stage (the
+## menu and space stages record nothing: a run's profile is the trail of
+## EVOLUTION exits, and space is the ending itself).
+const KARMA_STAGE_INDEX := {"cell": 0, "creature": 1, "tribe": 2, "civ": 3}
+## R15 recover cap: within one stage, positive karma recovery tops out this
+## far above the stage's ENTRY karma (the graze loophole — a bloody stage
+## farmed back to pacifism by holding down on a bush). Negative moves and
+## the game.gd drift stay uncapped.
+const KARMA_RECOVER_CAP := 0.15
 ## Stage gate inside load(): a save can never restore the menu itself.
 const LOAD_STAGES := ["cell", "creature", "tribe", "civ", "space"]
 ## Difficulty — same.
@@ -45,6 +54,18 @@ var seed: int = 0
 var genome: Dictionary = GenomeScript.default_genome()
 var dna: int = 40
 var karma := 0.0          # -1 aggressive … +1 harmonious
+## R15 — the per-stage karma profile: one float per SIM-stage exit
+## (cell/creature/tribe/civ, index = KARMA_STAGE_INDEX). Recorded ONLY at
+## game.gd's switch_stage choke point (a quit-to-title mid-stage records
+## once there and the stage's proper exit overwrites it later). Pre-R15
+## saves derive the single-entry grace profile [karma] at load (the load
+## site documents the degradation).
+var karma_by_stage: Array = []
+## R15 recover-cap anchor: the karma standing at the CURRENT stage's entry
+## (the previous stage's exit snapshot; a fresh cell run enters at the 0.0
+## start). Positive add_karma gain can never lift the meter more than
+## KARMA_RECOVER_CAP above this within the stage.
+var _karma_entry := 0.0
 var chaos := 0.15         # 0 calm … 1 unhinged
 var difficulty: String = "normal"
 var slot := 0             # active save slot
@@ -169,7 +190,70 @@ func add_chaos(d: float) -> void:
 
 
 func add_karma(d: float) -> void:
-	karma = clampf(karma + d, -1.0, 1.0)
+	var v := karma + d
+	if d > 0.0:
+		# R15 recover cap: positive gains top out at entry+0.15. maxf keeps
+		# the cap from PULLING DOWN a karma already above the window (the
+		# negative-karma drift in game.gd lifts an aggressive player past
+		# the anchor uncapped — that head must never be clipped back).
+		v = maxf(karma, minf(v, _karma_entry + KARMA_RECOVER_CAP))
+	karma = clampf(v, -1.0, 1.0)
+
+
+## R15 seam write (called from game.gd's switch_stage — the single exit
+## choke point, so a stage exit can only ever record once): snapshot the
+## LEAVING sim stage's karma into its profile slot. menu/space record
+## nothing (no index). The linear evolution fills the slots in order; the
+## size guard only exists for out-of-order corruption not to read null.
+func record_stage_exit(stage_id: String) -> void:
+	var idx: int = KARMA_STAGE_INDEX.get(stage_id, -1)
+	if idx < 0:
+		return
+	while karma_by_stage.size() <= idx:
+		karma_by_stage.append(0.0)
+	karma_by_stage[idx] = karma
+
+
+## R15 seam partner (game.gd's switch_stage, at the stage assignment): the
+## recover-cap anchor re-arms on a SIM→SIM evolution — the karma standing
+## here IS the leaving stage's fresh exit snapshot. A menu resumption
+## (quit-to-title → CONTINUE) skips this: the anchor stays the one
+## context.load() derived from the profile (the stage's ORIGINAL entry
+## snapshot), so a save-quit-continue cycle cannot mint fresh cap headroom.
+## A fresh cell run enters at the 0.0 start (reset_karma_profile).
+func rearm_karma_stage() -> void:
+	_karma_entry = karma
+
+
+## R15: the profile and the cap anchor are per-RUN state — a NEW LIFE wipes
+## both and re-anchors the cap at the cell 0.0 start (menu.gd
+## start_new_game's reset block, next to the karma reset).
+func reset_karma_profile() -> void:
+	karma_by_stage = []
+	_karma_entry = 0.0
+
+
+## R15 — the profile's worst stage exit (the harmony gate's second input).
+## An empty profile (nothing has exited yet / fresh run) reads the live
+## karma — the same graceful standing the old-save grace relies on.
+func karma_min() -> float:
+	if karma_by_stage.is_empty():
+		return karma
+	var m := float(karma_by_stage[0])
+	for i in range(1, karma_by_stage.size()):
+		m = minf(m, float(karma_by_stage[i]))
+	return m
+
+
+## R15 — the profile's mean stage exit (the heredity ledger builds on this,
+## Task 14). Empty profile reads the live karma.
+func karma_mean() -> float:
+	if karma_by_stage.is_empty():
+		return karma
+	var sum := 0.0
+	for v in karma_by_stage:
+		sum += float(v)
+	return sum / float(karma_by_stage.size())
 
 
 ## Chaos event frequency multiplier per difficulty.
@@ -256,6 +340,7 @@ func to_save_data() -> Dictionary:
 		"genome": genome,
 		"dna": dna,
 		"karma": karma,
+		"karmaByStage": karma_by_stage,
 		"chaos": chaos,
 		"playtime": playtime,
 		"totalDnaEarned": total_dna_earned,
@@ -396,6 +481,39 @@ func load(slot_v: int) -> bool:
 	# sanitize-idempotent, so the round-trip is lossless
 	var cn_v: Variant = data.get("creatureName")
 	creature_name = NamesScript.sanitize_name(cn_v) if cn_v is String else ""
+	# R15 karma profile: an array of finite numbers (4 sim-stage exits max —
+	# a longer list is corrupt and truncates; one bad apple drops the whole
+	# list, the bestiary rule; each element clamps to the ±1 meter). A MISSING
+	# field is a pre-R15 save: the single-entry grace profile [karma] keeps
+	# karma_min()/karma_mean() reading the loaded standing (the harmony gate
+	# degrades to the old karma-only check) and anchors the recover cap at
+	# the loaded karma. An EMPTY array is legitimate (a mid-cell autosave —
+	# no stage has exited yet) and stays empty.
+	var kbs_v: Variant = data.get("karmaByStage")
+	if kbs_v is Array:
+		var prof: Array = []
+		var all_ok := true
+		for e in kbs_v:
+			if not ((e is float or e is int) and is_finite(e)):
+				all_ok = false
+				break
+			prof.append(clampf(float(e), -1.0, 1.0))
+		karma_by_stage = prof if all_ok else [karma]
+		if karma_by_stage.size() > 4:
+			karma_by_stage.resize(4)
+	else:
+		karma_by_stage = [karma]  # pre-R15 grace (documented above)
+	# R15 recover-cap anchor: the current stage's ENTRY karma — the previous
+	# stage's exit snapshot when the profile carries it, else the loaded
+	# standing (grace). Cell entry is the 0.0 start (new-run karma reset).
+	if stage == "cell":
+		_karma_entry = 0.0
+	else:
+		var prev_idx: int = KARMA_STAGE_INDEX.get(stage, 4) - 1
+		if prev_idx >= 0 and prev_idx < karma_by_stage.size():
+			_karma_entry = float(karma_by_stage[prev_idx])
+		else:
+			_karma_entry = karma
 	bestiary = {}
 	for e in best_list:
 		bestiary[e["key"]] = e

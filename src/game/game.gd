@@ -297,6 +297,14 @@ func switch_stage(id: String) -> void:
 		if next.get("hud_inst") != null:
 			next.hud_inst.adopt_toasts(carried_toasts)
 	if current != null:
+		# R15: the single exit choke point — every switch out of a stage
+		# (evolution AND quit-to-title: both funnel through switch_stage)
+		# snapshots the leaving sim stage's karma into the per-stage profile
+		# exactly once. Hooked HERE rather than in stage.on_exit so no other
+		# exit path can record a second time; the pause quit's save_all (which
+		# fires BEFORE this seam) therefore persists the profile without the
+		# leaving stage's own slot — its proper exit overwrites it later.
+		context.record_stage_exit(current.id)
 		current.on_exit()
 		# native tree-model note (TS immediate-mode redraws only the live
 		# stage): stages are persistent children, so the node we leave hides.
@@ -307,8 +315,18 @@ func switch_stage(id: String) -> void:
 		if orphan:
 			current.queue_free()
 	var from: Variant = current.id if current != null else null
+	# R15: the anchor re-arms ONLY out of a SIM stage — the standing karma
+	# there IS that stage's fresh exit snapshot (the seam serves both the
+	# exit snapshot and the next stage's entry karma). A menu resumption
+	# (quit-to-title → CONTINUE) must keep the anchor context.load() derived
+	# from the profile — the stage's ORIGINAL entry snapshot — or every
+	# save-quit-continue cycle would mint a fresh +0.15 of cap headroom.
+	var leaving_sim: bool = current != null \
+			and int(context.KARMA_STAGE_INDEX.get(current.id, -1)) >= 0
 	current = next
 	context.stage = id
+	if leaving_sim:
+		context.rearm_karma_stage()
 	# per-stage storyteller signals start clean on every switch (TS:219-221)
 	deaths_in_stage = 0
 	stage_time = 0.0

@@ -904,7 +904,7 @@ func update_player(dt: float, inp: Dictionary) -> void:
 				b["regrow"] = 25.0
 				php = minf(pmaxHp, php + 6.0 * took)
 				ctx.add_dna(took * 1.2)
-				ctx.add_karma(dt * 0.02)
+				ctx.add_karma(dt * 0.005)  # R15: the graze loophole halved twice
 				eatT = 1.0
 				if rng.chance(dt * 6.0):
 					_fire("audio_play", ["eat", 0.35, 0.0])

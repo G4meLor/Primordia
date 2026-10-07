@@ -801,6 +801,20 @@ func _draw_planet_panel(ci: CanvasItem) -> void:
 						else RendererScript.css_color("rgba(255,255,255,0.4)")})
 
 
+## R15 ending-flavor tier (TS SpaceStage.ts:1111-1113 + the redesign
+## ruling): harmony additionally requires the per-stage karma profile's
+## worst exit to be clean — a high live karma built on a bloody stage
+## (min < -0.1) reads NEUTRAL, not harmonious. The fears path stays
+## karma-only. Static + pure so the suite pins the tier math headless
+## (test_karma_profile.gd); the raw EN keys translate at the draw site.
+static func ending_flavor(karma_v: float, kmin: float) -> String:
+	if karma_v > 0.3 and kmin >= -0.1:
+		return "The universe hums in harmony — you gardened the stars."
+	if karma_v < -0.3:
+		return "The universe fears your name — chaos was your harvest."
+	return "The universe cannot decide what you are. It keeps watching."
+
+
 ## TS renderEnding (:1100-1122).
 func _draw_ending(ci: CanvasItem) -> void:
 	var vw: float = game.vw
@@ -817,11 +831,9 @@ func _draw_ending(ci: CanvasItem) -> void:
 				thriving += 1
 	var karma_v := float(game.context.karma)
 	var karma_txt := ("+" if karma_v >= 0.0 else "") + "%.2f" % karma_v
-	var flavor := "The universe cannot decide what you are. It keeps watching."
-	if karma_v > 0.3:
-		flavor = "The universe hums in harmony — you gardened the stars."
-	elif karma_v < -0.3:
-		flavor = "The universe fears your name — chaos was your harvest."
+	# R15: the harmony tier additionally reads the per-stage profile's worst
+	# exit (ending_flavor documents the gate)
+	var flavor := ending_flavor(karma_v, game.context.karma_min())
 	var lines: Array = [
 		"playtime %d min · %d DNA harvested across the ages" % [
 			roundi(float(game.context.playtime) / 60.0),

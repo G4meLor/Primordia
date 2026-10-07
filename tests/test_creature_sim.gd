@@ -683,7 +683,7 @@ func test_bush_eating_and_regrow() -> void:
 	ok(float(b["food"]) <= 0.0, "bush depleted by hold-eating")
 	eq(int(ctx.dna), 44, "DNA 1.2 * took (4.0 food -> +4 whole)")
 	approx(float(sim.php), 40.0 + 24.0, "heal 6 * took")
-	approx(float(ctx.karma), 0.04, "karma +dt*0.02 per grazing tick (~120 ticks)", 1e-3)
+	approx(float(ctx.karma), 0.01, "karma +dt*0.005 per grazing tick (~120 ticks, R15)", 1e-3)
 	ok(float(b["regrow"]) > 24.0 and float(b["regrow"]) < 25.0, "regrow armed at 25 (decaying)")
 	ok(float(sim.eatT) > 0.0, "eatT set while eating")
 	# F-hold also eats

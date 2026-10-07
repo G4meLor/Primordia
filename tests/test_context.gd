@@ -190,12 +190,19 @@ func test_chaos_karma_clamps() -> void:
 	approx(ctx.chaos, 1.0, "chaos clamps at 1")
 	ctx.add_chaos(-2.0)
 	approx(ctx.chaos, 0.0, "chaos clamps at 0")
+	# R15 recover cap: positive recovery tops out 0.15 above the stage's
+	# entry anchor (a fresh context anchors at the cell 0.0 start)
 	ctx.add_karma(0.4)
-	approx(ctx.karma, 0.4, "karma drifts up")
+	approx(ctx.karma, 0.15, "positive recovery caps at entry+0.15 (R15)")
 	ctx.add_karma(2.0)
-	approx(ctx.karma, 1.0, "karma clamps at +1")
+	approx(ctx.karma, 0.15, "still capped (the ±1 clamp sits above the cap window)")
+	# re-anchor high so the ±1 meter clamp itself is what bites
+	ctx.karma = 0.9
+	ctx.rearm_karma_stage()
+	ctx.add_karma(2.0)
+	approx(ctx.karma, 1.0, "karma clamps at +1 (entry 0.9 caps at 1.05 — the meter clamp bites first)")
 	ctx.add_karma(-3.0)
-	approx(ctx.karma, -1.0, "karma clamps at -1")
+	approx(ctx.karma, -1.0, "karma clamps at -1 (negative adds uncapped)")
 
 
 func test_difficulty_getters() -> void:
@@ -418,8 +425,8 @@ func test_save_load_round_trip() -> void:
 			var d: Dictionary = parsed
 			eq(d["version"], 1, "native save version is 1")
 			for k in ["version", "seed", "stage", "difficulty", "genome", "dna", "karma",
-					"chaos", "playtime", "totalDnaEarned", "playerName", "bestiary",
-					"eco", "flags", "world"]:
+					"karmaByStage", "chaos", "playtime", "totalDnaEarned", "playerName",
+					"bestiary", "eco", "flags", "world"]:
 				ok(d.has(k), "SaveData key %s present" % k)
 			var wb: Dictionary = d["world"]
 			for k in ["traitIds", "turnIds", "revealed", "comboFired", "firedTurns",
