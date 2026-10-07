@@ -1,7 +1,7 @@
 # Tests for the R6 experience-redesign task: the editor's free LOOK tab + the
 # world peek. The editor splits into BODY (parts + diet + size + graft — the
-# DNA economy) and LOOK (hue/sat/pattern/coat + the inert name placeholder —
-# no DNA display anywhere on the tab) tabs; the world backdrop eases
+# DNA economy) and LOOK (hue/sat/pattern/coat + the name row — the R7 picker
+# entry point; no DNA display anywhere on the tab) tabs; the world backdrop eases
 # 0.88 → 0.6 with a hold-to-peek 0.2 (on-screen hold-button bottom-right +
 # keyboard Alt). The freeness lives in the parts.gd DATA (PATTERNS/COATS
 # costs zeroed — single source of truth; the buy path reads the catalog), and
