@@ -50,8 +50,25 @@ const ARC_LABELS := {
 ## AbilitySlot dicts {key, icon, cd, active, hint} — the stage recomputes the
 ## cd fractions every update (CellStage.ts:488-494); the hud never mutates.
 var abilities: Array = []
-## TS showObjective: string | null — a raw EN key, translated at draw.
-var show_objective: Variant = null
+## TS showObjective: string | null — a raw EN key, translated at draw. R2
+## chip contract: ANY (re)assignment arms a PLAIN line — the counter pair
+## resets here, so the cell/creature direct sets and the 1-arg objective
+## hook can never leak a previous stage's chip; the sims re-arm the live
+## pair per tick through the hud_objective_counter hook.
+var show_objective: Variant = null:
+	set(v):
+		show_objective = v
+		show_objective_text = "" if v == null else String(v)
+		show_objective_cur = -1
+		show_objective_max = 0
+## R2 chip: typed mirror of show_objective — what the objective slot renders
+## ("" while hidden). The draw block reads this, never the Variant.
+var show_objective_text: String = ""
+## R2 chip: the live cur/max pair behind the objective line — cur<0 or
+## max<=0 renders plain text (the sims fire the pair only while it tracks
+## something real; see HudUi.objective_display).
+var show_objective_cur := -1
+var show_objective_max := 0
 ## Extra bottom inset so toasts clear stage-specific bottom-left UI (tribe
 ## build buttons, civ portrait). Stages set it in on_enter; cell leaves it 0.
 var toast_inset := 0.0
@@ -367,7 +384,9 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 
 	# ---- objective --------------------------------------------------------------
 	if show_objective != null:
-		RendererScript.outlined_text(ci, _game.i18n.tr_key(String(show_objective)),
+		# R2 chip: the prose translates, then the live pair appends OUTSIDE
+		# tr_key (numbers are not prose — see objective_display)
+		RendererScript.outlined_text(ci, objective_render_string(),
 				vw / 2.0, 26.0, {"size": 13.0, "fill": Color("#ffe9b0"), "alpha": 0.9,
 						"maxWidth": vw - 380.0})
 
@@ -481,6 +500,26 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 				{"size": float(f2["size"]) * float(cam.zoom),
 						"fill": RendererScript.css_color(String(f2["color"])),
 						"alpha": minf(1.0, float(f2["ttl"]) * 2.0)})
+
+
+## R2 chip — the pure display join: "T · 34/100" while a counter is armed
+## (cur >= 0 and max > 0), else the line as-is. The brief-pinned no-counter
+## edges: cur<0 or max<=0 → plain text. The "·" is typography, not prose —
+## it stays out of vi.csv; the fallback font's digits share one advance
+## (tabular), so the live counter doesn't jitter as it ticks.
+static func objective_display(text: String, cur: int, max: int) -> String:
+	if cur < 0 or max <= 0:
+		return text
+	return "%s · %d/%d" % [text, cur, max]
+
+
+## The exact string the objective slot renders: the prose translated, then
+## the live pair appended OUTSIDE tr_key. Extracted from draw() for the
+## headless suite (the arc_states/arc_next_hint seam — draw targets a live
+## canvas, which only the xvfb scene harness exercises).
+func objective_render_string() -> String:
+	return objective_display(_game.i18n.tr_key(show_objective_text),
+			show_objective_cur, show_objective_max)
 
 
 ## R3 arc state per journey node for `stage_id`: "done" before the current

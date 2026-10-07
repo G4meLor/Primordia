@@ -166,6 +166,9 @@ const PartsScript := preload("res://src/evo/parts.gd")
 
 ## TS hud.showObjective on onEnter (SpaceStage.ts:188).
 const OBJECTIVE_LINE := "SEED 3 WORLDS, GROW EACH TO POP 20 — awaken the Chaos Core · R abduct · F evolve"
+## The thriving gate (TS:553 — 3 colonies at pop ≥ 20) — also the R2 chip's
+## max ("worlds seeded cur/3") while the seeding objective owns the line.
+const SEED_GOAL := 3
 
 ## TS:105 — the fixed kind ring, verbatim (`kinds[i] ?? 'barren'` is
 ## unreachable for i < 6).
@@ -849,6 +852,13 @@ func update(dt: float, inp: Dictionary) -> void:
 		_fire("hud_banner", [{"title": "THE CHAOS CORE AWAKENS",
 			"subtitle": "something pulses beyond the outer light", "kind": "chaos", "ttl": 6}])  # TS:557
 		_fire("audio_play", ["ascend", 1.0, 0.0])  # TS audio.play('ascend', 1) — audio core: its own task
+	# R2 chip: worlds seeded toward the thriving gate while the seeding
+	# objective owns the line (clamped — the sandbox past the ending can
+	# overshoot 3). Once the finale lives, its dynamic objective fires below
+	# re-arm a PLAIN line (the hud's setter clears the pair), so the
+	# core-approach/ending lines render exactly as before the chip existed.
+	if finale == null:
+		_fire("hud_objective_counter", [mini(thriving, SEED_GOAL), SEED_GOAL])
 	if finale != null:
 		finale["t"] = float(finale["t"]) + dt
 		var fd: float = _dist_ship(finale)

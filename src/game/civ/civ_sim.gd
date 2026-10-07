@@ -84,7 +84,10 @@ extends RefCounted
 const ChaosScript := preload("res://src/game/chaos.gd")
 const CivEventsScript := preload("res://src/game/civ/civ_events.gd")
 
-## TS hud.showObjective on onEnter (CivStage.ts:121).
+## TS hud.showObjective on onEnter (CivStage.ts:121). R2 ruling: NO chip —
+## the sims track no natural cur/max state toward unification (the conquest
+## meters live in-scene), so this objective stays a plain line; documented
+## per the task brief rather than left implicit.
 const OBJECTIVE_LINE := "UNIFY THE PLANET — slider keys Q/W/E · launch armadas with 1/2/3"
 
 

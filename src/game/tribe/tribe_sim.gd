@@ -108,6 +108,10 @@ const WORLD_HALF := 2400.0  # creature 2700 — per-stage constant (plan constra
 
 ## TS hud.showObjective on both onEnter paths (TribeStage.ts:164/190).
 const OBJECTIVE_LINE := "GATHER · BUILD · SURVIVE — raise the Great Totem"
+## try_totem's stockpile gate (TribeStage.ts:547-549) — the R2 objective chip
+## counts toward these (food first, the gate's own order).
+const TOTEM_FOOD_NEED := 100.0
+const TOTEM_WOOD_NEED := 80.0
 
 
 # ---- hooks ---------------------------------------------------------------------
@@ -556,6 +560,10 @@ func update(dt: float, inp: Dictionary) -> void:
 				"sub": "drums become laws; laws become empires",
 			}])
 
+	# R2 chip: the live stockpile pair behind the objective line (every tick
+	# the state is settled — the hook is a silent no-op where unregistered)
+	_fire("hud_objective_counter", _totem_chip())
+
 	# camera follow + cam.toWorld setWorld + fx pool steps + hud.setAbilities
 	# — scene-side (task 4)
 
@@ -770,13 +778,13 @@ func try_totem() -> void:
 		_fire("hud_toast", [tr("No one left to raise the totem — keep your people alive"),
 				"bad", "🗿"])
 		return
-	if food < 100.0 or wood < 80.0:
+	if food < TOTEM_FOOD_NEED or wood < TOTEM_WOOD_NEED:
 		# TS:550 — the have-template is NOT translate-wrapped there
 		_fire("hud_toast", ["Totem needs 100 food + 80 wood (have %d/%d)"
 				% [roundi(food), roundi(wood)], "bad", "🗿"])
 		return
-	food -= 100.0
-	wood -= 80.0
+	food -= TOTEM_FOOD_NEED
+	wood -= TOTEM_WOOD_NEED
 	totem["active"] = true
 	totem["progress"] = 0.0
 	_fire("audio_play", ["levelup", 0.9, 0.0])
@@ -784,6 +792,21 @@ func try_totem() -> void:
 		"title": "THE GREAT TOTEM", "subtitle": "your people carve the sky",
 		"kind": "reward",
 	}])
+
+
+## R2 chip pair — the totem stockpile progress behind the objective line:
+## food toward 100 while food-limited, wood toward 80 after, both unmet →
+## food first (matching try_totem's gate order). Gate satisfied (or the
+## totem already rising — the gate is moot then) → no chip: cur<0 renders
+## the plain line (hud.gd objective_display).
+func _totem_chip() -> Array:
+	if bool(totem["active"]):
+		return [-1, 0]
+	if food < TOTEM_FOOD_NEED:
+		return [roundi(food), int(TOTEM_FOOD_NEED)]
+	if wood < TOTEM_WOOD_NEED:
+		return [roundi(wood), int(TOTEM_WOOD_NEED)]
+	return [-1, 0]
 
 
 ## TS launchRivalRaid (TribeStage.ts:561-584).

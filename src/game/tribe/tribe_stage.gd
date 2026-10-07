@@ -902,6 +902,7 @@ func _build_hooks() -> Dictionary:
 		"hud_banner": _h_hud_banner,
 		"hud_toast_inset": _h_hud_toast_inset,
 		"hud_show_objective": _h_hud_show_objective,
+		"hud_objective_counter": _h_hud_objective_counter,
 		"hud_float_world": _h_hud_float_world,
 		"audio_play": _h_audio_noop,
 		"audio_set_mood": _h_audio_noop,
@@ -947,6 +948,15 @@ func _h_hud_toast_inset(px: float) -> void:
 func _h_hud_show_objective(text: String) -> void:
 	if hud_inst != null:
 		hud_inst.show_objective = text
+
+
+## R2 chip — the sim's live cur/max pair behind the centered objective (the
+## hud's setter clears the pair whenever the line itself (re)arms, so the
+## two hooks compose in either order).
+func _h_hud_objective_counter(cur: int, max: int) -> void:
+	if hud_inst != null:
+		hud_inst.show_objective_cur = cur
+		hud_inst.show_objective_max = max
 
 
 func _h_hud_float_world(x: float, y: float, text: String, color: Variant, size: float) -> void:
