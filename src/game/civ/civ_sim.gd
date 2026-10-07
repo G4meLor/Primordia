@@ -196,6 +196,10 @@ func on_enter() -> void:
 	if int(ctx.world["seed"]) != deckSeed:
 		chaos = ChaosScript.new(rng.branch(), _make_deck())
 		deckSeed = int(ctx.world["seed"])
+	# R12 heredity ledger — the conduct half: the start output is 10±2 by the
+	# karma profile's mean (> +0.15 → +2, < −0.15 → −2). Recomputed at EVERY
+	# entry — the sim is a boot-time singleton, so a NEW LIFE heals the bonus.
+	output = 10.0 + _start_output_bonus()
 	_fire("audio_set_mood", ["civ"])  # TS:119
 	_fire("hud_toast_inset", [150.0])  # TS:120 — clear the ruler portrait
 	_fire("hud_show_objective", [OBJECTIVE_LINE])  # TS:121
@@ -210,6 +214,15 @@ func on_enter() -> void:
 
 func on_exit() -> void:
 	persist_state()  # TS:130
+
+
+## R12 — the start-output conduct bonus (the heredity ledger's conduct half):
+## +2 above a +0.15 mean conduct, −2 below −0.15, else 0. Task 15 will stack
+## an additive ecoHealth bonus on top (hard cap 22 total) — this stays a
+## separate additive ±2.
+func _start_output_bonus() -> float:
+	var conduct: float = ctx.conduct_avg()
+	return 2.0 if conduct > 0.15 else (-2.0 if conduct < -0.15 else 0.0)
 
 
 ## The deck factory seam (civEvents.ts:47) — the world-parameterized civ deck.
@@ -541,9 +554,14 @@ func launch(kind: String) -> void:
 
 
 ## Single source of truth for rival defense (launch gate + resolve) (TS:351-355).
+## R12: the heredity shape bends it — predator-line −1 (the hunt comes
+## natural), wall-line +1 (fortress doctrine), else 0 — reading the context's
+## LATEST stage-exit snapshot.
 func rival_def_for(rival: bool) -> float:
 	var d := String(ctx.difficulty)
-	return (6.0 if rival else 3.0) + (3.0 if d == "chaos" else (-1.0 if d == "peaceful" else 0.0))
+	var shape := String(ctx.run_shape)
+	var shape_mod := -1.0 if shape == "predator" else (1.0 if shape == "wall" else 0.0)
+	return (6.0 if rival else 3.0) + (3.0 if d == "chaos" else (-1.0 if d == "peaceful" else 0.0)) + shape_mod
 
 
 func resolve_armada(a: Dictionary) -> void:
@@ -582,7 +600,10 @@ func resolve_armada(a: Dictionary) -> void:
 		ctx.add_karma(-0.02)  # TS:379
 	else:
 		_fire("audio_play", ["charm", 0.6, 0.0])  # TS audio.play('charm', 0.6) — audio core: its own task
-		ctx.add_karma(0.015 if String(a["kind"]) == "charm" else 0.01)  # TS:382
+		# R12: the minder-line's diplomatic bent — charm/trade karma pays +0.01
+		# extra (charm 0.015 → 0.025, trade 0.01 → 0.02); other shapes unchanged
+		var base := 0.015 if String(a["kind"]) == "charm" else 0.01
+		ctx.add_karma(base + (0.01 if String(ctx.run_shape) == "minder" else 0.0))  # TS:382
 	if float(c["influence"]) >= 100.0 and String(c["owner"]) != "you":
 		c["owner"] = "you"
 		c["hp"] = maxf(float(c["hp"]), 40.0)  # TS:386
@@ -601,7 +622,9 @@ func tick_second() -> void:
 	for c in cities:
 		if String(c["owner"]) == "you":
 			c["pop"] = minf(30.0, float(c["pop"]) + 0.02)  # TS:397
-			c["hp"] = minf(100.0, float(c["hp"]) + 0.5)  # TS:398
+			# R12: the wall-line's fortress doctrine — the city regen pays
+			# +0.3/s extra (one line at the site, per the brief)
+			c["hp"] = minf(100.0, float(c["hp"]) + 0.5 + (0.3 if String(ctx.run_shape) == "wall" else 0.0))  # TS:398
 			if float(c["burning"]) > 0.0:
 				c["burning"] = float(c["burning"]) - 1.0  # TS:399
 			if float(c["influence"]) < 0.0:

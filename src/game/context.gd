@@ -24,6 +24,7 @@ const WorldGenomeScript := preload("res://src/evo/world_genome.gd")
 const PartsScript := preload("res://src/evo/parts.gd")
 const TraitsScript := preload("res://src/evo/world_traits.gd")
 const NamesScript := preload("res://src/evo/names.gd")
+const ShapeScript := preload("res://src/evo/shape.gd")
 
 ## StageId — plain strings validated by membership (TS string-literal union).
 const STAGES := ["menu", "cell", "creature", "tribe", "civ", "space"]
@@ -61,6 +62,12 @@ var karma := 0.0          # -1 aggressive … +1 harmonious
 ## saves derive the single-entry grace profile [karma] at load (the load
 ## site documents the degradation).
 var karma_by_stage: Array = []
+## R12 heredity ledger — the run's body-plan shape ("predator" | "minder" |
+## "wall", shape.gd's classifier): recomputed at EVERY stage exit (game.gd's
+## switch seam, LATEST-only) and consumed by the civ/space stages. Persisted
+## camelCase; an old save without the field computes from the (always
+## present) genome — never a hardcoded default (the load site documents it).
+var run_shape: String = ""
 ## R15 recover-cap anchor: the karma standing at the CURRENT stage's entry
 ## (the previous stage's exit snapshot; a fresh cell run enters at the 0.0
 ## start). Positive add_karma gain can never lift the meter more than
@@ -263,6 +270,14 @@ func karma_mean() -> float:
 	return sum / float(karma_by_stage.size())
 
 
+## R12 — the heredity ledger's CONDUCT half: the run's conduct average IS the
+## karma profile's mean (karma_mean above — derived, never a second persisted
+## field). The civ start output reads it; an empty profile reads the live
+## karma (the Task 10 grace).
+func conduct_avg() -> float:
+	return karma_mean()
+
+
 # ---- R13 chaos scar -----------------------------------------------------------------
 
 ## The difficulty's chaos settle floor — the ONE source for the game.gd settle
@@ -430,6 +445,7 @@ func to_save_data() -> Dictionary:
 		"dna": dna,
 		"karma": karma,
 		"karmaByStage": karma_by_stage,
+		"runShape": run_shape,
 		"chaos": chaos,
 		"chaosPeak": chaos_peak,
 		"scarTier": scar_tier,
@@ -553,6 +569,14 @@ func load(slot_v: int) -> bool:
 	# gait legs — clamp to what the parts catalog actually allows
 	var legs := minf(float(LEGS_CAP), float(genome["legs"]))
 	genome["legs"] = int(legs) if legs == floorf(legs) else legs
+	# R12 heredity shape: the saved snapshot when it names a real shape, else
+	# COMPUTED from the (always present, just-loaded) genome — the brief's NO
+	# ruling: an old save without the field must not read a hardcoded default.
+	# Conduct is NOT on the wire: it derives from karmaByStage (Task 10) via
+	# conduct_avg().
+	var rs_v: Variant = data.get("runShape")
+	run_shape = String(rs_v) if rs_v is String and ShapeScript.SHAPES.has(rs_v) \
+			else ShapeScript.shape_of(genome)
 	dna = maxi(0, int(dna_v))
 	var karma_v: Variant = data.get("karma")
 	karma = clampf(float(karma_v) if (karma_v is float or karma_v is int) and is_finite(karma_v) else 0.0, -1.0, 1.0)

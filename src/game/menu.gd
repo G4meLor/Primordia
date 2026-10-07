@@ -258,6 +258,7 @@ func start_new_game(slot := 0, difficulty := "normal", seed_v := -1) -> void:
 	c.karma = 0.0
 	c.reset_karma_profile()  # R15: the profile + cap anchor are per-run state
 	c.reset_chaos_scar()  # R13: the peak + fired scar tiers are per-run too
+	c.run_shape = ""  # R12: the heredity shape re-snaps at this run's first exit
 	c.difficulty = difficulty
 	c.chaos = c.starting_chaos()
 	c.playtime = 0.0

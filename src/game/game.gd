@@ -25,6 +25,7 @@ const ParticlesScript := preload("res://src/gfx/particles.gd")
 const RendererScript := preload("res://src/gfx/renderer.gd")
 const WorldGenomeScript := preload("res://src/evo/world_genome.gd")
 const TraitsScript := preload("res://src/evo/world_traits.gd")
+const ShapeScript := preload("res://src/evo/shape.gd")
 
 signal stage_changed(stage_id: String)
 ## TS ctx.bus.emit(EV.playerDeath, …) shape (M2 T7): the cell sim's
@@ -305,6 +306,11 @@ func switch_stage(id: String) -> void:
 		# fires BEFORE this seam) therefore persists the profile without the
 		# leaving stage's own slot — its proper exit overwrites it later.
 		context.record_stage_exit(current.id)
+		# R12 heredity ledger: the leaving stage's body plan snaps to the run
+		# shape (LATEST-only — the civ/space consumers read the latest
+		# snapshot). Pure + cheap, so every switch recomputes; the genome is
+		# the truth.
+		context.run_shape = ShapeScript.shape_of(context.genome)
 		current.on_exit()
 		# native tree-model note (TS immediate-mode redraws only the live
 		# stage): stages are persistent children, so the node we leave hides.
@@ -561,6 +567,23 @@ static func card_showcase_draw_lines(ctx: Variant, i18n_v: Variant) -> Array[Str
 	return out
 
 
+## R12 heredity ledger — the ONE extra card line by destination: the civ-bound
+## card names the national trait, the space-bound card the fleet legacy (the
+## real ship perks are deferred — red-team cheap ruling; the line is text
+## only). The shape derives from the LIVE context at draw via the classifier
+## (the R10 live-read convention — never a stale snapshot: the genome is the
+## truth, and by on_enter — when the effects consume the snapshot — the exit
+## seam has recomputed the same genome), the template AND the trait name
+## translate AT DRAW (tr_key — the R12 i18n ruling; the vi.csv templates carry
+## the %s). Other destinations draw nothing.
+static func card_heredity_draw_line(next_stage: String, ctx: Variant, i18n_v: Variant) -> String:
+	if next_stage == "civ":
+		return i18n_v.tr_key("National trait: %s") % i18n_v.tr_key(ShapeScript.trait_name(ShapeScript.shape_of(ctx.genome)))
+	if next_stage == "space":
+		return i18n_v.tr_key("Fleet legacy: %s") % i18n_v.tr_key(ShapeScript.trait_name(ShapeScript.shape_of(ctx.genome)))
+	return ""
+
+
 ## TS game.render()'s transition overlay (game.ts:529-547), drawn by each
 ## stage's veil layer — native draw-order ruling (cell_stage.gd header): the
 ## TS game-level overlay became a per-stage canvas slotting between the
@@ -594,6 +617,15 @@ func draw_transition_veil(ci: CanvasItem) -> void:
 				var line_y := vh / 2.0 + 58.0
 				for line in card_showcase_draw_lines(context, i18n):
 					RendererScript.outlined_text(ci, String(line),
+							vw / 2.0, line_y,
+							{"size": 12.0, "fill": RendererScript.css_color("rgba(190,215,245,0.8)")})
+					line_y += 20.0
+				# R12 heredity ledger: the civ-bound card gains the ONE
+				# national-trait line, the space-bound card the fleet-legacy
+				# line (same 12px block, the hint still moves below it).
+				var heredity := card_heredity_draw_line(String(tr["next"]), context, i18n)
+				if heredity != "":
+					RendererScript.outlined_text(ci, heredity,
 							vw / 2.0, line_y,
 							{"size": 12.0, "fill": RendererScript.css_color("rgba(190,215,245,0.8)")})
 					line_y += 20.0
