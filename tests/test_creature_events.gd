@@ -208,22 +208,23 @@ func _audio_vols(rec: Dictionary, name: String) -> Array:
 
 func test_traitless_deck_is_nine_defs() -> void:
 	var deck: Array = CreatureEvents.make_creature_chaos_events(W_TRAITLESS)
-	eq(deck.size(), 9, "factory: traitless = 8 baseline + predator_convergence")
+	# R13: the transposon joins the always-gated set — 9 TS defs + 1 redesign def
+	eq(deck.size(), 10, "factory: traitless = 8 baseline + predator_convergence + transposon")
 	var ids: Array = []
 	for d in deck:
 		ids.append(d["id"])
 	eq(ids, ["volcano", "earthquake", "stampede", "nightraid", "mutationstorm",
-			"glorp", "rain", "meteor", "predator_convergence"], "TS deck order")
+			"glorp", "rain", "meteor", "predator_convergence", "transposon"], "TS deck order")
 	# the sim constructor folds ctx.world into the same deck (TS:157)
 	var m := _mk_sim()
-	eq(m["sim"].chaos.defs.size(), 9, "sim constructor deck: traitless = 9")
+	eq(m["sim"].chaos.defs.size(), 10, "sim constructor deck: traitless = 10")
 	approx(float(m["sim"].chaos.gap), 40.0, "creature gap 40")
 	approx(float(m["sim"].chaos.gap_chaos_scale), 0.35, "creature gap chaos scale")
 
 
 func test_gated_defs_gate_on_the_world() -> void:
 	var bdeck: Array = CreatureEvents.make_creature_chaos_events(W_BOLD)
-	eq(bdeck.size(), 10, "raider_bold adds night_pack")
+	eq(bdeck.size(), 11, "raider_bold adds night_pack")
 	var np: Dictionary = _def(bdeck, "night_pack")
 	ok(np != null, "night_pack present")
 	eq(String(np["name"]), "🐺 NIGHT PACK", "night_pack name")
@@ -234,7 +235,7 @@ func test_gated_defs_gate_on_the_world() -> void:
 			"traitless world has no night_pack")
 
 	var tdeck: Array = CreatureEvents.make_creature_chaos_events(W_TITAN)
-	eq(tdeck.size(), 10, "old_blood (ecoSeed titan) adds titans_walk")
+	eq(tdeck.size(), 11, "old_blood (ecoSeed titan) adds titans_walk")
 	var tw: Dictionary = _def(tdeck, "titans_walk")
 	ok(tw != null, "titans_walk present")
 	eq(String(tw["name"]), "🗿 A TITAN WALKS", "titans_walk name")
@@ -245,7 +246,7 @@ func test_gated_defs_gate_on_the_world() -> void:
 			"herbivore ecoSeed does not seed titans")
 
 	var wdeck: Array = CreatureEvents.make_creature_chaos_events(W_WILD)
-	eq(wdeck.size(), 10, "wildcard adds the rain mirror face")
+	eq(wdeck.size(), 11, "wildcard adds the rain mirror face")
 	var mirrors: Array = []
 	for d in wdeck:
 		if d.has("mirrorOf"):
@@ -259,8 +260,8 @@ func test_gated_defs_gate_on_the_world() -> void:
 	for d in CreatureEvents.make_creature_chaos_events(W_TRAITLESS):
 		ok(not d.has("mirrorOf"), "traitless cradle carries no mirror face")
 
-	eq(CreatureEvents.make_creature_chaos_events(W_BOTH).size(), 11,
-			"bold + titan = 11 defs")
+	eq(CreatureEvents.make_creature_chaos_events(W_BOTH).size(), 12,
+			"bold + titan = 12 defs")
 
 
 func test_def_constants_verbatim() -> void:
@@ -908,8 +909,8 @@ func test_deck_rebuild_folds_the_new_world() -> void:
 	# C1: a CONTINUE landing on a different world rebuilds the deck from the
 	# NEW WorldGenome (night_pack gated in by raider_bold).
 	var m := _mk_sim(W_TRAITLESS)
-	eq(m["sim"].chaos.defs.size(), 9, "traitless deck at boot")
+	eq(m["sim"].chaos.defs.size(), 10, "traitless deck at boot")
 	m["ctx"].world = W_BOLD.duplicate(true)
 	eq(bool(m["sim"].ensure_deck(SEED + 1)), true, "seed mismatch rebuilds")
-	eq(m["sim"].chaos.defs.size(), 10, "rebuild folds the NEW world")
+	eq(m["sim"].chaos.defs.size(), 11, "rebuild folds the NEW world")
 	ok(_def(m["sim"].chaos.defs, "night_pack") != null, "night_pack present after rebuild")

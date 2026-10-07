@@ -445,6 +445,10 @@ func _draw_ui(ci: CanvasItem) -> void:
 	var vw: float = game.vw
 	var vh: float = game.vh
 
+	# R13 scar tint — the single world-tint slot (over the world, under this
+	# stage's own UI; reads the ctx only — no sim math)
+	BackdropScript.draw_world_tint(ci, vw, vh, game.context)
+
 	# sliders panel — TS:628-649
 	var sw := 300.0
 	var sx := vw - sw - 18.0

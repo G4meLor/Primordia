@@ -639,6 +639,10 @@ func _draw_ui(ci: CanvasItem) -> void:
 	var vw: float = game.vw
 	var vh: float = game.vh
 
+	# R13 scar tint — the single world-tint slot (over the world, under the
+	# night overlay and this stage's own UI; reads the ctx only — no sim math)
+	BackdropScript.draw_world_tint(ci, vw, vh, game.context)
+
 	# night overlay + fireflies — TS:1460-1477
 	if sim.is_night():
 		var depth: float = minf(1.0, minf((sim.dayPhase - 0.55) * 6.0, (0.95 - sim.dayPhase) * 6.0))

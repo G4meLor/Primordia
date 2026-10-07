@@ -1458,6 +1458,7 @@ func update_chaos(dt: float) -> void:
 		"warnScale": warn_scale,  # bio_tell bucket
 		"mirrors": mirrorLedger.queued(),  # mirror_rule returns
 		"dominance": dom,  # predator_convergence input
+		"transposonFired": bool(ctx.flags.get("transposonFired", false)),  # R13 once-per-run gate
 	}, {
 		"onWarn": on_warn,
 		"onApply": on_apply,

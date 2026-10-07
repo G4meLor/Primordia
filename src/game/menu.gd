@@ -257,6 +257,7 @@ func start_new_game(slot := 0, difficulty := "normal", seed_v := -1) -> void:
 	c.dna = 100  # Flagellum suggestion (27) + LEG (65) both affordable in the tutorial
 	c.karma = 0.0
 	c.reset_karma_profile()  # R15: the profile + cap anchor are per-run state
+	c.reset_chaos_scar()  # R13: the peak + fired scar tiers are per-run too
 	c.difficulty = difficulty
 	c.chaos = c.starting_chaos()
 	c.playtime = 0.0

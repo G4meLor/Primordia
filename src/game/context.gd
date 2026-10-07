@@ -67,6 +67,13 @@ var karma_by_stage: Array = []
 ## KARMA_RECOVER_CAP above this within the stage.
 var _karma_entry := 0.0
 var chaos := 0.15         # 0 calm … 1 unhinged
+## R13 — the run's peak chaos + the fired scar tiers (persisted camelCase on
+## the wire; old saves read 0.0 / 0 / []). chaos_peak folds every game tick
+## (game.gd's settle block); scar_tier latches the highest threshold crossed;
+## scar_benign appends one karma≥0.3 flag per fired tier, in tier order.
+var chaos_peak := 0.0
+var scar_tier := 0
+var scar_benign: Array = []
 var difficulty: String = "normal"
 var slot := 0             # active save slot
 var playtime := 0.0
@@ -256,6 +263,88 @@ func karma_mean() -> float:
 	return sum / float(karma_by_stage.size())
 
 
+# ---- R13 chaos scar -----------------------------------------------------------------
+
+## The difficulty's chaos settle floor — the ONE source for the game.gd settle
+## drift and the scar thresholds (R13's `rest`).
+static func settle_rest(difficulty_v: String) -> float:
+	return 0.05 if difficulty_v == "peaceful" \
+			else (0.25 if difficulty_v == "chaos" else 0.12)
+
+
+## R13 threshold fractions over the settle floor — th_i = rest + (1 − rest) × f_i.
+const SCAR_TIER_FRACTIONS := [0.40, 0.65, 0.85]
+
+
+## The per-difficulty scar thresholds: every tier stays reachable on every
+## difficulty (peaceful's 0.85 lands at 0.8575 ≤ 1) and scale with the rest
+## floor the chaos settles toward.
+static func scar_thresholds(difficulty_v: String) -> Array:
+	var rest := settle_rest(difficulty_v)
+	var out: Array = []
+	for f in SCAR_TIER_FRACTIONS:
+		out.append(rest + (1.0 - rest) * float(f))
+	return out
+
+
+## R13 — fold one chaos sample into the run peak and return the NEWLY crossed
+## tiers (ascending; empty = nothing new). Called once per game tick with the
+## settled chaos. Each tier fires ONCE per run (scar_tier latches the highest
+## fired; the peak only ever rises, so tiers cross in order); the benign/harsh
+## split reads the karma standing AT the crossing moment — never consumed.
+func scar_cross(chaos_v: float) -> Array:
+	chaos_peak = maxf(chaos_peak, chaos_v)
+	var th: Array = scar_thresholds(difficulty)
+	var out: Array = []
+	for i in th.size():
+		var tier := i + 1
+		if scar_tier < tier and chaos_peak >= float(th[i]):
+			scar_tier = tier
+			scar_benign.append(karma >= 0.3)
+			out.append(tier)
+	return out
+
+
+## R13: the scar state is per-RUN — a NEW LIFE wipes the peak, the fired tiers
+## and the per-tier benign ledger (menu.gd's reset block, next to the karma
+## reset; the flags wipe beside it clears the transposon latch with them).
+func reset_chaos_scar() -> void:
+	chaos_peak = 0.0
+	scar_tier = 0
+	scar_benign = []
+
+
+## R13 transposon apply — the FIRST and only sanctioned runtime mutation of
+## the player genome (mutation.gd's mutate() has never touched the player
+## genome; the redesign rules this one event the single exception). Stores the
+## exact pre-shift hue, jumps ±30 (seeded direction — the deck's Mulberry32
+## branch), wraps into [0, 360) and latches the once-per-run flag. Returns the
+## pre-shift hue, or null when the latch already fired (the trigger() path
+## bypasses the deck weight, so apply re-guards).
+func transposon_apply(rng_v: Variant) -> Variant:
+	if bool(flags.get("transposonFired", false)):
+		return null
+	flags["transposonFired"] = true
+	var hue := float(genome.get("hue", 120.0))
+	flags["hueBeforeTransposon"] = hue
+	var dir := 30.0 if float(rng_v.next()) < 0.5 else -30.0
+	# fposmod keeps the wrap in [0, 360) for both signs (the clamp_genome wheel)
+	genome["hue"] = fposmod(hue + dir, 360.0)
+	return hue
+
+
+## R13 transposon revert (the LOOK-tab button): restore the EXACT stored hue
+## and clear the stored value. The event latch stays — the mutation already
+## happened and must never re-fire. True when a restore happened.
+func transposon_revert() -> bool:
+	var before: Variant = flags.get("hueBeforeTransposon", null)
+	if before == null:
+		return false
+	genome["hue"] = float(before)
+	flags.erase("hueBeforeTransposon")
+	return true
+
+
 ## Chaos event frequency multiplier per difficulty.
 func chaos_gap_mult() -> float:
 	return 1.5 if difficulty == "peaceful" else (0.7 if difficulty == "chaos" else 1.0)
@@ -342,6 +431,9 @@ func to_save_data() -> Dictionary:
 		"karma": karma,
 		"karmaByStage": karma_by_stage,
 		"chaos": chaos,
+		"chaosPeak": chaos_peak,
+		"scarTier": scar_tier,
+		"scarBenign": scar_benign,
 		"playtime": playtime,
 		"totalDnaEarned": total_dna_earned,
 		"playerName": player_name,
@@ -503,6 +595,26 @@ func load(slot_v: int) -> bool:
 			karma_by_stage.resize(4)
 	else:
 		karma_by_stage = [karma]  # pre-R15 grace (documented above)
+	# R13 scar state: chaosPeak clamps to the chaos meter, scarTier to 0..3;
+	# the benign ledger keeps bools only and reconciles to the tier count
+	# (the tint reads it by tier index). MISSING fields are pre-R13 saves —
+	# they read the zero state (peak 0.0, no fired tiers).
+	var cp_v: Variant = data.get("chaosPeak")
+	chaos_peak = clampf(float(cp_v), 0.0, 1.0) \
+			if (cp_v is float or cp_v is int) and is_finite(cp_v) else 0.0
+	var st_v: Variant = data.get("scarTier")
+	scar_tier = clampi(int(st_v), 0, 3) \
+			if (st_v is float or st_v is int) and is_finite(st_v) else 0
+	scar_benign = []
+	var sb_v: Variant = data.get("scarBenign")
+	if sb_v is Array:
+		for e in sb_v:
+			if e is bool:
+				scar_benign.append(e)
+	if scar_benign.size() > scar_tier:
+		scar_benign.resize(scar_tier)
+	while scar_benign.size() < scar_tier:
+		scar_benign.append(false)
 	# R15 recover-cap anchor: the current stage's ENTRY karma — the previous
 	# stage's exit snapshot when the profile carries it, else the loaded
 	# standing (grace). Cell entry is the 0.0 start (new-run karma reset).

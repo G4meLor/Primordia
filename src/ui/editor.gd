@@ -464,6 +464,12 @@ func click_row(row: Dictionary, mx: float, r: Dictionary) -> void:
 			slider_drag = "hue"
 			var tt := PMathScript.clamp((mx - float(r["x"]) - 14.0) / (float(r["w"]) - 28.0), 0.0, 1.0)
 			g["hue"] = tt * 360.0
+		"revert_hue":
+			# R13 transposon revert — free: restore the EXACT stored pre-shift
+			# hue and clear the stored value (the once-per-run event latch
+			# stays — the mutation already happened and never re-fires)
+			if c.transposon_revert():
+				_game.hud["toast"].call(_game.i18n.tr_key("Hue restored."), "good", "🧬")
 		"sat":
 			slider_drag = "sat"
 			var st := PMathScript.clamp((mx - float(r["x"]) - 14.0) / (float(r["w"]) - 28.0), 0.0, 1.0)
@@ -827,7 +833,12 @@ func render_row(ci: CanvasItem, row: Dictionary, x: float, y: float, w: float, h
 		"hue":
 			_row_label(ci, x, y, w, h, _game.i18n.tr_key("COLOR"), "", "")
 			var bx3 := x + 90.0
-			var bw3 := w - 110.0
+			# R13 transposon revert — beside the hue slider while a pre-shift
+			# hue is stored (LOOK is free cosmetics; the revert is free too).
+			# The slider shrinks to make room; the button rect rides row_rects
+			# BEFORE the full-row append so the click routes there first.
+			var rev_w := 78.0 if c.flags.get("hueBeforeTransposon", null) != null else 0.0
+			var bw3 := w - 110.0 - rev_w
 			# hue spectrum: 7 flat stops (TS draws a smooth gradient; vertex
 			# color fans below segment count — presence-level, renderer notes).
 			# QC r3 (synthesis 4H): seg was bw3/6.0 with a +1px overlap fudge —
@@ -845,6 +856,17 @@ func render_row(ci: CanvasItem, row: Dictionary, x: float, y: float, w: float, h
 			ci.draw_circle(Vector2(hpx, y + 21.0), 6.0, Color("#fff"))
 			slider_rects["hue"] = {"x": bx3, "y": y + 10.0, "w": bw3, "h": 22.0}
 			row_rects.append({"row": row, "r": {"x": bx3, "y": y + 4.0, "w": bw3, "h": 34.0}, "btn": null})
+			if rev_w > 0.0:
+				var rr := {"x": bx3 + bw3 + 8.0, "y": y + 10.0, "w": rev_w - 8.0, "h": 22.0}
+				RendererScript.panel(ci, float(rr["x"]), float(rr["y"]),
+						float(rr["w"]), float(rr["h"]), {
+							"fill": RendererScript.css_color("rgba(120,70,70,0.8)"),
+							"stroke": RendererScript.css_color("rgba(255,255,255,0.2)"),
+						})
+				RendererScript.outlined_text(ci, _game.i18n.tr_key("revert hue"),
+						float(rr["x"]) + float(rr["w"]) / 2.0, float(rr["y"]) + 11.0,
+						{"size": 10.0, "fill": Color("#fff")})
+				row_rects.append({"row": {"kind": "revert_hue"}, "r": rr, "btn": null})
 		"sat":
 			_row_label(ci, x, y, w, h, _game.i18n.tr_key("SATURATION"), "", "")
 			var bx4 := x + 110.0

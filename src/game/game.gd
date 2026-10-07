@@ -459,10 +459,19 @@ func _do_update(dt: float) -> void:
 				save_all()
 		# chaos slowly settles toward the difficulty's resting level —
 		# peaceful promised calm and used to climb to normal's floor anyway
-		# (TS:302-303; raw adds like TS — the settle target never overflows)
-		var settle_at: float = 0.05 if context.difficulty == "peaceful" \
-				else (0.25 if context.difficulty == "chaos" else 0.12)
+		# (TS:302-303; raw adds like TS — the settle target never overflows).
+		# R13: the floor is context.settle_rest — the same `rest` the scar
+		# thresholds scale with.
+		var settle_at: float = ContextScript.settle_rest(context.difficulty)
 		context.chaos += (settle_at - context.chaos) * minf(1.0, dt * 0.03)
+		# R13 chaos scars — fold the settled chaos into the run peak; each
+		# threshold crossing fires ONCE per run (the ctx latches the fired
+		# tiers; karma is read AT the crossing, never consumed). The menu
+		# never folds: a CONTINUE's loaded chaos must not mint scars on the
+		# title screen — the first gameplay tick does.
+		if context.stage != "menu":
+			for tier_v in context.scar_cross(context.chaos):
+				_announce_scar(int(tier_v))
 		# karma drift lifts an 'aggressive' player back toward neutral (ambient
 		# contact kills used to floor passivity at -1) but never erodes a
 		# HARMONIOUS score — the drift used to delete the pacifist ending
@@ -677,6 +686,29 @@ func world_toast(sigil: String, name_key: String, body_key: String) -> void:
 	var body_tx: String = i18n.tr_key(body_key)
 	var text: String = "%s — %s" % [title_tx, body_tx]
 	hud["toast"].call(text, "world", sigil, 6.0, {"title": title_tx, "body": body_tx})
+
+
+# ---- R13 chaos scars ------------------------------------------------------------
+
+## Per-tier scar identity — raw EN keys (vi.csv carries the translations: the
+## controller-pinned "Vết nứt trăng" / "Apex hóa" / "Lõi thức giấc sớm").
+const SCAR_NAME_KEYS := ["Moon Crack", "Apex Bloom", "Core Stirs Early"]
+const SCAR_BENIGN_KEY := "The chaos crested and receded — the world glows gently with it."
+const SCAR_HARSH_KEY := "The chaos crested and tore through — the world bears the scar."
+const SCAR_SIGILS := ["🌙", "🌺", "⚡"]
+
+
+## The crossing announcement — one plain toast per newly crossed tier (the R13
+## cheap ruling: NO reveal-card ceremony; the world tint itself reads the ctx
+## straight from each stage's UI layer). Translated here at fire time (the
+## audit shape — call sites translate before the hud stores the text verbatim).
+func _announce_scar(tier: int) -> void:
+	var idx := clampi(tier, 1, SCAR_NAME_KEYS.size()) - 1
+	var benign: bool = idx < context.scar_benign.size() \
+			and bool(context.scar_benign[idx])
+	var text := "%s — %s" % [i18n.tr_key(String(SCAR_NAME_KEYS[idx])),
+			i18n.tr_key(SCAR_BENIGN_KEY if benign else SCAR_HARSH_KEY)]
+	hud["toast"].call(text, "good" if benign else "chaos", String(SCAR_SIGILS[idx]), 6.0)
 
 
 func announce_trait(id: String) -> void:

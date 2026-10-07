@@ -98,6 +98,40 @@ static func draw_water_backdrop(ci: CanvasItem, cam: Variant, vw: float, vh: flo
 		ci.draw_rect(Rect2(0, 0, vw, vh), RendererScript.hsl(340.0, 0.8, 0.2, (chaos - 0.55) * 0.10))
 
 
+# ---- R13 chaos scar world tint ----------------------------------------------------
+
+## The single scar tint slot's alpha ladder — tier 3 strongest, all ≤ 0.08.
+const SCAR_TIER_ALPHAS := [0.03, 0.055, 0.08]
+
+
+## The tint DECISION (pure — the headless suite pins it): the overlay Color for
+## the ctx's scar state, or null when no scar has fired. The highest fired tier
+## colors the slot — benign green-shift, harsh chaos-orange — with the alpha
+## scaled by tier.
+static func world_tint_color(ctx: Variant) -> Variant:
+	var tier := int(ctx.scar_tier)
+	if tier <= 0:
+		return null
+	var idx := mini(tier, SCAR_TIER_ALPHAS.size()) - 1
+	var benign: bool = idx < ctx.scar_benign.size() and bool(ctx.scar_benign[idx])
+	# benign: a soft green shift; harsh: the chaos-orange burn
+	return RendererScript.hsl(135.0, 0.55, 0.45, float(SCAR_TIER_ALPHAS[idx])) \
+			if benign \
+			else RendererScript.hsl(24.0, 0.85, 0.40, float(SCAR_TIER_ALPHAS[idx]))
+
+
+## The single tint slot draw — a subtle full-screen overlay. Reads the ctx
+## fields ONLY: display math, the sim never sees this (the R13 no-sim-touch
+## ruling). Callers draw it in screen space where their stage UI begins, so it
+## sits over the world and under the stage's own overlays (night/vignette stay
+## crisp above it).
+static func draw_world_tint(ci: CanvasItem, vw: float, vh: float, ctx: Variant) -> void:
+	var col: Variant = world_tint_color(ctx)
+	if col == null:
+		return
+	ci.draw_rect(Rect2(0, 0, vw, vh), col)
+
+
 # ---- SPACE (civ stage; SpaceStage later) — backdrop.ts:210-260 ------------------
 
 ## drawSpaceBackdrop (backdrop.ts:213-260): flat #02030a → 4 nebulae (radial

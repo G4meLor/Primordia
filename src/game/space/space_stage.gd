@@ -669,6 +669,10 @@ func _draw_ui_layer(ci: CanvasItem) -> void:
 	var vw: float = game.vw
 	var vh: float = game.vh
 
+	# R13 scar tint — the single world-tint slot (over the world, under this
+	# stage's own UI; reads the ctx only — no sim math)
+	BackdropScript.draw_world_tint(ci, vw, vh, game.context)
+
 	# colonies progress chip — TS:1027-1030 (the win gate, always visible)
 	var thriving := 0
 	var colonies := 0

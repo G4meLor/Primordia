@@ -58,6 +58,10 @@ static func make_creature_chaos_events(world: Dictionary) -> Array:
 	# species converge; severity rides the ONE dominanceSeverity formula and
 	# is capped so it can never pile past what maxActive absorbs
 	out.append(_predator_convergence())
+	# R13 transposon (experience redesign) — the deck's ONE cosmetic gene-jump:
+	# always gated in (weight modest), the hue mutation is the single sanctioned
+	# player-genome write (see context.transposon_apply)
+	out.append(_transposon())
 	# mirror face of the soft rain (wildcard worlds): SAME event id, exactly
 	# one rule inverted — the berry swell rots; the rain still falls
 	if rain_mirror:
@@ -201,6 +205,52 @@ static func _baseline() -> Array:
 	})
 
 	return out
+
+
+# ---- the R13 transposon (experience redesign) ---------------------------------------
+
+## Raw EN display keys — the hud translates at draw (banner) / fire (toast);
+## vi.csv carries the rows.
+const TRANSPOSON_NAME := "🧬 TRANSPOSON JUMP"
+const TRANSPOSON_WARN := "The air tingles — your COLORS are about to shift…"
+const TRANSPOSON_TOAST := "A transposon jumped — your hue changed! Revert is free in the LOOK tab."
+
+
+## variant: transposon — a 2.5 s omen names the hue shift BEFORE it lands (the
+## chaos law), then the apply jumps the player's hue ±30 (seeded direction, the
+## deck rng) and stores the pre-shift hue for the free LOOK-tab revert. Once
+## per run, both halves of the latch visible here: the weight gates to 0 once
+## ctx.transposonFired is set (the sim folds the flags latch into the chaos
+## ctx), and the warn_fn reads the same latch through the weight's box so a
+## post-fire re-pick (the scheduler's 0.01 weight floor) degrades to an
+## immediate silent no-op apply instead of a spurious second omen.
+static func _transposon() -> Dictionary:
+	var box := {"fired": false}
+	var weight := func(c) -> float:
+		box["fired"] = bool(c.get("transposonFired", false))
+		return (0.35 + float(c["chaos"]) * 0.2) \
+				if not bool(c.get("transposonFired", false)) else 0.0
+	var warn_fn := func() -> Variant:
+		return null if bool(box["fired"]) else TRANSPOSON_WARN
+	var apply := func(s, rng) -> void:
+		# the trigger() path bypasses the weight gate — apply re-guards
+		if bool(s.ctx.flags.get("transposonFired", false)):
+			return
+		var before: Variant = s.ctx.transposon_apply(rng)
+		if before == null:
+			return
+		s._fire("audio_play", ["warp", 0.7, 0.0])
+		s._fire("hud_toast", [s.tr(TRANSPOSON_TOAST), "chaos", "🧬"])
+	return {
+		"id": "transposon",
+		"name": TRANSPOSON_NAME,
+		"warn_fn": warn_fn,
+		"warnS": 2.5,  # the omen window is pinned — a per-def warnS wins over the temperament bucket
+		"weight": weight,
+		"duration": [0.1, 0.1],  # the mutation is instantaneous (the meteor shape)
+		"cooldown": 999,
+		"apply": apply,
+	}
 
 
 # ---- the world-parameterized faces (creatureEvents.ts:129-200) ---------------------

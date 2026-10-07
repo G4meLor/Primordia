@@ -362,6 +362,10 @@ func _draw_ui(ci: CanvasItem) -> void:
 	var vw: float = game.vw
 	var vh: float = game.vh
 
+	# R13 scar tint — the single world-tint slot (over the world, under this
+	# stage's own overlays; reads the ctx only — no sim math)
+	BackdropScript.draw_world_tint(ci, vw, vh, game.context)
+
 	# HP bar (player)
 	var hp_w := minf(340.0, vw * 0.3)
 	var hx := vw / 2.0 - hp_w / 2.0
