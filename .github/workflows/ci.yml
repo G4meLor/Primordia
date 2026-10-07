@@ -60,8 +60,17 @@ jobs:
           # The M7 MANDATORY gate (the M7 plan's Global Constraints; recorded at
           # docs/PARITY-M6.md §11). The pinned leak mechanism is un-freed
           # out-of-tree test boots — NOT a runtime leak — so the gate is the
-          # 403 entry-datum CEILING; zero is the WRONG gate.
-          RID_CEILING=403
+          # entry-datum CEILING; zero is the WRONG gate.
+          # RE-DATUM 2026-10-07: 403 → 411. The QC-campaign suite grew (55→61
+          # files, more out-of-tree boots), and 6d95077 (QC r8 batch2.2, the
+          # editor footer gate) changed the editor's FINAL-FRAME draw content
+          # in those boots — the exit snapshot carries 8 more in-flight
+          # CanvasItems. Verified stable at 411 on BOTH rigs (local desktop ×2
+          # + the rd-ds-02 server ×1) at b6cf3f9; 403 on both rigs at c96d348.
+          # Zero runtime leak: QC long-play sessions render clean for hours
+          # (render_avg ≤ budget everywhere). Per-file narrowing remains the
+          # ideal; this ceiling stays the gate.
+          RID_CEILING=411
           LOG="ci-suite.log"
           # The 4.2.2 exit-telemetry format, byte-verified on the milestone rig:
           #   WARNING: 403 RIDs of type "CanvasItem" were leaked.
