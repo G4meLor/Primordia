@@ -372,6 +372,7 @@ func on_enter() -> void:
 				packList = parsed
 			# corrupt flag — start alone (the TS try/catch swallows everything)
 		var n_restore: int = mini(packList.size(), packLimit)
+		var greeted := false
 		for i in n_restore:
 			var item: Variant = packList[i]
 			if not (item is Dictionary) or not (item.get("genome") is Dictionary):
@@ -383,6 +384,11 @@ func on_enter() -> void:
 					GenomeScript.clamp_genome(merged))
 			e["pack"] = true
 			e["mood"] = "happy"
+			# R7b pack greet: one voice from the returning pack (genome rides
+			# the vol slot — the hook arity is pinned at 3)
+			if not greeted:
+				greeted = true
+				_fire("audio_play", ["call", e["genome"], 0.0])
 
 
 func on_exit() -> void:
@@ -1267,6 +1273,9 @@ func update_charm(dt: float, inp: Dictionary) -> void:
 				charmTarget = null
 				ctx.add_karma(0.03)
 				_fire("audio_play", ["levelup", 0.7, 0.0])
+				# R7b: the new friend answers in its own voice — the genome
+				# rides the vol slot (the hook arity is pinned at 3)
+				_fire("audio_play", ["call", e["genome"], 0.0])
 				_fire("hud_toast", [tr("A new friend joins your pack!"), "good", "🐾"])
 				persist_state()  # keep the pack across autosaves, not just foundTribe
 				_fx_burst(float(e["x"]), float(e["z"]) * Z_TO_Y - 20.0, 14,

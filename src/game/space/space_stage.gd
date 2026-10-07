@@ -1049,7 +1049,7 @@ func _build_hooks() -> Dictionary:
 		"hud_objective_counter": _h_hud_objective_counter,
 		"hud_float_world": _h_hud_float_world,
 		"hud_set_abilities": _h_hud_set_abilities,
-		"audio_play": _h_audio_noop,
+		"audio_play": _h_audio_play,
 		"audio_set_mood": _h_audio_noop,
 		"cam_shake": _h_cam_shake,
 		"fx_spawn": _h_fx_spawn,
@@ -1097,8 +1097,14 @@ func _h_hud_set_abilities(list: Array) -> void:
 	game.hud["set_abilities"].call(list)
 
 
+## R7b: forward into the game-owned AudioCore — its dispatch makes the
+## creature "call" audible and keeps every other id a silent stub.
+func _h_audio_play(name: String, vol: Variant = 1.0, pan: Variant = 0.0) -> void:
+	game.audio_play(name, vol, pan)
+
+
 func _h_audio_noop(_name: String, _vol := 0.0, _pan := 0.0) -> void:
-	pass  # audio core is its own task — the sim's audio hooks stay silent
+	pass  # audio_set_mood stays silent — the mood crossfade is deferred (R7b)
 
 
 func _h_cam_shake(mag: float, dur: float) -> void:

@@ -923,7 +923,7 @@ func _build_hooks() -> Dictionary:
 		"hud_toast_gate": _h_hud_toast_gate,
 		"hud_banner": _h_hud_banner,
 		"hud_float_world": _h_hud_float_world,
-		"audio_play": _h_audio_noop,
+		"audio_play": _h_audio_play,
 		"cam_shake": _h_cam_shake,
 		"fx_burst": _h_fx_burst,
 		"fx_spawn": _h_fx_spawn,
@@ -960,8 +960,10 @@ func _h_hud_float_world(x: float, y: float, text: String, color: Variant, size: 
 	game.hud["float_world"].call(x, y, text, color, size)
 
 
-func _h_audio_noop(_name: String, _vol: float, _pan := 0.0) -> void:
-	pass  # audio core is its own task — the sim's audio hooks stay silent
+## R7b: forward into the game-owned AudioCore — its dispatch makes the
+## creature "call" audible and keeps every other id a silent stub.
+func _h_audio_play(name: String, vol: Variant = 1.0, pan: Variant = 0.0) -> void:
+	game.audio_play(name, vol, pan)
 
 
 func _h_cam_shake(mag: float, dur: float) -> void:

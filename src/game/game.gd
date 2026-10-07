@@ -16,6 +16,7 @@ extends Node
 
 const InputScript := preload("res://src/core/input.gd")
 const LoopScript := preload("res://src/core/loop.gd")
+const AudioScript := preload("res://src/core/audio.gd")
 const CamScript := preload("res://src/game/cam.gd")
 const ContextScript := preload("res://src/game/context.gd")
 const StorytellerScript := preload("res://src/game/storyteller.gd")
@@ -37,6 +38,7 @@ var cam: Variant = null          # Cam rig (src/game/cam.gd)
 var loop: Variant = null         # GameLoop (src/core/loop.gd)
 var storyteller: Variant = null  # M1 Storyteller
 var i18n: Variant = null         # I18n core (src/core/i18n.gd)
+var audio: Variant = null        # AudioCore (src/core/audio.gd) — R7b
 
 var vw := 800.0
 var vh := 600.0
@@ -101,6 +103,11 @@ func _init(context_v: Variant = null) -> void:
 	i18n = I18nScript.new()
 	muted = i18n.get_muted()
 	i18n.apply_locale()
+	# R7b: the one AudioCore instance; muted mirrors the persisted setting and
+	# toggle_mute keeps it in sync (the core's single mute gate).
+	audio = AudioScript.new()
+	audio.muted = muted
+	audio.host = self
 	hud = {
 		"update": func(_dt: float) -> void: pass,
 		"dismiss_banner": func() -> void: pass,
@@ -851,8 +858,22 @@ func close_pause() -> void:
 
 func toggle_mute() -> void:
 	muted = not muted
-	# TS audio.setMuted(this.muted) — audio core: its own task
+	# TS audio.setMuted(this.muted)
+	audio.muted = muted  # the core's mute gate rides the game's flag
 	i18n.set_muted(muted)  # persist across sessions (TS setMuted)
+
+
+## Sole audio seam (R7b): every stage's audio_play hook lands here. Only the
+## creature call is audible — every other id routes to AudioCore.play, a
+## silent stub until its own task. For "call" the vol slot carries the
+## payload (the target's genome dict): the hook arity is pinned at 3 by the
+## existing call sites and test recorders, so the genome rides slot 2 and
+## pan stays 0.0 for now (positional voice is future work).
+func audio_play(name: String, vol: Variant = 1.0, _pan: Variant = 0.0) -> void:
+	if name == "call" and vol is Dictionary:
+		audio.play_call(vol)
+		return
+	audio.play(name)
 
 
 ## Convenience for stages: shake the main camera (TS camShakeFor).
