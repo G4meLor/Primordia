@@ -21,12 +21,19 @@
 ## frame — freeing them inside the call would erase the card before it draws.
 ## So the card keeps a static per-item registry: draw_into frees the PREVIOUS
 ## card's triple on the same item (draw N frees card N-1; steady state is one
-## card = 3 live RIDs), and release(ci) frees the current triple — the
-## teardown contract for every consumer (call it on stage/menu teardown, or
-## before the item dies without a later redraw; an item freed without release
-## leaks its last triple exactly like the direct painter contract). Leak
-## proof: the 50× draw loop leaves the exit RID-warning count unchanged vs a
-## single-card run (tools/test_card_scene.sh greps both runs' lines).
+## card = 3 live RIDs), and release(ci) frees the current triple.
+## CONSUMER CONTRACT — two MUSTs: (1) RenderingServer.canvas_item_clear the
+## item before each draw_into — draw_into frees the previous card's sub-RIDs
+## but never wipes the item's OWN command buffer (the name/bars are commands
+## ON the item, not sub-items): no clear = every old card's text/bars ghost
+## under the new one and the command list grows each redraw. (2) release(ci)
+## on the teardown of EVERY CanvasItem that drew a card — the _live registry
+## holds its entry for the process's lifetime, so an item freed without
+## release leaks its last triple (3 sub-RIDs) plus one stale entry per
+## never-released item (the scene runs' exit "3 leaked" line is exactly one
+## held entry). Leak proof: the 50× draw loop leaves the exit RID-warning
+## count unchanged vs a single-card run (tools/test_card_scene.sh greps both
+## runs' lines).
 ##
 ## TEXT PATH: CanvasItem.draw_* is guarded to the _draw context (probed on
 ## 4.2.2: "Drawing is only allowed inside NOTIFICATION_DRAW, _draw() function
@@ -110,8 +117,11 @@ static func meta_label(meta: Dictionary) -> String:
 
 ## Draw one card: creature portrait (left 60%), name + epithet (top of the
 ## right column), 3 stat bars (bottom of the right column). Context-free —
-## see the TEXT PATH header note. RID lifecycle: frees the previous card on
-## this item, registers its own triple; release(ci) tears it down.
+## see the TEXT PATH header note. RID lifecycle: frees the previous card's
+## sub-RIDs on this item, registers its own triple; release(ci) tears it
+## down. The consumer MUST canvas_item_clear the item first (header RID
+## LIFECYCLE MUST 1) — the card's text/bars are commands on the caller item
+## and only that clear removes them.
 static func draw_into(ci: CanvasItem, genome: Dictionary, meta: Dictionary, rect: Rect2) -> void:
 	if rect.size.x <= 0.0 or rect.size.y <= 0.0:
 		return
