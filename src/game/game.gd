@@ -512,6 +512,55 @@ func _do_render(_alpha: float) -> void:
 		current.render()
 
 
+# ---- R10 genome showcase: the transition card's text lines ---------------------
+
+## R10 (experience-redesign): the 2.2s card's showcase block — exactly 3 stat
+## lines (size/legs/brain) + 1 karma line, so the player sees what they BUILT
+## before the new stage begins (image render waits for R11's shared card
+## renderer; red-team ruling: text first). The genome reads use the stats
+## module's conventions (float .get defaults) so the card numbers are the
+## editor's numbers: size through String.num(…, 1) like the editor's "1.5×"
+## row (trailing zeros strip — the editor shows "1×" at default), part
+## LEVELS truncating like its pip count. Static + pure (the
+## space_stage.ending_flavor seam) so the suite pins the exact strings
+## headless; raw EN labels — the draw composes the translation (see
+## card_showcase_draw_lines).
+static func card_showcase_lines(ctx: Variant) -> Array[String]:
+	var g: Dictionary = ctx.genome
+	# the ending screen's sign convention, upgraded to the death-debrief's
+	# display glyph: explicit + for non-negative, U+2212 (never the ASCII
+	# hyphen %.2f would emit) for negatives; 2 decimals throughout
+	var karma_f: float = float(ctx.karma)
+	var karma_txt := ("+" if karma_f >= 0.0 else "−") + "%.2f" % absf(karma_f)
+	return [
+		"size %s" % String.num(float(g.get("size", 1)), 1),
+		"legs %d" % int(float(g.get("legs", 0))),
+		"brain %d" % int(float(g.get("brain", 0))),
+		"karma %s" % karma_txt,
+	]
+
+
+## The gate ruling: the showcase block draws only when the card leads INTO a
+## gameplay stage — menu-bound transitions (quit-to-title's PRIMORDIA card)
+## draw nothing new. LOAD_STAGES is exactly the ruling's gameplay list.
+static func card_has_showcase(next_stage: String) -> bool:
+	return ContextScript.LOAD_STAGES.has(next_stage)
+
+
+## The draw composition for the block: the label word translates AT DRAW
+## (tr_key — R10 i18n ruling), the value rides OUTSIDE tr (the R2/QC-r3
+## translate-the-prose precedent). Input contract is card_showcase_lines'
+## "label value" shape; EN degrades to the raw line (no "en" messages).
+## Testable-extract seam (the objective_render_string pattern) — the draw
+## loop passes each of these straight to outlined_text.
+static func card_showcase_draw_lines(ctx: Variant, i18n_v: Variant) -> Array[String]:
+	var out: Array[String] = []
+	for line in card_showcase_lines(ctx):
+		var parts := String(line).split(" ", true, 1)
+		out.append("%s %s" % [i18n_v.tr_key(String(parts[0])), parts[1]])
+	return out
+
+
 ## TS game.render()'s transition overlay (game.ts:529-547), drawn by each
 ## stage's veil layer — native draw-order ruling (cell_stage.gd header): the
 ## TS game-level overlay became a per-stage canvas slotting between the
@@ -534,8 +583,23 @@ func draw_transition_veil(ci: CanvasItem) -> void:
 			RendererScript.outlined_text(ci, i18n.tr_key(String(tr["sub"])),
 					vw / 2.0, vh / 2.0 + 26.0,
 					{"size": 15.0, "fill": RendererScript.css_color("rgba(200,225,255,0.75)")})
+			# R10 genome showcase: 3 stat lines + 1 karma line under the sub —
+			# only when the card leads INTO a gameplay stage (menu-bound cards,
+			# the quit-to-title PRIMORDIA one, draw nothing new and keep the
+			# click hint where it has always been). Lines derive from the LIVE
+			# context at draw (raw EN labels translate here); the hint stays
+			# the block's last line.
+			var hint_y := vh / 2.0 + 64.0
+			if card_has_showcase(String(tr["next"])):
+				var line_y := vh / 2.0 + 58.0
+				for line in card_showcase_draw_lines(context, i18n):
+					RendererScript.outlined_text(ci, String(line),
+							vw / 2.0, line_y,
+							{"size": 12.0, "fill": RendererScript.css_color("rgba(190,215,245,0.8)")})
+					line_y += 20.0
+				hint_y = line_y + 8.0
 			RendererScript.outlined_text(ci, i18n.tr_key("click to continue"),
-					vw / 2.0, vh / 2.0 + 64.0,
+					vw / 2.0, hint_y,
 					{"size": 11.0, "fill": RendererScript.css_color("rgba(160,190,230,0.4)")})
 	else:
 		veil.a = maxf(0.0, 1.0 - float(tr["t"]) / float(tr["dur"]))
