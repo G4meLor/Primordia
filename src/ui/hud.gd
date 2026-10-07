@@ -27,6 +27,26 @@ const BANNER_COLORS := {
 	"danger": ["#ff9a5a", "#28140a"], "reward": ["#ffe08a", "#28200a"],
 }
 
+## R3 progress arc — the journey order (menu is not a journey node).
+const STAGE_ORDER := ["cell", "creature", "tribe", "civ", "space"]
+## Next-milestone tooltip per stage — raw EN keys, translated at draw (the
+## translation contract); vi.csv rows appended native-side (the r2 B3
+## precedent). Gates mirror the sims: legs→shore (cell_sim), brain ×3 +
+## pack 2 (creature_sim tribeReady), Great Totem (tribe_sim victory),
+## unify the planet (civ OBJECTIVE_LINE), seed 3 worlds (space OBJECTIVE_LINE).
+const HINT_KEYS := {
+	"cell": "next: buy a LEG → shore",
+	"creature": "next: brain ×3 + pack 2 → tribe",
+	"tribe": "next: raise the Great Totem → civ",
+	"civ": "next: unify the planet → space",
+	"space": "next: seed 3 worlds → Chaos Core",
+}
+## Arc node labels — EN keys translated at draw like every hud string.
+const ARC_LABELS := {
+	"cell": "Cell", "creature": "Creature", "tribe": "Tribe",
+	"civ": "Civ", "space": "Space",
+}
+
 ## AbilitySlot dicts {key, icon, cd, active, hint} — the stage recomputes the
 ## cd fractions every update (CellStage.ts:488-494); the hud never mutates.
 var abilities: Array = []
@@ -298,8 +318,9 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 			34.0, 20.0, {"size": 16.0, "fill": Color("#bfe6ff"), "align": "left"})
 	ci.draw_set_transform_matrix(inv)
 
-	RendererScript.outlined_text(ci, String(c.stage).to_upper(), 24.0, 72.0,
-			{"size": 10.0, "fill": RendererScript.css_color("rgba(160,200,255,0.6)"), "align": "left"})
+	# ---- R3 progress arc (absorbs the old dim stage-name text: the current
+	# node's label carries the name, bright) ------------------------------------
+	_draw_arc(ci, String(c.stage))
 
 	# ---- chaos + karma (top-right, left of buttons) ---------------------------
 	var meters_x := vw - 190.0  # clear of the ❚❚/🔊 buttons (vw-82..vw-52)
@@ -460,6 +481,71 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 				{"size": float(f2["size"]) * float(cam.zoom),
 						"fill": RendererScript.css_color(String(f2["color"])),
 						"alpha": minf(1.0, float(f2["ttl"]) * 2.0)})
+
+
+## R3 arc state per journey node for `stage_id`: "done" before the current
+## stage, "current" on it (renders bright — the accent node), "dim" after.
+## menu (and any unknown id) dims every node — the menu owns no hud instance,
+## so this is only ever the transition-frame safe default.
+static func arc_states(stage_id: String) -> Array:
+	var idx := STAGE_ORDER.find(stage_id)
+	var out: Array = []
+	for i in range(STAGE_ORDER.size()):
+		out.append("current" if i == idx else ("done" if i < idx else "dim"))
+	return out
+
+
+## Next-milestone EN key for the tooltip under the arc (translated at draw);
+## "" for menu/unknown — the draw skips the line. Space, the road's end,
+## hints its own endgame milestone instead of a next stage.
+static func arc_next_hint(stage_id: String) -> String:
+	return String(HINT_KEYS.get(stage_id, ""))
+
+
+## The arc itself: 5 numbered dots joined by a line (traveled path lit),
+## labels under the dots, next-milestone line under that. Plain CanvasItem
+## drawing on the caller's item — draw_line/draw_arc/disc/outlined_text only,
+## no sub-RIDs (the suite RID ceiling is at datum). Draws under the `inv`
+## screen-space transform the DNA block left set.
+func _draw_arc(ci: CanvasItem, stage_id: String) -> void:
+	var states := arc_states(stage_id)
+	var x0 := 28.0
+	var dx := 44.0
+	var y := 74.0
+	for i in range(states.size() - 1):
+		# a segment glows once its left node is done — the traveled path
+		var lit := String(states[i]) == "done"
+		ci.draw_line(Vector2(x0 + i * dx, y), Vector2(x0 + (i + 1) * dx, y),
+				RendererScript.css_color("rgba(127,212,255,0.55)") if lit
+				else RendererScript.css_color("rgba(255,255,255,0.16)"), 2.0)
+	for i in range(states.size()):
+		var cx := x0 + i * dx
+		var s := String(states[i])
+		var num := str(i + 1)
+		if s == "current":
+			RendererScript.disc(ci, cx, y, 7.0, RendererScript.css_color("#7fd4ff"))
+			ci.draw_arc(Vector2(cx, y), 9.5, 0.0, TAU, 24,
+					RendererScript.css_color("rgba(191,230,255,0.9)"), 1.5, true)
+			RendererScript.outlined_text(ci, num, cx, y,
+					{"size": 9.0, "fill": RendererScript.css_color("rgba(6,14,30,0.9)")})
+		elif s == "done":
+			RendererScript.disc(ci, cx, y, 7.0, RendererScript.css_color("rgba(150,200,255,0.38)"))
+			RendererScript.outlined_text(ci, num, cx, y,
+					{"size": 9.0, "fill": RendererScript.css_color("rgba(20,34,60,0.95)")})
+		else:
+			ci.draw_arc(Vector2(cx, y), 7.0, 0.0, TAU, 20,
+					RendererScript.css_color("rgba(255,255,255,0.30)"), 1.5, true)
+			RendererScript.outlined_text(ci, num, cx, y,
+					{"size": 9.0, "fill": RendererScript.css_color("rgba(160,200,255,0.5)")})
+		var label: String = _game.i18n.tr_key(String(ARC_LABELS[String(STAGE_ORDER[i])]))
+		RendererScript.outlined_text(ci, label, cx, y + 15.0,
+				{"size": 9.0, "fill": RendererScript.css_color("#bfe6ff") if s == "current"
+						else RendererScript.css_color("rgba(160,200,255,0.6)")})
+	var hint := arc_next_hint(stage_id)
+	if hint != "":
+		RendererScript.outlined_text(ci, _game.i18n.tr_key(hint), x0 - 4.0, y + 31.0,
+				{"size": 10.0, "align": "left",
+						"fill": RendererScript.css_color("rgba(160,200,255,0.75)")})
 
 
 func _button(ci: CanvasItem, r: Dictionary, glyph: String) -> void:

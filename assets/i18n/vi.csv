@@ -500,3 +500,13 @@ down,xuống dưới
 "the ocean grows quieter…","đại dương trầm lặng hơn…"
 "The pack scattered (%d fled)","Đàn tán loạn (%d con bỏ chạy)"
 "Mutation storm! %s +1 (free)","Bão đột biến! %s +1 (miễn phí)"
+next: buy a LEG → shore,kế: mua CHÂN → lên bờ
+next: brain ×3 + pack 2 → tribe,kế: não ×3 + đàn 2 → bộ tộc
+next: raise the Great Totem → civ,kế: dựng Great Totem → văn minh
+next: unify the planet → space,kế: thống nhất hành tinh → không gian
+next: seed 3 worlds → Chaos Core,kế: gieo 3 hành tinh → Chaos Core
+Cell,Tế bào
+Creature,Sinh vật
+Tribe,Bộ tộc
+Civ,Văn minh
+Space,Không gian
