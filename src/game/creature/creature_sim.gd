@@ -745,6 +745,9 @@ func handle_death(dt: float) -> void:
 			# QC r6: the template goes through tr FIRST (drawn verbatim on the
 			# toast path); EN output is byte-identical.
 			_fire("hud_toast", [tr("The pack scattered (%d fled)") % scattered, "bad", "🐾"])
+		# R4: the debrief commit — the DNA bill this path just computed rides
+		# to the stage layer (the cause came with the killing blow's note)
+		_fire("death_debrief", ["", "", lost])
 	if deathFade > 1.8:
 		deathFade = 0.0
 		deathStarted = false
@@ -891,6 +894,11 @@ func update_player(dt: float, inp: Dictionary) -> void:
 				_fire("audio_play", ["hurt", 0.55, 0.0])
 				_fx_burst(px, pz * Z_TO_Y - 10.0, 5, ["#ff8a9a"],
 						{"speed": 100.0, "ttl": 0.4, "size": 2.0})
+				# R4: the killing blow names its killer for the stage-side
+				# debrief (UI-side recording — no sim state; the species id
+				# resolves to the bestiary name in the stage's hook handler)
+				if php <= 0.0 and not deathStarted:
+					_fire("death_debrief", ["creature_bite", String(e["speciesId"]), -1])
 
 	# eat bushes / bones (alive only — a posthumous heal out-races the
 	# death fade and leaves an invisible ghost) (TS:752-787)
@@ -944,6 +952,9 @@ func update_player(dt: float, inp: Dictionary) -> void:
 				and py <= 0.0 and invuln <= 0.0:
 			php -= float(hz["dps"]) * dt
 			hurtT = maxf(hurtT, 0.4)
+			# R4: a lava kill notes its cause for the stage-side debrief
+			if php <= 0.0 and not deathStarted:
+				_fire("death_debrief", ["creature_lava", "", -1])
 
 	# pack follow gains karma slowly
 	var anyPack := false
@@ -1523,6 +1534,9 @@ func drop_meteor(x: float, z: float) -> void:
 	if dp < 150.0 and invuln <= 0.0:
 		php -= 40.0 * (1.0 - dp / 150.0)
 		hurtT = 1.0
+		# R4: a scorch kill notes its cause for the stage-side debrief
+		if php <= 0.0 and not deathStarted:
+			_fire("death_debrief", ["creature_meteor", "", -1])
 
 
 ## TS stampede (CreatureStage.ts:1155-1169) — a herd of large herbivores runs

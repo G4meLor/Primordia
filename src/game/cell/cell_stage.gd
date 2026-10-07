@@ -41,6 +41,7 @@ const TutorialScript := preload("res://src/ui/tutorial.gd")
 const HudScript := preload("res://src/ui/hud.gd")
 const EditorUiScript := preload("res://src/ui/editor.gd")
 const PauseScript := preload("res://src/ui/pause.gd")
+const DeathDebriefScript := preload("res://src/ui/death_debrief.gd")
 
 var sim: Variant = null            # CellSim (RefCounted sim core)
 var fx: Variant = null             # stage Particles pool (TS `new Fx(1200)`)
@@ -54,6 +55,10 @@ var tutorial: Variant = null
 var hud_inst: Variant = null
 var editor_inst: Variant = null
 var pause_inst: Variant = null
+## R4: the death debrief overlay (UI-side cause recording — the sims pass
+## the killer/cause through the death_debrief hook at the death instant and
+## store nothing; this component holds the window)
+var debrief: Variant = null
 
 var world_canvas: Node2D = null
 var _back_buffer: BackBufferCopy = null
@@ -153,6 +158,11 @@ func _ready() -> void:
 ## hud state survives a stage round-trip while the live dicts always point at
 ## the CURRENT stage's instances (the creature stage mirrors this).
 func _install_overlays() -> void:
+	# R4 death debrief — build-once alongside the other overlay instances
+	# (this runs from _ready AND on_enter, so test-built stages that skip
+	# the tree entry still hold one before any draw/tick/hook reaches it)
+	if debrief == null:
+		debrief = DeathDebriefScript.new()
 	if hud_inst == null:
 		hud_inst = HudScript.new(game)
 	game.hud = {
@@ -386,6 +396,10 @@ func _draw_ui(ci: CanvasItem) -> void:
 		ci.draw_rect(Rect2(0, 0, vw, vh), Color(60.0 / 255.0, 0.0, 10.0 / 255.0, minf(0.55, sim.deathFade * 0.4)))
 		RendererScript.outlined_text(ci, tr("REBIRTH IS PAINFUL"), vw / 2.0, vh / 2.0 - 10.0,
 				{"size": 30.0, "fill": Color("#ff9a8a")})
+		# R4 death debrief — cause/loss/tip lines, clear of the respawn hint
+		# above; display-only, dismissed by its own 1.4s window (before the
+		# 1.6s fade hands over to the respawn)
+		debrief.draw(ci, vw, vh / 2.0 + 46.0)
 
 	# tutorial overlay — the Task 8 engine (TS renders it here, above the
 	# death overlay and below the shore button); inactive engines draw nothing
@@ -434,6 +448,9 @@ func update(dt: float) -> void:
 	if tutorial != null:
 		tutorial.update(dt)
 	sim.update(dt, _build_input_snapshot())
+	# R4: the debrief window ages after the sim tick that may have committed
+	# it (the pause gate above freezes both the fade and this window in step)
+	debrief.tick(dt)
 	# camera (CellStage.ts:450-456)
 	game.cam.follow(sim.px, sim.py, dt, 5.0)
 	game.cam.zoom = 1.0
@@ -513,6 +530,8 @@ func on_enter(from: Variant = null) -> void:
 	sim.invuln = 3.0
 	sim.deathFade = 0.0
 	sim.deathStarted = false
+	# R4: no stale debrief across a round-trip (the fade itself just reset)
+	debrief.reset()
 	# TS CellStage.ts:250 — the shore gate reads the live genome
 	sim.shoreAvailable = float(game.context.genome.get("legs", 0)) >= 1.0
 	# TS CellStage.ts:237-248 — the ecosystem entry gate. A NEW LIFE reset the
@@ -588,6 +607,7 @@ func _build_hooks() -> Dictionary:
 		"context_event": _h_context_event,
 		"game_save_all": _h_game_save_all,
 		"shore_travel": _h_shore_travel,
+		"death_debrief": _h_death_debrief,
 	}
 
 
@@ -641,6 +661,29 @@ func _h_note_chaos_event(playtime: float) -> void:
 ## storyteller pump listener lands with Task 9.
 func _h_context_event(ev_name: String, from_stage: String) -> void:
 	game.context_event.emit(ev_name, from_stage)
+
+
+## R4 death debrief — the sim's one death hook, two payload shapes: a
+## killing-blow note (cause_id set; the cell passes the killer's SPECIES
+## id — the bestiary name resolves HERE, the sim stores nothing) or the
+## death handler's commit (empty cause_id; carries the DNA bill).
+func _h_death_debrief(cause_id: String, killer: String, dna: int) -> void:
+	if cause_id != "":
+		var name_v := ""
+		if killer != "":
+			name_v = _species_display_name(killer)
+		debrief.note(cause_id, name_v)
+	else:
+		debrief.commit(dna)
+
+
+## The killer's bestiary name (the eco row's display name; "" when the row
+## is gone — the debrief then draws its generic line).
+func _species_display_name(id_v: String) -> String:
+	for s in sim.eco.species:
+		if String(s["id"]) == id_v:
+			return String(s["name"])
+	return ""
 
 
 func _h_game_save_all() -> void:

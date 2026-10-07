@@ -690,6 +690,11 @@ func update(dt: float, inp: Dictionary) -> void:
 	if sun_d < float(sun["r"]) + 60.0 and invuln <= 0.0:
 		shp -= 30.0 * dt
 		hurtT = 1.0
+		# R4: a lethal tick notes its cause for the stage-side debrief
+		# (UI-side recording — no sim state; the commit rides the ship-death
+		# block with the DNA bill)
+		if shp <= 0.0:
+			_fire("death_debrief", ["space_sun", "", -1])
 		_fire("cam_shake", [4.0, 0.2])  # TS:381
 
 	# hull regen near your thriving colonies (TS:384-389)
@@ -760,6 +765,9 @@ func update(dt: float, inp: Dictionary) -> void:
 		if bd < 40.0 and invuln <= 0.0:
 			shp -= 60.0 * dt
 			hurtT = 1.0
+			# R4: a lethal tick notes its cause for the stage-side debrief
+			if shp <= 0.0:
+				_fire("death_debrief", ["space_blackhole", "", -1])
 		bh["x"] = float(bh["x"]) + float(bh["vx"]) * dt
 		bh["y"] = float(bh["y"]) + float(bh["vy"]) * dt
 		bh["ttl"] = float(bh["ttl"]) - dt
@@ -798,6 +806,9 @@ func update(dt: float, inp: Dictionary) -> void:
 		if pd < 60.0 and invuln <= 0.0 and not pirateLull:
 			shp -= 14.0 * dt
 			hurtT = maxf(hurtT, 0.5)
+			# R4: a lethal tick notes its cause for the stage-side debrief
+			if shp <= 0.0:
+				_fire("death_debrief", ["space_pirates", "", -1])
 			if rng.chance(dt * 6.0):
 				_fx_burst(sx, sy, 4, ["#ff8a5a"], {"speed": 120.0, "ttl": 0.4})  # TS:478
 				_fire("audio_play", ["hit", 0.4, 0.0])  # TS audio.play('hit', 0.4) — audio core: its own task
@@ -898,6 +909,11 @@ func update(dt: float, inp: Dictionary) -> void:
 		# cargo survives — deleting specimens too blocked seeding → blocked
 		# thriving → blocked the ending (9-15 deaths/run at chaos) (TS:589-590)
 		_fire("hud_toast", ["%s %d DNA" % [tr("Ship destroyed! Lost"), lost], "bad", "💀"])  # TS:591
+		# R4: the debrief commit — the 15% bill (0 once the ending fired; the
+		# debrief then omits the DNA line). The cause came with the lethal
+		# hazard's note; the instant respawn shows the overlay via its own
+		# 1.4s window (this stage has no death fade).
+		_fire("death_debrief", ["", "", lost])
 		sx = 0.0
 		sy = -900.0
 		svx = 0.0

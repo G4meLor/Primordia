@@ -617,6 +617,9 @@ func handle_chief_death(dt: float) -> void:
 			cause = " — %s" % tr(lastDeathCause)
 		_fire("hud_toast", ["%s %d DNA%s" % [tr("The chief fell — lost"), lost, cause],
 				"bad", "💀"])  # TS:430
+		# R4: the debrief commit — the 15% bill this path just computed (the
+		# cause note came with the raid/beast trigger; empty cause_id here)
+		_fire("death_debrief", ["", "", lost])
 		lastDeathCause = ""                               # TS:431
 	if deathFade > 1.6:
 		deathFade = 0.0
@@ -733,6 +736,10 @@ func update_chief(dt: float, inp: Dictionary) -> void:
 				deathFade = 0.0001
 				deathHandled = false
 				lastDeathCause = "raiders cut you down"
+				# R4: the death trigger notes its cause for the stage-side
+				# debrief (UI-side recording — no new sim state; the commit
+				# lands with the DNA bill in handle_chief_death)
+				_fire("death_debrief", ["tribe_raiders", "", -1])
 				_fire("cam_shake", [4.0, 0.3])
 
 
@@ -1279,6 +1286,8 @@ func update_beast(dt: float) -> void:
 		deathFade = 0.0001
 		deathHandled = false
 		lastDeathCause = "the great beast gored you"
+		# R4: the death trigger notes its cause for the stage-side debrief
+		_fire("death_debrief", ["tribe_beast", "", -1])
 	if rng.chance(dt * 10.0):
 		_fx_burst(float(b["x"]), float(b["z"]) * Z_TO_Y - 30.0, 2,
 				["#ffcf8a"], {"speed": 80.0, "ttl": 0.4})

@@ -68,6 +68,7 @@ extends "res://src/game/stage.gd"
 const TribeSimScript := preload("res://src/game/tribe/tribe_sim.gd")
 const ParticlesScript := preload("res://src/gfx/particles.gd")
 const TutorialScript := preload("res://src/ui/tutorial.gd")
+const DeathDebriefScript := preload("res://src/ui/death_debrief.gd")
 
 const RendererScript := preload("res://src/gfx/renderer.gd")
 const BackdropScript := preload("res://src/gfx/backdrop.gd")
@@ -116,6 +117,10 @@ var tut_hut_snap := -1
 ## and re-installed on enter (the creature stage's pattern).
 var hud_inst: Variant = null
 var pause_inst: Variant = null
+## R4: the death debrief overlay (UI-side cause recording — the sims pass
+## the killer/cause through the death_debrief hook at the death instant and
+## store nothing; this component holds the window)
+var debrief: Variant = null
 
 var sky_canvas: Node2D = null
 var ground_canvas: Node2D = null
@@ -265,6 +270,11 @@ func _ready() -> void:
 ## and reused, so the live dicts always point at the CURRENT stage's
 ## instances.
 func _install_overlays() -> void:
+	# R4 death debrief — build-once alongside the other overlay instances
+	# (this runs from _ready AND on_enter, so test-built stages that skip
+	# the tree entry still hold one before any draw/tick/hook reaches it)
+	if debrief == null:
+		debrief = DeathDebriefScript.new()
 	if hud_inst == null:
 		hud_inst = HudScript.new(game)
 	game.hud = {
@@ -521,6 +531,10 @@ func _draw_ui(ci: CanvasItem) -> void:
 				Color(60.0 / 255.0, 0.0, 10.0 / 255.0, minf(0.55, sim.deathFade * 0.4)))
 		RendererScript.outlined_text(ci, "THE CHIEF HAS FALLEN", vw / 2.0, vh / 2.0,
 				{"size": 26.0, "fill": Color("#ff9a8a")})
+		# R4 death debrief — cause/loss/tip lines, clear of the respawn hint
+		# above; display-only, dismissed by its own 1.4s window (before the
+		# 1.6s fade hands over to the respawn)
+		debrief.draw(ci, vw, vh / 2.0 + 48.0)
 
 	# tutorial overlay — the Task 8 engine (the cell-stage draw slot: above
 	# the death card, screen space); inactive engines draw nothing
@@ -849,6 +863,10 @@ func update(dt: float) -> void:
 
 	var inp: Dictionary = _build_input_snapshot()
 	sim.update(dt, inp)
+	# R4: the debrief window ages after the sim tick — a trigger's note
+	# (deathFade 0.0001 this tick) commits on the NEXT tick's death handler,
+	# so the pending pair must survive this drain
+	debrief.tick(dt)
 	# a hud-panel click the sim consumed sets the snapshot's take_click flag —
 	# mirror TS inp.takeClick() mutating the SHARED input (the wrapper's
 	# one-shot clears so nothing else re-sees the click this frame)
@@ -906,6 +924,8 @@ func on_enter(from: Variant = null) -> void:
 	if c2d != null:
 		c2d.enabled = true
 	sim.on_enter()
+	# R4: no stale debrief across a round-trip
+	debrief.reset()
 	# the first-run tutorial (per save slot; the cell-stage build-once rule).
 	# The WOOD snapshot rides the build — step 0's entry IS the build moment;
 	# the HUT snapshot waits for its own step entry (the update-side advance
@@ -975,6 +995,7 @@ func _build_hooks() -> Dictionary:
 		"context_event": _h_context_event,
 		"go_to": _h_go_to,
 		"save_all": _h_save_all,
+		"death_debrief": _h_death_debrief,
 	}
 
 
@@ -1064,6 +1085,18 @@ func _h_note_chaos_event(playtime: float) -> void:
 ## storyteller pump listener is game-side (M2 T7).
 func _h_context_event(ev_name: String, from_stage: String) -> void:
 	game.context_event.emit(ev_name, from_stage)
+
+
+## R4 death debrief — the sim's one death hook, two payload shapes: the
+## raid/beast trigger's note (cause_id set; no killer name — the registry
+## lines are generic) or handle_chief_death's commit (empty cause_id; the
+## DNA bill). The trigger's cause survives the sim's own lastDeathCause
+## consume because it rides THIS hook, not sim state.
+func _h_death_debrief(cause_id: String, killer: String, dna: int) -> void:
+	if cause_id != "":
+		debrief.note(cause_id, killer)
+	else:
+		debrief.commit(dna)
 
 
 ## The fall/victory stage handoffs (TS:396/407) — 'creature' is registered;

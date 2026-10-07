@@ -90,6 +90,7 @@ const CellPainterScript := preload("res://src/gfx/cell_painter.gd")
 const HudScript := preload("res://src/ui/hud.gd")
 const PauseScript := preload("res://src/ui/pause.gd")
 const TutorialScript := preload("res://src/ui/tutorial.gd")
+const DeathDebriefScript := preload("res://src/ui/death_debrief.gd")
 
 ## TS:892 — drawSpaceBackdrop's seed argument on the space call (civ used 42).
 const BACKDROP_SEED := 7.0
@@ -108,6 +109,11 @@ var tutorial: Variant = null
 ## and re-installed on enter (the creature/tribe/civ stage pattern).
 var hud_inst: Variant = null
 var pause_inst: Variant = null
+## R4: the death debrief overlay (UI-side cause recording — the sim passes
+## the lethal hazard through the death_debrief hook and stores nothing; this
+## component holds the window — space has no death fade, so its own 1.4s
+## budget is the overlay's whole life)
+var debrief: Variant = null
 
 var sky_canvas: Node2D = null
 var world_canvas: Node2D = null
@@ -288,6 +294,11 @@ func _ready() -> void:
 ## The overlay wiring (the tribe/civ stage's _install_overlays verbatim).
 ## Called from _ready (first build) AND on_enter (rebind).
 func _install_overlays() -> void:
+	# R4 death debrief — build-once alongside the other overlay instances
+	# (this runs from _ready AND on_enter, so test-built stages that skip
+	# the tree entry still hold one before any draw/tick/hook reaches it)
+	if debrief == null:
+		debrief = DeathDebriefScript.new()
 	if hud_inst == null:
 		hud_inst = HudScript.new(game)
 	game.hud = {
@@ -702,6 +713,11 @@ func _draw_ui_layer(ci: CanvasItem) -> void:
 	# vignette — TS:1040
 	RendererScript.vignette(ci, vw, vh, 0.5)
 
+	# R4 death debrief — space has no death fade; the component's own 1.4s
+	# window carries it (the ship-death block committed the cause). Display
+	# only — the instant respawn below is the sim's, untouched.
+	debrief.draw(ci, vw, vh / 2.0 + 40.0)
+
 	# ship HP — TS:1042-1049
 	var hp_w := minf(300.0, vw * 0.26)
 	var hx := vw / 2.0 - hp_w / 2.0
@@ -1040,6 +1056,9 @@ func update(dt: float) -> void:
 	sim.panel_rects = _panel_rects
 	var inp: Dictionary = _build_input_snapshot()
 	sim.update(dt, inp)
+	# R4: the debrief window ages after the sim tick that may have committed
+	# it (note and commit land inside one sim tick here — the instant respawn)
+	debrief.tick(dt)
 	# a sim-consumed click (panel/pirate) mirrors TS inp.takeClick() mutating
 	# the SHARED input — the wrapper's one-shot clears so the next frame's
 	# snapshot never re-sees it (the tribe precedent)
@@ -1077,6 +1096,7 @@ func _build_hooks() -> Dictionary:
 		"storyteller_note_chaos_event": _h_note_chaos_event,
 		"go_to": _h_go_to,
 		"save_all": _h_save_all,
+		"death_debrief": _h_death_debrief,
 	}
 
 
@@ -1175,6 +1195,18 @@ func _h_save_all() -> void:
 	game.save_all()
 
 
+## R4 death debrief — the sim's one death hook, two payload shapes: the
+## lethal hazard's note (cause_id set; no killer name — the registry lines
+## are generic) or the ship-death block's commit (empty cause_id; the DNA
+## bill, 0 once the ending fired). Space respawns instantly, so the
+## component's own 1.4s window carries the overlay.
+func _h_death_debrief(cause_id: String, killer: String, dna: int) -> void:
+	if cause_id != "":
+		debrief.note(cause_id, killer)
+	else:
+		debrief.commit(dna)
+
+
 func has_active_chaos() -> bool:
 	return sim != null and sim.has_active_chaos()
 
@@ -1187,6 +1219,8 @@ func on_enter(from: Variant = null) -> void:
 	if c2d != null:
 		c2d.enabled = true  # cam.begin arms here — the rig carries the world layer
 	sim.on_enter()
+	# R4: no stale debrief across a round-trip
+	debrief.reset()
 	# the first-run tutorial (per save slot; the cell-stage build-once rule)
 	if tutorial == null:
 		tutorial = TutorialScript.new(game, "tutSpace", _build_tutorial_steps())

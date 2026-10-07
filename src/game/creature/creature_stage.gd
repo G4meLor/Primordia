@@ -55,6 +55,7 @@ const EditorUiScript := preload("res://src/ui/editor.gd")
 const PauseScript := preload("res://src/ui/pause.gd")
 const TutorialScript := preload("res://src/ui/tutorial.gd")
 const CardScript := preload("res://src/gfx/creature_card.gd")
+const DeathDebriefScript := preload("res://src/ui/death_debrief.gd")
 
 # R9 pack portrait row — a top-left band under the R3 arc (clear of the
 # banner zone at y 70..144, the bottom docks and the toast column).
@@ -101,6 +102,10 @@ var tutorial: Variant = null
 var hud_inst: Variant = null
 var editor_inst: Variant = null
 var pause_inst: Variant = null
+## R4: the death debrief overlay (UI-side cause recording — the sims pass
+## the killer/cause through the death_debrief hook at the death instant and
+## store nothing; this component holds the window)
+var debrief: Variant = null
 
 var sky_canvas: Node2D = null
 var ground_canvas: Node2D = null
@@ -364,6 +369,11 @@ func _ready() -> void:
 ## live dicts always point at the CURRENT stage's instances (task-7 review fix
 ## — cell → creature keeps dict ownership; the cell stage mirrors this).
 func _install_overlays() -> void:
+	# R4 death debrief — build-once alongside the other overlay instances
+	# (this runs from _ready AND on_enter, so test-built stages that skip
+	# the tree entry still hold one before any draw/tick/hook reaches it)
+	if debrief == null:
+		debrief = DeathDebriefScript.new()
 	if hud_inst == null:
 		hud_inst = HudScript.new(game)
 	game.hud = {
@@ -704,6 +714,10 @@ func _draw_ui(ci: CanvasItem) -> void:
 		RendererScript.outlined_text(ci, tr("the pack scattered — your DNA funds the rebirth"),
 				vw / 2.0, vh / 2.0 + 22.0,
 				{"size": 13.0, "fill": RendererScript.css_color("rgba(255,200,190,0.8)")})
+		# R4 death debrief — cause/loss/tip lines, clear of the respawn hint
+		# above; display-only, dismissed by its own 1.4s window (before the
+		# 1.8s fade hands over to the respawn)
+		debrief.draw(ci, vw, vh / 2.0 + 56.0)
 
 	# found-tribe button — TS:1518-1531 (the rect lives in the sim's dict; the
 	# scene re-positions it every frame, the sim only hit-tests it)
@@ -1011,6 +1025,9 @@ func update(dt: float) -> void:
 	sim.transitionTarget = game.transition_target
 
 	sim.update(dt, _build_input_snapshot())
+	# R4: the debrief window ages after the sim tick that may have committed
+	# it (the pause gate freezes both the fade and this window in step)
+	debrief.tick(dt)
 
 	# camera — TS:571-576 (numbers verified against renderer.ts: rate 5,
 	# zoom constant 1.15)
@@ -1080,6 +1097,8 @@ func on_enter(from: Variant = null) -> void:
 	if c2d != null:
 		c2d.enabled = true
 	sim.on_enter()
+	# R4: no stale debrief across a round-trip
+	debrief.reset()
 	if hud_inst != null:
 		hud_inst.show_objective = "HUNT or CHARM (hold F near a creature) — press TAB for editor"
 	# TS CreatureStage.ts:306-313 — the first-run tutorial (per save slot).
@@ -1154,6 +1173,7 @@ func _build_hooks() -> Dictionary:
 		"context_event": _h_context_event,
 		"go_to": _h_go_to,
 		"tutorial_finish": _h_tutorial_finish,
+		"death_debrief": _h_death_debrief,
 	}
 
 
@@ -1218,6 +1238,30 @@ func _h_note_chaos_event(playtime: float) -> void:
 ## storyteller pump listener is game-side (M2 T7).
 func _h_context_event(ev_name: String, from_stage: String) -> void:
 	game.context_event.emit(ev_name, from_stage)
+
+
+## R4 death debrief — the sim's one death hook, two payload shapes: a
+## killing-blow note (cause_id set; the creature passes the killer's SPECIES
+## id — the bestiary name resolves HERE, the sim stores nothing) or the
+## death handler's commit (empty cause_id; carries the DNA bill).
+func _h_death_debrief(cause_id: String, killer: String, dna: int) -> void:
+	if cause_id != "":
+		var name_v := ""
+		if killer != "":
+			name_v = _species_display_name(killer)
+		debrief.note(cause_id, name_v)
+	else:
+		debrief.commit(dna)
+
+
+## The killer's bestiary name (the eco row's display name; "" when the row
+## is gone — the debrief then draws its generic line). Same scan shape as
+## the sim's own kill_ent kin lookup.
+func _species_display_name(id_v: String) -> String:
+	for s in sim.eco.species:
+		if String(s["id"]) == id_v:
+			return String(s["name"])
+	return ""
 
 
 ## T4 carry-forward: found_tribe's stage handoff (the tribe stage itself is
