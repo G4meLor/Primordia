@@ -83,8 +83,12 @@ extends RefCounted
 
 const ChaosScript := preload("res://src/game/chaos.gd")
 const CivEventsScript := preload("res://src/game/civ/civ_events.gd")
+const EcoScript := preload("res://src/evo/ecosystem.gd")
 
-## TS hud.showObjective on onEnter (CivStage.ts:121).
+## TS hud.showObjective on onEnter (CivStage.ts:121). R2 ruling: NO chip —
+## the sims track no natural cur/max state toward unification (the conquest
+## meters live in-scene), so this objective stays a plain line; documented
+## per the task brief rather than left implicit.
 const OBJECTIVE_LINE := "UNIFY THE PLANET — slider keys Q/W/E · launch armadas with 1/2/3"
 
 
@@ -133,6 +137,9 @@ var rulerGenome: Variant = null
 
 # TS:308 — {attack, charm, trade} (declared mid-file in TS)
 var launchCds: Dictionary = {"attack": 0.0, "charm": 0.0, "trade": 0.0}
+## R1 tutorial seam — armadas actually flown (incremented at the launch
+## success site; the gate refusals above never touch it).
+var launches := 0
 
 
 func _init(ctx_v: Variant, rng_branch: Variant, hooks: Dictionary = {}) -> void:
@@ -149,7 +156,9 @@ func _init(ctx_v: Variant, rng_branch: Variant, hooks: Dictionary = {}) -> void:
 	]
 
 	# your capital + 3 rival cities on a continent (TS:91-107)
-	cities.append({"id": "you", "name": "%sgrad" % String(ctx.player_name), "owner": "you",
+	# R9 identity ruling: the chosen creature name outranks the derived
+	# player_name for the player's capital (fallback unchanged when not set)
+	cities.append({"id": "you", "name": "%sgrad" % ctx.get_player_display(), "owner": "you",
 		"x": 0.0, "y": 120.0, "hp": 100.0, "influence": 100.0, "pop": 8.0, "burning": 0.0})
 	for i in 3:
 		var r: Dictionary = rival_defs[i]  # TS rivalDefs[i]!
@@ -188,6 +197,13 @@ func on_enter() -> void:
 	if int(ctx.world["seed"]) != deckSeed:
 		chaos = ChaosScript.new(rng.branch(), _make_deck())
 		deckSeed = int(ctx.world["seed"])
+	# R12 heredity ledger — the conduct half: the start output is 10±2 by the
+	# karma profile's mean (> +0.15 → +2, < −0.15 → −2). Recomputed at EVERY
+	# entry — the sim is a boot-time singleton, so a NEW LIFE heals the bonus.
+	# R14 eco half: the creature-exit eco snapshot stacks roundi(health × 12)
+	# on top — hard cap 22 on the SUM (the preflight ruling: the cap is the
+	# ceiling after all bonuses, so eco 1.0 + conduct +2 still lands 22).
+	output = minf(22.0, 10.0 + _start_output_bonus() + roundi(_eco_health() * 12.0))
 	_fire("audio_set_mood", ["civ"])  # TS:119
 	_fire("hud_toast_inset", [150.0])  # TS:120 — clear the ruler portrait
 	_fire("hud_show_objective", [OBJECTIVE_LINE])  # TS:121
@@ -204,6 +220,28 @@ func on_exit() -> void:
 	persist_state()  # TS:130
 
 
+## R12 — the start-output conduct bonus (the heredity ledger's conduct half):
+## +2 above a +0.15 mean conduct, −2 below −0.15, else 0. Task 15 stacked an
+## additive ecoHealth bonus on top (hard cap 22 total) — this stays a
+## separate additive ±2.
+func _start_output_bonus() -> float:
+	var conduct: float = ctx.conduct_avg()
+	return 2.0 if conduct > 0.15 else (-2.0 if conduct < -0.15 else 0.0)
+
+
+## R14 — the eco-health read behind the start output. The snapshot the
+## creature stage writes at its exit (ctx.flags["ecoHealth"], camelCase wire)
+## is the truth; a MISSING one derives from the CURRENT eco when one rides
+## the context (continue-runs — the eco persists across stages), and reads
+## the 0.5 neutral only for old saves with neither (fresh civ entries).
+## Corrupt (non-numeric) snapshots read as missing, never as a crash.
+func _eco_health() -> float:
+	var raw: Variant = ctx.flags.get("ecoHealth")
+	if raw is float or raw is int:
+		return clampf(float(raw), 0.0, 1.0)
+	return EcoScript.health(ctx.eco)
+
+
 ## The deck factory seam (civEvents.ts:47) — the world-parameterized civ deck.
 ## Draws nothing from any stage rng (see the header note); the C1 rebuild in
 ## on_enter reuses it on a fresh branch.
@@ -216,6 +254,18 @@ func _all_owned() -> bool:
 		if String(c["owner"]) != "you":
 			return false
 	return true
+
+
+## R1 tutorial seam — cities owned by 'you' beyond the capital (ownership
+## lives only on the city dicts, so the tutorial's done-callable polls this
+## read-only count; flips, revolts and CONTINUE restores all read through
+## live — no separate counter to persist).
+func conquest_count() -> int:
+	var n := 0
+	for c in cities:
+		if String(c["owner"]) == "you" and String(c["id"]) != "you":
+			n += 1
+	return n
 
 
 # ---- persist / restore (TS:132-173) -------------------------------------------------
@@ -306,8 +356,12 @@ func update(dt: float, inp: Dictionary) -> void:
 	for k in launchCds:
 		launchCds[k] = maxf(0.0, float(launchCds[k]) - dt)  # TS:182-184
 
-	# national output regenerates over time (TS:186-195)
-	regenT += dt
+	# national output regenerates over time (TS:186-195). R14 famine: the
+	# hungry_bloom event freezes the regen clock for its exact 20 s active
+	# span — the drip that feeds the econ lane among them stops dead (the
+	# scheduler's own duration is the timer; the warn window never freezes)
+	if not chaos.is_active("famine"):
+		regenT += dt
 	if regenT >= 6.0:
 		regenT = 0.0
 		var total := mil + culture + econ
@@ -513,6 +567,7 @@ func launch(kind: String) -> void:
 	armadas.append({"x": float(cap["x"]), "y": float(cap["y"]),
 		"tx": float(target["x"]), "ty": float(target["y"]),
 		"target": target, "kind": kind, "t": 0.0, "alive": true, "power": power})  # TS:346
+	launches += 1  # R1 tutorial seam — the armada actually flew
 	_fire("audio_play", ["warp", 0.5, 0.0])  # TS audio.play('warp', 0.5) — audio core: its own task
 	var icon := "⚔️" if kind == "attack" else ("🎭" if kind == "charm" else "💰")
 	_fire("hud_toast", ["%s %s %s (power %s)" % [kind.to_upper(), tr("armada →"), String(target["name"]), str(power)],
@@ -520,9 +575,14 @@ func launch(kind: String) -> void:
 
 
 ## Single source of truth for rival defense (launch gate + resolve) (TS:351-355).
+## R12: the heredity shape bends it — predator-line −1 (the hunt comes
+## natural), wall-line +1 (fortress doctrine), else 0 — reading the context's
+## LATEST stage-exit snapshot.
 func rival_def_for(rival: bool) -> float:
 	var d := String(ctx.difficulty)
-	return (6.0 if rival else 3.0) + (3.0 if d == "chaos" else (-1.0 if d == "peaceful" else 0.0))
+	var shape := String(ctx.run_shape)
+	var shape_mod := -1.0 if shape == "predator" else (1.0 if shape == "wall" else 0.0)
+	return (6.0 if rival else 3.0) + (3.0 if d == "chaos" else (-1.0 if d == "peaceful" else 0.0)) + shape_mod
 
 
 func resolve_armada(a: Dictionary) -> void:
@@ -561,7 +621,10 @@ func resolve_armada(a: Dictionary) -> void:
 		ctx.add_karma(-0.02)  # TS:379
 	else:
 		_fire("audio_play", ["charm", 0.6, 0.0])  # TS audio.play('charm', 0.6) — audio core: its own task
-		ctx.add_karma(0.015 if String(a["kind"]) == "charm" else 0.01)  # TS:382
+		# R12: the minder-line's diplomatic bent — charm/trade karma pays +0.01
+		# extra (charm 0.015 → 0.025, trade 0.01 → 0.02); other shapes unchanged
+		var base := 0.015 if String(a["kind"]) == "charm" else 0.01
+		ctx.add_karma(base + (0.01 if String(ctx.run_shape) == "minder" else 0.0))  # TS:382
 	if float(c["influence"]) >= 100.0 and String(c["owner"]) != "you":
 		c["owner"] = "you"
 		c["hp"] = maxf(float(c["hp"]), 40.0)  # TS:386
@@ -580,7 +643,9 @@ func tick_second() -> void:
 	for c in cities:
 		if String(c["owner"]) == "you":
 			c["pop"] = minf(30.0, float(c["pop"]) + 0.02)  # TS:397
-			c["hp"] = minf(100.0, float(c["hp"]) + 0.5)  # TS:398
+			# R12: the wall-line's fortress doctrine — the city regen pays
+			# +0.3/s extra (one line at the site, per the brief)
+			c["hp"] = minf(100.0, float(c["hp"]) + 0.5 + (0.3 if String(ctx.run_shape) == "wall" else 0.0))  # TS:398
 			if float(c["burning"]) > 0.0:
 				c["burning"] = float(c["burning"]) - 1.0  # TS:399
 			if float(c["influence"]) < 0.0:
@@ -625,10 +690,16 @@ func tick_second() -> void:
 			c["hp"] = maxf(5.0, float(c["hp"]) - 2.0)  # TS:427
 			c["burning"] = float(c["burning"]) - 0.5  # TS:427
 
-	# national output slowly wins hearts in enemy cities (per second) (TS:430-436)
+	# national output slowly wins hearts in enemy cities (per second) (TS:430-436).
+	# R14 pacifist viability: the culture weight rises 0.006 → 0.014 — the
+	# passive route (no armadas) measured >3000 s without a flip at the old
+	# constant (the board caps the lanes, hearts 0.01-0.04/s); at the buffed
+	# constant a full-web eco snapshot (output 22 → culture 10 + econ 10)
+	# completes in ~1000 s — under the 1200 s bound. The econ weight and the
+	# -0.02 unrest baseline stay TS-verbatim (the smallest knob: one weight).
 	for c in cities:
 		if String(c["owner"]) != "you":
-			c["influence"] = float(c["influence"]) + (culture * 0.006 + econ * 0.004 - 0.02)
+			c["influence"] = float(c["influence"]) + (culture * 0.014 + econ * 0.004 - 0.02)
 			c["influence"] = clampf(float(c["influence"]), -100.0, 100.0)
 
 	# karma drift: culture-heavy → harmonious (TS:438-439)
@@ -741,6 +812,36 @@ func trade_winds_tick(dt: float) -> void:
 	regenT += dt * 0.2  # the +20% share feeds the normal 6s regen check (TS:524)
 	for c in cities:
 		c["pop"] = minf(30.0, float(c["pop"]) + 0.008 * dt)  # TS:525
+
+
+# ---- R14 chaos hooks (native-side, world-trait-gated — no TS counterpart) -----
+
+## Chaos variant (acid_monsoon — toxin_sea): the monsoon makes landfall.
+## The drain itself rides the tick (warn phase FIRST, the chaos law).
+func acid_monsoon_begin() -> void:
+	_fire("hud_toast", [tr("Acid rain eats at every city's walls!"), "bad", "☣️"])
+
+
+## ~2 hp/s per city across the 6 s span — every city on the planet (the rain
+## does not read borders); the burning floor 5.0 holds.
+func acid_monsoon_tick(dt: float) -> void:
+	for c in cities:
+		c["hp"] = maxf(5.0, float(c["hp"]) - 2.0 * dt)
+
+
+## Chaos variant (famine — hungry_bloom): the granaries run dry. The 20 s
+## output-regen freeze is the event's own active span — update() gates the
+## regenT accumulation on chaos.is_active("famine"); this hook only announces.
+func famine_begin() -> void:
+	_fire("hud_toast", [tr("Famine! The output regen halts."), "bad", "🌾"])
+
+
+## Chaos variant (moon_cult — mutation_moon): a one-shot culture burst of
+## +15% of the current lane, slider cap holding (no tick — instant, the
+## quake/rebellion shape).
+func moon_cult() -> void:
+	culture = minf(10.0, culture * 1.15)
+	_fire("hud_toast", [tr("Moon cultists preach in your streets — culture surges."), "info", "🌗"])
 
 
 # ---- chaos wiring (TS:258-277) ---------------------------------------------------------

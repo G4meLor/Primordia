@@ -27,11 +27,48 @@ const BANNER_COLORS := {
 	"danger": ["#ff9a5a", "#28140a"], "reward": ["#ffe08a", "#28200a"],
 }
 
+## R3 progress arc — the journey order (menu is not a journey node).
+const STAGE_ORDER := ["cell", "creature", "tribe", "civ", "space"]
+## Next-milestone tooltip per stage — raw EN keys, translated at draw (the
+## translation contract); vi.csv rows appended native-side (the r2 B3
+## precedent). Gates mirror the sims: legs→shore (cell_sim), brain ×3 +
+## pack 2 (creature_sim tribeReady), Great Totem (tribe_sim victory),
+## unify the planet (civ OBJECTIVE_LINE), seed 3 worlds (space OBJECTIVE_LINE).
+const HINT_KEYS := {
+	"cell": "next: buy a LEG → shore",
+	"creature": "next: brain ×3 + pack 2 → tribe",
+	"tribe": "next: raise the Great Totem → civ",
+	"civ": "next: unify the planet → space",
+	"space": "next: seed 3 worlds → Chaos Core",
+}
+## Arc node labels — EN keys translated at draw like every hud string.
+const ARC_LABELS := {
+	"cell": "Cell", "creature": "Creature", "tribe": "Tribe",
+	"civ": "Civ", "space": "Space",
+}
+
 ## AbilitySlot dicts {key, icon, cd, active, hint} — the stage recomputes the
 ## cd fractions every update (CellStage.ts:488-494); the hud never mutates.
 var abilities: Array = []
-## TS showObjective: string | null — a raw EN key, translated at draw.
-var show_objective: Variant = null
+## TS showObjective: string | null — a raw EN key, translated at draw. R2
+## chip contract: ANY (re)assignment arms a PLAIN line — the counter pair
+## resets here, so the cell/creature direct sets and the 1-arg objective
+## hook can never leak a previous stage's chip; the sims re-arm the live
+## pair per tick through the hud_objective_counter hook.
+var show_objective: Variant = null:
+	set(v):
+		show_objective = v
+		show_objective_text = "" if v == null else String(v)
+		show_objective_cur = -1
+		show_objective_max = 0
+## R2 chip: typed mirror of show_objective — what the objective slot renders
+## ("" while hidden). The draw block reads this, never the Variant.
+var show_objective_text: String = ""
+## R2 chip: the live cur/max pair behind the objective line — cur<0 or
+## max<=0 renders plain text (the sims fire the pair only while it tracks
+## something real; see HudUi.objective_display).
+var show_objective_cur := -1
+var show_objective_max := 0
 ## Extra bottom inset so toasts clear stage-specific bottom-left UI (tribe
 ## build buttons, civ portrait). Stages set it in on_enter; cell leaves it 0.
 var toast_inset := 0.0
@@ -298,8 +335,9 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 			34.0, 20.0, {"size": 16.0, "fill": Color("#bfe6ff"), "align": "left"})
 	ci.draw_set_transform_matrix(inv)
 
-	RendererScript.outlined_text(ci, String(c.stage).to_upper(), 24.0, 72.0,
-			{"size": 10.0, "fill": RendererScript.css_color("rgba(160,200,255,0.6)"), "align": "left"})
+	# ---- R3 progress arc (absorbs the old dim stage-name text: the current
+	# node's label carries the name, bright) ------------------------------------
+	_draw_arc(ci, String(c.stage))
 
 	# ---- chaos + karma (top-right, left of buttons) ---------------------------
 	var meters_x := vw - 190.0  # clear of the ❚❚/🔊 buttons (vw-82..vw-52)
@@ -346,7 +384,9 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 
 	# ---- objective --------------------------------------------------------------
 	if show_objective != null:
-		RendererScript.outlined_text(ci, _game.i18n.tr_key(String(show_objective)),
+		# R2 chip: the prose translates, then the live pair appends OUTSIDE
+		# tr_key (numbers are not prose — see objective_display)
+		RendererScript.outlined_text(ci, objective_render_string(),
 				vw / 2.0, 26.0, {"size": 13.0, "fill": Color("#ffe9b0"), "alpha": 0.9,
 						"maxWidth": vw - 380.0})
 
@@ -460,6 +500,98 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 				{"size": float(f2["size"]) * float(cam.zoom),
 						"fill": RendererScript.css_color(String(f2["color"])),
 						"alpha": minf(1.0, float(f2["ttl"]) * 2.0)})
+
+
+## R2 chip — the pure display join: "T · 34/100" while a counter is armed
+## (cur >= 0 and max > 0), else the line as-is. The brief-pinned no-counter
+## edges: cur<0 or max<=0 → plain text. The "·" is typography, not prose —
+## it stays out of vi.csv; the fallback font's digits share one advance
+## (tabular), so the live counter doesn't jitter as it ticks.
+static func objective_display(text: String, cur: int, max: int) -> String:
+	if cur < 0 or max <= 0:
+		return text
+	return "%s · %d/%d" % [text, cur, max]
+
+
+## The exact string the objective slot renders: the prose translated, then
+## the live pair appended OUTSIDE tr_key. Extracted from draw() for the
+## headless suite (the arc_states/arc_next_hint seam — draw targets a live
+## canvas, which only the xvfb scene harness exercises).
+func objective_render_string() -> String:
+	return objective_display(_game.i18n.tr_key(show_objective_text),
+			show_objective_cur, show_objective_max)
+
+
+## R3 arc state per journey node for `stage_id`: "done" before the current
+## stage, "current" on it (renders bright — the accent node), "dim" after.
+## menu (and any unknown id) dims every node — the menu owns no hud instance,
+## so this is only ever the transition-frame safe default.
+static func arc_states(stage_id: String) -> Array:
+	var idx := STAGE_ORDER.find(stage_id)
+	var out: Array = []
+	for i in range(STAGE_ORDER.size()):
+		out.append("current" if i == idx else ("done" if i < idx else "dim"))
+	return out
+
+
+## Next-milestone EN key for the tooltip under the arc (translated at draw);
+## "" for menu/unknown — the draw skips the line. Space, the road's end,
+## hints its own endgame milestone instead of a next stage.
+static func arc_next_hint(stage_id: String) -> String:
+	return String(HINT_KEYS.get(stage_id, ""))
+
+
+## The arc itself: 5 numbered dots joined by a line (traveled path lit),
+## labels under the dots, next-milestone line under that. Plain CanvasItem
+## drawing on the caller's item — draw_line/draw_arc/disc/outlined_text only,
+## no sub-RIDs (the suite RID ceiling is at datum). Draws under the `inv`
+## screen-space transform the DNA block left set.
+func _draw_arc(ci: CanvasItem, stage_id: String) -> void:
+	var states := arc_states(stage_id)
+	var x0 := 28.0
+	var dx := 44.0
+	var y := 74.0
+	for i in range(states.size() - 1):
+		# a segment glows once its left node is done — the traveled path
+		var lit := String(states[i]) == "done"
+		ci.draw_line(Vector2(x0 + i * dx, y), Vector2(x0 + (i + 1) * dx, y),
+				RendererScript.css_color("rgba(127,212,255,0.55)") if lit
+				else RendererScript.css_color("rgba(255,255,255,0.16)"), 2.0)
+	for i in range(states.size()):
+		var cx := x0 + i * dx
+		var s := String(states[i])
+		var num := str(i + 1)
+		if s == "current":
+			RendererScript.disc(ci, cx, y, 7.0, RendererScript.css_color("#7fd4ff"))
+			ci.draw_arc(Vector2(cx, y), 9.5, 0.0, TAU, 24,
+					RendererScript.css_color("rgba(191,230,255,0.9)"), 1.5, true)
+			RendererScript.outlined_text(ci, num, cx, y,
+					{"size": 9.0, "fill": RendererScript.css_color("rgba(6,14,30,0.9)")})
+		elif s == "done":
+			RendererScript.disc(ci, cx, y, 7.0, RendererScript.css_color("rgba(150,200,255,0.38)"))
+			RendererScript.outlined_text(ci, num, cx, y,
+					{"size": 9.0, "fill": RendererScript.css_color("rgba(20,34,60,0.95)")})
+		else:
+			ci.draw_arc(Vector2(cx, y), 7.0, 0.0, TAU, 20,
+					RendererScript.css_color("rgba(255,255,255,0.30)"), 1.5, true)
+			RendererScript.outlined_text(ci, num, cx, y,
+					{"size": 9.0, "fill": RendererScript.css_color("rgba(160,200,255,0.5)")})
+		var label: String = _game.i18n.tr_key(String(ARC_LABELS[String(STAGE_ORDER[i])]))
+		RendererScript.outlined_text(ci, label, cx, y + 15.0,
+				{"size": 9.0, "fill": RendererScript.css_color("#bfe6ff") if s == "current"
+						else RendererScript.css_color("rgba(160,200,255,0.6)")})
+	var hint := arc_next_hint(stage_id)
+	if hint != "":
+		RendererScript.outlined_text(ci, _game.i18n.tr_key(hint), x0 - 4.0, y + 31.0,
+				{"size": 10.0, "align": "left",
+						"fill": RendererScript.css_color("rgba(160,200,255,0.75)")})
+	# R7 — the creature's display name rides next to the arc (small, dim). A
+	# player string, not a key — drawn verbatim at draw time like the arc's
+	# own labels (the discover() precedent: names interpolate outside tr).
+	RendererScript.outlined_text(ci, _game.context.get_display_name(),
+			x0 + (states.size() - 1) * dx + 32.0, y,
+			{"size": 11.0, "align": "left",
+					"fill": RendererScript.css_color("rgba(191,230,255,0.8)")})
 
 
 func _button(ci: CanvasItem, r: Dictionary, glyph: String) -> void:

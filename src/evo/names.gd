@@ -30,6 +30,25 @@ const EP_LEGS := ["the Skittering", "Many-legged", "the Busy"]
 
 const TAILS := ["ington", "burger", "zor", "ini", "ax", "zilla", "puff"]
 
+# R7 creature naming — the picker charset (A-Z a-z 0-9 space apostrophe dash,
+# the EXACT ruled set as one const) and the cap. context.set_display_name
+# filters/truncates through these; the editor's on-canvas grid renders them.
+const NAME_CHARSET := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 '-"
+const NAME_MAX_LEN := 14
+
+
+## The central name sanitizer: keep only NAME_CHARSET glyphs, strip edge
+## whitespace, truncate to NAME_MAX_LEN (truncate-not-reject). An empty result
+## means "not set" — the display sites fall back to the self_name suggestion.
+static func sanitize_name(raw: String) -> String:
+	var out := ""
+	for i in raw.length():
+		var ch := raw[i]
+		if NAME_CHARSET.contains(ch):
+			out += ch
+	out = out.strip_edges()
+	return out.substr(0, NAME_MAX_LEN) if out.length() > NAME_MAX_LEN else out
+
 
 static func species_name(rng) -> String:
 	var n: String = rng.pick(PRE)

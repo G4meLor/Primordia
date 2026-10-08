@@ -16,6 +16,7 @@ extends Node
 
 const InputScript := preload("res://src/core/input.gd")
 const LoopScript := preload("res://src/core/loop.gd")
+const AudioScript := preload("res://src/core/audio.gd")
 const CamScript := preload("res://src/game/cam.gd")
 const ContextScript := preload("res://src/game/context.gd")
 const StorytellerScript := preload("res://src/game/storyteller.gd")
@@ -24,6 +25,7 @@ const ParticlesScript := preload("res://src/gfx/particles.gd")
 const RendererScript := preload("res://src/gfx/renderer.gd")
 const WorldGenomeScript := preload("res://src/evo/world_genome.gd")
 const TraitsScript := preload("res://src/evo/world_traits.gd")
+const ShapeScript := preload("res://src/evo/shape.gd")
 
 signal stage_changed(stage_id: String)
 ## TS ctx.bus.emit(EV.playerDeath, …) shape (M2 T7): the cell sim's
@@ -37,6 +39,7 @@ var cam: Variant = null          # Cam rig (src/game/cam.gd)
 var loop: Variant = null         # GameLoop (src/core/loop.gd)
 var storyteller: Variant = null  # M1 Storyteller
 var i18n: Variant = null         # I18n core (src/core/i18n.gd)
+var audio: Variant = null        # AudioCore (src/core/audio.gd) — R7b
 
 var vw := 800.0
 var vh := 600.0
@@ -101,6 +104,11 @@ func _init(context_v: Variant = null) -> void:
 	i18n = I18nScript.new()
 	muted = i18n.get_muted()
 	i18n.apply_locale()
+	# R7b: the one AudioCore instance; muted mirrors the persisted setting and
+	# toggle_mute keeps it in sync (the core's single mute gate).
+	audio = AudioScript.new()
+	audio.muted = muted
+	audio.host = self
 	hud = {
 		"update": func(_dt: float) -> void: pass,
 		"dismiss_banner": func() -> void: pass,
@@ -290,6 +298,19 @@ func switch_stage(id: String) -> void:
 		if next.get("hud_inst") != null:
 			next.hud_inst.adopt_toasts(carried_toasts)
 	if current != null:
+		# R15: the single exit choke point — every switch out of a stage
+		# (evolution AND quit-to-title: both funnel through switch_stage)
+		# snapshots the leaving sim stage's karma into the per-stage profile
+		# exactly once. Hooked HERE rather than in stage.on_exit so no other
+		# exit path can record a second time; the pause quit's save_all (which
+		# fires BEFORE this seam) therefore persists the profile without the
+		# leaving stage's own slot — its proper exit overwrites it later.
+		context.record_stage_exit(current.id)
+		# R12 heredity ledger: the leaving stage's body plan snaps to the run
+		# shape (LATEST-only — the civ/space consumers read the latest
+		# snapshot). Pure + cheap, so every switch recomputes; the genome is
+		# the truth.
+		context.run_shape = ShapeScript.shape_of(context.genome)
 		current.on_exit()
 		# native tree-model note (TS immediate-mode redraws only the live
 		# stage): stages are persistent children, so the node we leave hides.
@@ -300,8 +321,18 @@ func switch_stage(id: String) -> void:
 		if orphan:
 			current.queue_free()
 	var from: Variant = current.id if current != null else null
+	# R15: the anchor re-arms ONLY out of a SIM stage — the standing karma
+	# there IS that stage's fresh exit snapshot (the seam serves both the
+	# exit snapshot and the next stage's entry karma). A menu resumption
+	# (quit-to-title → CONTINUE) must keep the anchor context.load() derived
+	# from the profile — the stage's ORIGINAL entry snapshot — or every
+	# save-quit-continue cycle would mint a fresh +0.15 of cap headroom.
+	var leaving_sim: bool = current != null \
+			and int(context.KARMA_STAGE_INDEX.get(current.id, -1)) >= 0
 	current = next
 	context.stage = id
+	if leaving_sim:
+		context.rearm_karma_stage()
 	# per-stage storyteller signals start clean on every switch (TS:219-221)
 	deaths_in_stage = 0
 	stage_time = 0.0
@@ -434,10 +465,19 @@ func _do_update(dt: float) -> void:
 				save_all()
 		# chaos slowly settles toward the difficulty's resting level —
 		# peaceful promised calm and used to climb to normal's floor anyway
-		# (TS:302-303; raw adds like TS — the settle target never overflows)
-		var settle_at: float = 0.05 if context.difficulty == "peaceful" \
-				else (0.25 if context.difficulty == "chaos" else 0.12)
+		# (TS:302-303; raw adds like TS — the settle target never overflows).
+		# R13: the floor is context.settle_rest — the same `rest` the scar
+		# thresholds scale with.
+		var settle_at: float = ContextScript.settle_rest(context.difficulty)
 		context.chaos += (settle_at - context.chaos) * minf(1.0, dt * 0.03)
+		# R13 chaos scars — fold the settled chaos into the run peak; each
+		# threshold crossing fires ONCE per run (the ctx latches the fired
+		# tiers; karma is read AT the crossing, never consumed). The menu
+		# never folds: a CONTINUE's loaded chaos must not mint scars on the
+		# title screen — the first gameplay tick does.
+		if context.stage != "menu":
+			for tier_v in context.scar_cross(context.chaos):
+				_announce_scar(int(tier_v))
 		# karma drift lifts an 'aggressive' player back toward neutral (ambient
 		# contact kills used to floor passivity at -1) but never erodes a
 		# HARMONIOUS score — the drift used to delete the pacifist ending
@@ -478,6 +518,72 @@ func _do_render(_alpha: float) -> void:
 		current.render()
 
 
+# ---- R10 genome showcase: the transition card's text lines ---------------------
+
+## R10 (experience-redesign): the 2.2s card's showcase block — exactly 3 stat
+## lines (size/legs/brain) + 1 karma line, so the player sees what they BUILT
+## before the new stage begins (image render waits for R11's shared card
+## renderer; red-team ruling: text first). The genome reads use the stats
+## module's conventions (float .get defaults) so the card numbers are the
+## editor's numbers: size through String.num(…, 1) like the editor's "1.5×"
+## row (trailing zeros strip — the editor shows "1×" at default), part
+## LEVELS truncating like its pip count. Static + pure (the
+## space_stage.ending_flavor seam) so the suite pins the exact strings
+## headless; raw EN labels — the draw composes the translation (see
+## card_showcase_draw_lines).
+static func card_showcase_lines(ctx: Variant) -> Array[String]:
+	var g: Dictionary = ctx.genome
+	# the ending screen's sign convention, upgraded to the death-debrief's
+	# display glyph: explicit + for non-negative, U+2212 (never the ASCII
+	# hyphen %.2f would emit) for negatives; 2 decimals throughout
+	var karma_f: float = float(ctx.karma)
+	var karma_txt := ("+" if karma_f >= 0.0 else "−") + "%.2f" % absf(karma_f)
+	return [
+		"size %s" % String.num(float(g.get("size", 1)), 1),
+		"legs %d" % int(float(g.get("legs", 0))),
+		"brain %d" % int(float(g.get("brain", 0))),
+		"karma %s" % karma_txt,
+	]
+
+
+## The gate ruling: the showcase block draws only when the card leads INTO a
+## gameplay stage — menu-bound transitions (quit-to-title's PRIMORDIA card)
+## draw nothing new. LOAD_STAGES is exactly the ruling's gameplay list.
+static func card_has_showcase(next_stage: String) -> bool:
+	return ContextScript.LOAD_STAGES.has(next_stage)
+
+
+## The draw composition for the block: the label word translates AT DRAW
+## (tr_key — R10 i18n ruling), the value rides OUTSIDE tr (the R2/QC-r3
+## translate-the-prose precedent). Input contract is card_showcase_lines'
+## "label value" shape; EN degrades to the raw line (no "en" messages).
+## Testable-extract seam (the objective_render_string pattern) — the draw
+## loop passes each of these straight to outlined_text.
+static func card_showcase_draw_lines(ctx: Variant, i18n_v: Variant) -> Array[String]:
+	var out: Array[String] = []
+	for line in card_showcase_lines(ctx):
+		var parts := String(line).split(" ", true, 1)
+		out.append("%s %s" % [i18n_v.tr_key(String(parts[0])), parts[1]])
+	return out
+
+
+## R12 heredity ledger — the ONE extra card line by destination: the civ-bound
+## card names the national trait, the space-bound card the fleet legacy (the
+## real ship perks are deferred — red-team cheap ruling; the line is text
+## only). The shape derives from the LIVE context at draw via the classifier
+## (the R10 live-read convention — never a stale snapshot: the genome is the
+## truth, and by on_enter — when the effects consume the snapshot — the exit
+## seam has recomputed the same genome), the template AND the trait name
+## translate AT DRAW (tr_key — the R12 i18n ruling; the vi.csv templates carry
+## the %s). Other destinations draw nothing.
+static func card_heredity_draw_line(next_stage: String, ctx: Variant, i18n_v: Variant) -> String:
+	if next_stage == "civ":
+		return i18n_v.tr_key("National trait: %s") % i18n_v.tr_key(ShapeScript.trait_name(ShapeScript.shape_of(ctx.genome)))
+	if next_stage == "space":
+		return i18n_v.tr_key("Fleet legacy: %s") % i18n_v.tr_key(ShapeScript.trait_name(ShapeScript.shape_of(ctx.genome)))
+	return ""
+
+
 ## TS game.render()'s transition overlay (game.ts:529-547), drawn by each
 ## stage's veil layer — native draw-order ruling (cell_stage.gd header): the
 ## TS game-level overlay became a per-stage canvas slotting between the
@@ -500,8 +606,32 @@ func draw_transition_veil(ci: CanvasItem) -> void:
 			RendererScript.outlined_text(ci, i18n.tr_key(String(tr["sub"])),
 					vw / 2.0, vh / 2.0 + 26.0,
 					{"size": 15.0, "fill": RendererScript.css_color("rgba(200,225,255,0.75)")})
+			# R10 genome showcase: 3 stat lines + 1 karma line under the sub —
+			# only when the card leads INTO a gameplay stage (menu-bound cards,
+			# the quit-to-title PRIMORDIA one, draw nothing new and keep the
+			# click hint where it has always been). Lines derive from the LIVE
+			# context at draw (raw EN labels translate here); the hint stays
+			# the block's last line.
+			var hint_y := vh / 2.0 + 64.0
+			if card_has_showcase(String(tr["next"])):
+				var line_y := vh / 2.0 + 58.0
+				for line in card_showcase_draw_lines(context, i18n):
+					RendererScript.outlined_text(ci, String(line),
+							vw / 2.0, line_y,
+							{"size": 12.0, "fill": RendererScript.css_color("rgba(190,215,245,0.8)")})
+					line_y += 20.0
+				# R12 heredity ledger: the civ-bound card gains the ONE
+				# national-trait line, the space-bound card the fleet-legacy
+				# line (same 12px block, the hint still moves below it).
+				var heredity := card_heredity_draw_line(String(tr["next"]), context, i18n)
+				if heredity != "":
+					RendererScript.outlined_text(ci, heredity,
+							vw / 2.0, line_y,
+							{"size": 12.0, "fill": RendererScript.css_color("rgba(190,215,245,0.8)")})
+					line_y += 20.0
+				hint_y = line_y + 8.0
 			RendererScript.outlined_text(ci, i18n.tr_key("click to continue"),
-					vw / 2.0, vh / 2.0 + 64.0,
+					vw / 2.0, hint_y,
 					{"size": 11.0, "fill": RendererScript.css_color("rgba(160,190,230,0.4)")})
 	else:
 		veil.a = maxf(0.0, 1.0 - float(tr["t"]) / float(tr["dur"]))
@@ -652,6 +782,29 @@ func world_toast(sigil: String, name_key: String, body_key: String) -> void:
 	var body_tx: String = i18n.tr_key(body_key)
 	var text: String = "%s — %s" % [title_tx, body_tx]
 	hud["toast"].call(text, "world", sigil, 6.0, {"title": title_tx, "body": body_tx})
+
+
+# ---- R13 chaos scars ------------------------------------------------------------
+
+## Per-tier scar identity — raw EN keys (vi.csv carries the translations: the
+## controller-pinned "Vết nứt trăng" / "Apex hóa" / "Lõi thức giấc sớm").
+const SCAR_NAME_KEYS := ["Moon Crack", "Apex Bloom", "Core Stirs Early"]
+const SCAR_BENIGN_KEY := "The chaos crested and receded — the world glows gently with it."
+const SCAR_HARSH_KEY := "The chaos crested and tore through — the world bears the scar."
+const SCAR_SIGILS := ["🌙", "🌺", "⚡"]
+
+
+## The crossing announcement — one plain toast per newly crossed tier (the R13
+## cheap ruling: NO reveal-card ceremony; the world tint itself reads the ctx
+## straight from each stage's UI layer). Translated here at fire time (the
+## audit shape — call sites translate before the hud stores the text verbatim).
+func _announce_scar(tier: int) -> void:
+	var idx := clampi(tier, 1, SCAR_NAME_KEYS.size()) - 1
+	var benign: bool = idx < context.scar_benign.size() \
+			and bool(context.scar_benign[idx])
+	var text := "%s — %s" % [i18n.tr_key(String(SCAR_NAME_KEYS[idx])),
+			i18n.tr_key(SCAR_BENIGN_KEY if benign else SCAR_HARSH_KEY)]
+	hud["toast"].call(text, "good" if benign else "chaos", String(SCAR_SIGILS[idx]), 6.0)
 
 
 func announce_trait(id: String) -> void:
@@ -851,8 +1004,25 @@ func close_pause() -> void:
 
 func toggle_mute() -> void:
 	muted = not muted
-	# TS audio.setMuted(this.muted) — audio core: its own task
+	# TS audio.setMuted(this.muted)
+	audio.muted = muted  # the core's mute gate rides the game's flag
 	i18n.set_muted(muted)  # persist across sessions (TS setMuted)
+
+
+## Sole audio seam (R7b): every stage's audio_play hook lands here. Only the
+## creature call is audible — every other id routes to AudioCore.play, a
+## silent stub until its own task. For "call" the vol slot carries the
+## payload (the target's genome dict): the hook arity is pinned at 3 by the
+## existing call sites and test recorders, so the genome rides slot 2 and
+## pan stays 0.0 for now (positional voice is future work).
+func audio_play(name: String, vol: Variant = 1.0, _pan: Variant = 0.0) -> void:
+	# Task 8 hardening: ANY "call" routes to the voice core — a future
+	# positional call (float vol) must not silently vanish into the stub
+	# (the genome-less degrade plays the default voice)
+	if name == "call":
+		audio.play_call(vol if vol is Dictionary else {})
+		return
+	audio.play(name)
 
 
 ## Convenience for stages: shake the main camera (TS camShakeFor).

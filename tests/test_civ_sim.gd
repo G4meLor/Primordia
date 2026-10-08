@@ -655,9 +655,11 @@ func test_tick_second_full_derivation() -> void:
 		eq(float(rec["shakes"][0][1]), 0.3, "0.3")
 	else:
 		eq(rec["shakes"].size(), 0, "no shake without the toast (TS:408-411 — both ride the chance)")
-	# per-city influence: hearts (culture·0.006 + econ·0.004 − 0.02 = +0.01 at 3/3)
+	# per-city influence: hearts (culture·0.014 + econ·0.004 − 0.02 = +0.034 at
+	# 3/3 — R14 raised the culture weight 0.006 → 0.014, the pacifist-viability
+	# knob; the econ weight and the unrest baseline stay TS-verbatim TS:433)
 	# composed with the buy −2 wherever it lands (TS:433-434/422)
-	var exp_inf: Array = [exp_cap_inf, -59.99, -59.99, -59.99]
+	var exp_inf: Array = [exp_cap_inf, -59.966, -59.966, -59.966]
 	if pick_i >= 0:
 		exp_inf[pick_i] -= 2.0
 	for i in 4:

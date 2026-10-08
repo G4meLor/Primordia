@@ -41,6 +41,13 @@ const TutorialScript := preload("res://src/ui/tutorial.gd")
 const HudScript := preload("res://src/ui/hud.gd")
 const EditorUiScript := preload("res://src/ui/editor.gd")
 const PauseScript := preload("res://src/ui/pause.gd")
+const DeathDebriefScript := preload("res://src/ui/death_debrief.gd")
+# R8 species card (the final-review fix wave): the sim's extinctions queue
+# the card with no cell-side drain — the card surfaced minutes later
+# mid-creature. The cell stage drains it here (the creature stage keeps its
+# drain for anything queued across a stage line).
+const SpeciesCardItem := preload("res://src/gfx/species_card_item.gd")
+const SPECIES_CARD_TTL := 6.0
 
 var sim: Variant = null            # CellSim (RefCounted sim core)
 var fx: Variant = null             # stage Particles pool (TS `new Fx(1200)`)
@@ -54,11 +61,17 @@ var tutorial: Variant = null
 var hud_inst: Variant = null
 var editor_inst: Variant = null
 var pause_inst: Variant = null
+## R4: the death debrief overlay (UI-side cause recording — the sims pass
+## the killer/cause through the death_debrief hook at the death instant and
+## store nothing; this component holds the window)
+var debrief: Variant = null
 
 var world_canvas: Node2D = null
 var _back_buffer: BackBufferCopy = null
 var glitch_overlay: Node2D = null
 var ui_canvas: Node2D = null
+var _species_card: Variant = null   # R8 extinction card (the shared item)
+var _species_card_ttl := 0.0
 var veil_canvas: Node2D = null
 var hud_canvas: Node2D = null
 var editor_canvas: Node2D = null
@@ -142,6 +155,12 @@ func _ready() -> void:
 	pause_canvas.name = "PauseCanvas"
 	pause_canvas.visible = false
 	add_child(pause_canvas)
+	# R8 card layer (the creature stage's slot): the extinction card draws
+	# over the hud but never over the editor/pause veils
+	_species_card = SpeciesCardItem.new()
+	add_child(_species_card)
+	move_child(_species_card, get_children().find(editor_canvas))
+	_species_card.visible = false
 
 
 ## Task 8 wiring: the TS Game constructor owns hud/pauseMenu/editor
@@ -153,6 +172,11 @@ func _ready() -> void:
 ## hud state survives a stage round-trip while the live dicts always point at
 ## the CURRENT stage's instances (the creature stage mirrors this).
 func _install_overlays() -> void:
+	# R4 death debrief — build-once alongside the other overlay instances
+	# (this runs from _ready AND on_enter, so test-built stages that skip
+	# the tree entry still hold one before any draw/tick/hook reaches it)
+	if debrief == null:
+		debrief = DeathDebriefScript.new()
 	if hud_inst == null:
 		hud_inst = HudScript.new(game)
 	game.hud = {
@@ -362,6 +386,10 @@ func _draw_ui(ci: CanvasItem) -> void:
 	var vw: float = game.vw
 	var vh: float = game.vh
 
+	# R13 scar tint — the single world-tint slot (over the world, under this
+	# stage's own overlays; reads the ctx only — no sim math)
+	BackdropScript.draw_world_tint(ci, vw, vh, game.context)
+
 	# HP bar (player)
 	var hp_w := minf(340.0, vw * 0.3)
 	var hx := vw / 2.0 - hp_w / 2.0
@@ -382,6 +410,10 @@ func _draw_ui(ci: CanvasItem) -> void:
 		ci.draw_rect(Rect2(0, 0, vw, vh), Color(60.0 / 255.0, 0.0, 10.0 / 255.0, minf(0.55, sim.deathFade * 0.4)))
 		RendererScript.outlined_text(ci, tr("REBIRTH IS PAINFUL"), vw / 2.0, vh / 2.0 - 10.0,
 				{"size": 30.0, "fill": Color("#ff9a8a")})
+		# R4 death debrief — cause/loss/tip lines, clear of the respawn hint
+		# above; display-only, dismissed by its own 1.4s window (before the
+		# 1.6s fade hands over to the respawn)
+		debrief.draw(ci, vw, vh / 2.0 + 46.0)
 
 	# tutorial overlay — the Task 8 engine (TS renders it here, above the
 	# death overlay and below the shore button); inactive engines draw nothing
@@ -417,6 +449,7 @@ func _draw_ui(ci: CanvasItem) -> void:
 func update(dt: float) -> void:
 	if sim == null or frozen:
 		return
+	_update_species_card(dt)  # R8: drain + tick the extinction card (the fix-wave cell drain)
 	if game.input.key_pressed("KeyE") and not bool(game.editor["open"]):
 		if sim.php <= 0.0 or sim.deathFade > 0.0:
 			game.hud["toast"].call(tr("Survive first — evolve while alive"), "info", "🧬")
@@ -430,6 +463,9 @@ func update(dt: float) -> void:
 	if tutorial != null:
 		tutorial.update(dt)
 	sim.update(dt, _build_input_snapshot())
+	# R4: the debrief window ages after the sim tick that may have committed
+	# it (the pause gate above freezes both the fade and this window in step)
+	debrief.tick(dt)
 	# camera (CellStage.ts:450-456)
 	game.cam.follow(sim.px, sim.py, dt, 5.0)
 	game.cam.zoom = 1.0
@@ -483,6 +519,13 @@ func render() -> void:
 	ui_canvas.queue_redraw()
 	veil_canvas.queue_redraw()
 	hud_canvas.queue_redraw()
+	# R8: the extinction card repaints (the clear-per-redraw contract keeps
+	# RIDs flat). The cell stage owns the screen-space default — the camera
+	# rig is disabled here, so the live inverse is identity and the card's
+	# frame IS its fixed screen rect (the creature stage composes its rig).
+	if _species_card != null and _species_card.visible:
+		_species_card.frame = _species_card.screen_rect
+		_species_card.queue_redraw()
 	var editor_open: bool = bool(game.editor["open"])
 	editor_canvas.visible = editor_open
 	if editor_open:
@@ -509,6 +552,8 @@ func on_enter(from: Variant = null) -> void:
 	sim.invuln = 3.0
 	sim.deathFade = 0.0
 	sim.deathStarted = false
+	# R4: no stale debrief across a round-trip (the fade itself just reset)
+	debrief.reset()
 	# TS CellStage.ts:250 — the shore gate reads the live genome
 	sim.shoreAvailable = float(game.context.genome.get("legs", 0)) >= 1.0
 	# TS CellStage.ts:237-248 — the ecosystem entry gate. A NEW LIFE reset the
@@ -573,7 +618,7 @@ func _build_hooks() -> Dictionary:
 		"hud_toast": _h_hud_toast,
 		"hud_banner": _h_hud_banner,
 		"hud_float_world": _h_hud_float_world,
-		"audio_play": _h_audio_noop,
+		"audio_play": _h_audio_play,
 		"cam_shake": _h_cam_shake,
 		"fx_burst": _h_fx_burst,
 		"fx_spawn": _h_fx_spawn,
@@ -584,6 +629,7 @@ func _build_hooks() -> Dictionary:
 		"context_event": _h_context_event,
 		"game_save_all": _h_game_save_all,
 		"shore_travel": _h_shore_travel,
+		"death_debrief": _h_death_debrief,
 	}
 
 
@@ -599,8 +645,10 @@ func _h_hud_float_world(x: float, y: float, text: String, color: Variant, size: 
 	game.hud["float_world"].call(x, y, text, color, size)
 
 
-func _h_audio_noop(_name: String, _vol: float, _pan := 0.0) -> void:
-	pass  # audio core is its own task — the sim's audio hooks stay silent
+## R7b: forward into the game-owned AudioCore — its dispatch makes the
+## creature "call" audible and keeps every other id a silent stub.
+func _h_audio_play(name: String, vol: Variant = 1.0, pan: Variant = 0.0) -> void:
+	game.audio_play(name, vol, pan)
 
 
 func _h_cam_shake(mag: float, dur: float) -> void:
@@ -635,6 +683,29 @@ func _h_note_chaos_event(playtime: float) -> void:
 ## storyteller pump listener lands with Task 9.
 func _h_context_event(ev_name: String, from_stage: String) -> void:
 	game.context_event.emit(ev_name, from_stage)
+
+
+## R4 death debrief — the sim's one death hook, two payload shapes: a
+## killing-blow note (cause_id set; the cell passes the killer's SPECIES
+## id — the bestiary name resolves HERE, the sim stores nothing) or the
+## death handler's commit (empty cause_id; carries the DNA bill).
+func _h_death_debrief(cause_id: String, killer: String, dna: int) -> void:
+	if cause_id != "":
+		var name_v := ""
+		if killer != "":
+			name_v = _species_display_name(killer)
+		debrief.note(cause_id, name_v)
+	else:
+		debrief.commit(dna)
+
+
+## The killer's bestiary name (the eco row's display name; "" when the row
+## is gone — the debrief then draws its generic line).
+func _species_display_name(id_v: String) -> String:
+	for s in sim.eco.species:
+		if String(s["id"]) == id_v:
+			return String(s["name"])
+	return ""
 
 
 func _h_game_save_all() -> void:
@@ -682,3 +753,34 @@ func _build_input_snapshot() -> Dictionary:
 		"keys_held": held,
 		"keys_pressed": game.input.keys_pressed.keys(),
 	}
+
+
+# ---- R8 extinction card (the fix-wave cell drain) ---------------------------------
+
+## The creature stage's drain shape verbatim: one card at a time, the next
+## appears when the current expires (transient UI — a save/load drops pending
+## cards). The cell sim's extinctions queue at the death instant; WITHOUT
+## this drain the card waited for the creature stage and surfaced minutes
+## later mid-creature — the R8 moment lands in the stage that lost the
+## species (the final-review ruling).
+func _update_species_card(dt: float) -> void:
+	if _species_card == null:
+		return
+	if _species_card_ttl > 0.0:
+		_species_card_ttl -= dt
+		if _species_card_ttl <= 0.0:
+			_release_species_card()
+		return
+	if _species_card.genome.is_empty() and not game.context.species_cards.is_empty():
+		var card_data: Dictionary = game.context.species_cards.pop_front()
+		_species_card.show_card(card_data["genome"], String(card_data["name"]),
+				game.vw, game.vh)
+		_species_card_ttl = SPECIES_CARD_TTL
+
+
+func _release_species_card() -> void:
+	_species_card_ttl = 0.0
+	if _species_card != null:
+		SpeciesCardItem.Card.release(_species_card)  # MUST 2
+		_species_card.genome = {}
+		_species_card.visible = false

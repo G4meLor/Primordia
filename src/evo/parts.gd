@@ -67,18 +67,22 @@ const DIETS := [
 	{ "id": "carnivore", "name": "Carnivore", "desc": "Meat. It is what is for dinner.", "cost": 60 },
 ]
 
+# R6: cosmetic prices zeroed IN THE DATA (the LOOK tab is free) — the buy
+# path and every display site read this single source of truth, so the DNA
+# accounting can never diverge from what the catalog says. Diet/parts prices
+# and the refund logic below stay untouched.
 const PATTERNS := [
 	{ "id": "plain", "name": "Plain", "cost": 0 },
-	{ "id": "spots", "name": "Spots", "cost": 15 },
-	{ "id": "stripes", "name": "Stripes", "cost": 15 },
-	{ "id": "glow", "name": "Bioluminescent", "cost": 45 },
+	{ "id": "spots", "name": "Spots", "cost": 0 },
+	{ "id": "stripes", "name": "Stripes", "cost": 0 },
+	{ "id": "glow", "name": "Bioluminescent", "cost": 0 },
 ]
 
 const COATS := [
 	{ "id": "skin", "name": "Bare Skin", "cost": 0, "effect": "—" },
-	{ "id": "fur", "name": "Fur", "cost": 25, "effect": "+warmth, +charm" },
-	{ "id": "scales", "name": "Scales", "cost": 35, "effect": "+defense" },
-	{ "id": "plates", "name": "Bone Plates", "cost": 55, "effect": "++defense, -speed" },
+	{ "id": "fur", "name": "Fur", "cost": 0, "effect": "+warmth, +charm" },
+	{ "id": "scales", "name": "Scales", "cost": 0, "effect": "+defense" },
+	{ "id": "plates", "name": "Bone Plates", "cost": 0, "effect": "++defense, -speed" },
 ]
 
 

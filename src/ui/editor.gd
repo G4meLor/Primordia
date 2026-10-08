@@ -13,6 +13,14 @@
 ## hit-tests row_rects recorded by draw() (TS records them in renderRow);
 ## click_part(row, btn) is the programmatic path (TS-test parity,
 ## bot.test.ts:132). All display literals ride tr_key INLINE (T2 audit).
+##
+## R6 experience redesign: the list splits into two tabs — BODY (parts + diet
+## + size + graft: the DNA economy) and LOOK (hue/sat/pattern/coat + an inert
+## name placeholder: free cosmetics — PATTERNS/COATS costs are zeroed in the
+## parts.gd data — with no DNA display on the tab at all). The switch is
+## session-local — every open starts on BODY and nothing rides the save wire.
+## The world backdrop eases to 0.6 (hold-to-peek 0.2 via the on-screen
+## hold-button bottom-right or Alt).
 class_name EditorUi
 extends RefCounted
 
@@ -28,18 +36,32 @@ const CreaturePainter := preload("res://src/gfx/creature_painter.gd")
 
 var open := false
 var mode := "cell"            # 'cell' | 'creature' (TS Editor.mode)
+## R6 tab: 'body' | 'look' — session-local, every show() resets to 'body'.
+var tab := "body"
 var rows: Array = []          # TS private rows — public for the headless tests
 var scroll := 0.0
 var preview_t := 0.0
 var gait := 0.0
 var open_t := 0.0
 var dirty_since_save := false
+## R6 world peek — true while the on-screen hold-button or Alt is down.
+var peeking := false
 ## TS private sliderDrag: 'hue' | 'sat' | null — "" natively.
 var slider_drag := ""
 var slider_rects := {"hue": null, "sat": null}
 ## TS private listRect/closeRect — draw-computed (update reads the last pass).
 var list_rect := {"x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0}
 var close_rect := {"x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0}
+## R6 draw-computed rects — the tab pair (top of the parts panel) and the
+## peek hold-button (bottom-right strip).
+var tab_rects := {"body": {"x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0},
+		"look": {"x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0}}
+var peek_rect := {"x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0}
+## R7 name picker — the draft buffer + recorded button rects (draw-populated
+## like row_rects; the on-canvas grid replaces the LOOK rows while open).
+var picker_open := false
+var picker_buf := ""
+var picker_rects: Array = []
 ## {row, r, btn} records — rebuilt every draw pass (draw-populated, TS order).
 var row_rects: Array = []
 ## TS notifyStatsChanged hook — the owning stage binds sim.on_stats_changed.
@@ -60,6 +82,9 @@ func show(mode_v: String) -> void:
 	mode = mode_v
 	open = true
 	_sync_open()
+	tab = "body"  # R6: the switch is session-local — every open starts on BODY
+	picker_open = false  # R7: every open starts clean
+	picker_buf = ""
 	scroll = 0.0
 	rows = build_rows()
 	# TS audio.play('warp', 0.5) — audio core is its own task
@@ -67,6 +92,7 @@ func show(mode_v: String) -> void:
 
 func close() -> void:
 	open = false
+	picker_open = false
 	_sync_open()
 	free_preview_rids()
 	# QC r8 batch2.1: a mouse button HELD while the editor closes used to leak
@@ -103,18 +129,67 @@ func toggle(mode_v: String) -> void:
 		show(mode_v)
 
 
+## R6 look-tab price — a THIN ACCESSOR over the parts catalog, kept for the
+## test pins. The freeness itself lives in the PATTERNS/COATS data (costs
+## zeroed in parts.gd): the buy path and the display sites read the catalog
+## directly, so the DNA accounting can never diverge from what the data says.
+## Ids outside the LOOK catalog keep their standard catalog cost.
+static func look_price(part_id: String) -> int:
+	for p in PartsScript.PATTERNS:
+		if String(p["id"]) == part_id:
+			return int(p["cost"])
+	for c in PartsScript.COATS:
+		if String(c["id"]) == part_id:
+			return int(c["cost"])
+	var d: Dictionary = PartsScript.part_by_id(part_id)
+	if not d.is_empty():
+		return PartsScript.part_cost(d, 0)
+	for diet in PartsScript.DIETS:
+		if String(diet["id"]) == part_id:
+			return int(diet["cost"])
+	return 0
+
+
+## R6 world peek — the backdrop alpha while the editor is open: 0.6 at rest
+## (the old full-black wall eased down), 0.2 while the hold-button or Alt is
+## down. Both constants live here, never at the draw site.
+static func world_dim(peeking_v: bool) -> float:
+	return 0.2 if peeking_v else 0.6
+
+
+## R6 tab switch — session-local (show() resets to BODY; nothing is saved).
+func switch_tab(t: String) -> void:
+	if t == tab:
+		return
+	tab = t
+	picker_open = false  # R7: leaving LOOK leaves the picker
+	scroll = 0.0
+	rows = build_rows()
+
+
+## R6: the DNA economy display (the footer counter) exists on BODY only —
+## LOOK is free cosmetics and hides ALL DNA display while on the tab.
+func dna_visible() -> bool:
+	return tab == "body"
+
+
 func build_rows() -> Array:
 	var out: Array = []
+	if tab == "look":
+		# ruling order: hue/sat/pattern/coat + the inert name row last
+		out.append({"kind": "hue"})
+		out.append({"kind": "sat"})
+		out.append({"kind": "pattern"})
+		if mode == "creature":
+			out.append({"kind": "coat"})
+		# R7 replaces this placeholder with the on-canvas name picker
+		out.append({"kind": "name"})
+		return out
 	for def in PartsScript.PARTS:
 		if String(def["stage"]) == mode or String(def["stage"]) == "both":
 			out.append({"kind": "part", "def": def})
-	if mode == "creature":
-		out.append({"kind": "coat"})
 	out.append({"kind": "diet"})
-	out.append({"kind": "pattern"})
 	out.append({"kind": "size"})
-	out.append({"kind": "hue"})
-	out.append({"kind": "sat"})
 	# borrowed_flesh: the ONE graft slot — offer an extinct species' standout
 	# part (standard DNA price, no discount). One graft per run.
 	var c: Variant = _game.context
@@ -143,6 +218,11 @@ func update(dt: float) -> void:
 	gait += dt * 6.0
 	open_t += dt
 	var input: Variant = _game.input
+
+	# R6 world peek — re-derived every frame from the held state (Alt through
+	# the GameInput live poll, the button through the cursor over its rect)
+	peeking = bool(input.key("Alt")) \
+			or (bool(input.is_down()) and _hit(float(input.mx), float(input.my), peek_rect))
 
 	if input.key_pressed("KeyE") or input.key_pressed("Tab"):
 		close()
@@ -176,6 +256,25 @@ func update(dt: float) -> void:
 		input.take_click()
 		close()
 		return
+	# R6 peek hold-button — consume the press so a hold there never buys a
+	# part or latches a slider; the held state itself is read at the top
+	if _hit(mx, my, peek_rect):
+		input.take_click()
+		return
+	# R6 tab bar
+	for t in tab_rects:
+		if _hit(mx, my, tab_rects[t]):
+			input.take_click()
+			switch_tab(String(t))
+			return
+	# R7 picker buttons — routed before the row path (the rows are not drawn
+	# while the picker is open; row_rects is empty there)
+	if picker_open:
+		for pr in picker_rects:
+			if _hit(mx, my, pr["r"]):
+				input.take_click()
+				_picker_click(pr)
+				return
 	# list interactions
 	for rr in row_rects:
 		if not _hit(mx, my, rr["r"]):
@@ -266,11 +365,48 @@ func click_graft(row: Dictionary) -> void:
 	rows = build_rows()  # the slot is spent — drop the graft rows
 
 
+## R7 — the LOOK name row opens the on-canvas picker; the draft starts at the
+## current display name (the self_name suggestion when nothing is saved —
+## "accept or edit").
+func _open_picker() -> void:
+	picker_open = true
+	picker_buf = _game.context.get_display_name()
+
+
+## R7 picker button dispatch — update() routes the recorded picker rects here
+## (the headless tests drive it directly; the real click path is the same
+## dispatch). Glyphs append up to the cap, backspace pops, accept routes
+## through context.set_display_name (the central filter — an emptied draft
+## accepts as not-set and the display falls back to the suggestion), cancel
+## discards.
+func _picker_click(pr: Dictionary) -> void:
+	var kind := String(pr["kind"])
+	if kind == "glyph":
+		if picker_buf.length() < NamesScript.NAME_MAX_LEN:
+			picker_buf += String(pr["ch"])
+		return
+	if kind == "backspace":
+		picker_buf = picker_buf.substr(0, maxi(0, picker_buf.length() - 1))
+		return
+	if kind == "accept":
+		var before: String = _game.context.creature_name
+		var stored: String = _game.context.set_display_name(picker_buf)
+		picker_buf = stored
+		picker_open = false
+		if stored != before:
+			dirty_since_save = true  # a real name change persists (close() saves)
+		return
+	picker_open = false  # cancel — the draft is discarded
+
+
 func click_row(row: Dictionary, mx: float, r: Dictionary) -> void:
 	var g := _g()
 	var c: Variant = _game.context
 	if String(row["kind"]) == "graft":
 		click_graft(row)
+		return
+	if String(row["kind"]) == "name":
+		_open_picker()  # R7 — the picker entry point (replaces the R6 placeholder)
 		return
 	match String(row["kind"]):
 		"diet":
@@ -285,22 +421,26 @@ func click_row(row: Dictionary, mx: float, r: Dictionary) -> void:
 			g["diet"] = String(next["id"])
 			# TS audio.play('dna', 0.7)
 		"pattern":
+			# R6: the cost rides the catalog (PATTERNS costs are zeroed in
+			# parts.gd) — free, re-switchable, no inline 0 at the call site
 			var pidx := _pattern_index(String(g["pattern"]))
 			var pnext: Dictionary = PartsScript.PATTERNS[(pidx + 1) % PartsScript.PATTERNS.size()]
 			var pcost := int(pnext["cost"])
-			if int(c.dna) < pcost:
+			if pcost > 0 and int(c.dna) < pcost:
 				_game.hud["toast"].call(_game.i18n.tr_key("Not enough DNA"), "bad", "🧬")
 				return
-			c.spend_dna(pcost)
+			if pcost > 0:
+				c.spend_dna(pcost)
 			g["pattern"] = String(pnext["id"])
 		"coat":
 			var cidx := _coat_index(String(g["coat"]))
 			var cnext: Dictionary = PartsScript.COATS[(cidx + 1) % PartsScript.COATS.size()]
 			var ccost := int(cnext["cost"])
-			if int(c.dna) < ccost:
+			if ccost > 0 and int(c.dna) < ccost:
 				_game.hud["toast"].call(_game.i18n.tr_key("Not enough DNA"), "bad", "🧬")
 				return
-			c.spend_dna(ccost)
+			if ccost > 0:
+				c.spend_dna(ccost)
 			g["coat"] = String(cnext["id"])
 		"size":
 			var half := float(r["x"]) + float(r["w"]) / 2.0
@@ -324,6 +464,12 @@ func click_row(row: Dictionary, mx: float, r: Dictionary) -> void:
 			slider_drag = "hue"
 			var tt := PMathScript.clamp((mx - float(r["x"]) - 14.0) / (float(r["w"]) - 28.0), 0.0, 1.0)
 			g["hue"] = tt * 360.0
+		"revert_hue":
+			# R13 transposon revert — free: restore the EXACT stored pre-shift
+			# hue and clear the stored value (the once-per-run event latch
+			# stays — the mutation already happened and never re-fires)
+			if c.transposon_revert():
+				_game.hud["toast"].call(_game.i18n.tr_key("Hue restored."), "good", "🧬")
 		"sat":
 			slider_drag = "sat"
 			var st := PMathScript.clamp((mx - float(r["x"]) - 14.0) / (float(r["w"]) - 28.0), 0.0, 1.0)
@@ -343,12 +489,16 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 	var c: Variant = _game.context
 	var g := _g()
 
-	# backdrop
-	ci.draw_rect(Rect2(0.0, 0.0, vw, vh), RendererScript.css_color("rgba(3,6,16,0.88)"))
+	# backdrop — R6: the alpha rides world_dim (0.6 rest, 0.2 while peeking;
+	# both constants live on the helper, never here)
+	ci.draw_rect(Rect2(0.0, 0.0, vw, vh),
+			Color(3.0 / 255.0, 6.0 / 255.0, 16.0 / 255.0, world_dim(peeking)))
 
 	var pad := 24.0
 	var top := 70.0
-	var bottom_pad := 24.0
+	# R6: 64 — the panels stop above a bottom strip so the peek hold-button
+	# sits alone at the bottom-right (over the world when peeking)
+	var bottom_pad := 64.0
 	var left_w := minf(460.0, vw * 0.42)
 	var left_x := pad
 	var left_y := top
@@ -364,7 +514,7 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 	})
 	RendererScript.outlined_text(ci, _game.i18n.tr_key("SPECIES EDITOR"), left_x + left_w / 2.0, left_y + 26.0,
 			{"size": 15.0, "fill": Color("#8fd0ff"), "weight": "700"})
-	RendererScript.outlined_text(ci, NamesScript.self_name(g), left_x + left_w / 2.0, left_y + 52.0,
+	RendererScript.outlined_text(ci, c.get_display_name(), left_x + left_w / 2.0, left_y + 52.0,
 			{"size": 22.0, "fill": RendererScript.hsl(float(g["hue"]), float(g["sat"]), 0.72),
 					"weight": "700"})
 	# F2 (QC r3): the raw diet id ("herbivore") misses the capitalized vi.csv
@@ -426,30 +576,59 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 		"stroke": RendererScript.css_color("rgba(120,180,255,0.3)"),
 	})
 	list_rect = {"x": right_x + 12.0, "y": left_y + 46.0, "w": right_w - 24.0, "h": left_h - 110.0}
-	RendererScript.outlined_text(ci,
-			_game.i18n.tr_key("CELL PARTS") if mode == "cell" else _game.i18n.tr_key("BODY PARTS"),
-			right_x + right_w / 2.0, left_y + 24.0,
-			{"size": 13.0, "fill": Color("#8fd0ff"), "weight": "700"})
+	# R6 tab bar — the title goes left-aligned, the BODY/LOOK pair sits
+	# top-right; the switch is session-local (never persisted)
+	var tab_w := 78.0
+	var look_x := right_x + right_w - 12.0 - tab_w
+	tab_rects["look"] = {"x": look_x, "y": left_y + 9.0, "w": tab_w, "h": 30.0}
+	tab_rects["body"] = {"x": look_x - 6.0 - tab_w, "y": left_y + 9.0, "w": tab_w, "h": 30.0}
+	if tab == "look":
+		RendererScript.outlined_text(ci, _game.i18n.tr_key("LOOK"), right_x + 16.0, left_y + 24.0,
+				{"size": 13.0, "fill": Color("#8fd0ff"), "weight": "700", "align": "left"})
+	else:
+		RendererScript.outlined_text(ci,
+				_game.i18n.tr_key("CELL PARTS") if mode == "cell" else _game.i18n.tr_key("BODY PARTS"),
+				right_x + 16.0, left_y + 24.0,
+				{"size": 13.0, "fill": Color("#8fd0ff"), "weight": "700", "align": "left"})
+	for t in ["body", "look"]:
+		var tb: Dictionary = tab_rects[String(t)]
+		var active := tab == String(t)
+		RendererScript.panel(ci, float(tb["x"]), float(tb["y"]), float(tb["w"]), float(tb["h"]), {
+			"fill": RendererScript.css_color("rgba(50,110,220,0.9)") if active
+					else RendererScript.css_color("rgba(20,34,64,0.85)"),
+			"stroke": RendererScript.css_color("rgba(160,210,255,0.7)") if active
+					else RendererScript.css_color("rgba(120,180,255,0.3)"),
+		})
+		RendererScript.outlined_text(ci,
+				_game.i18n.tr_key("BODY") if String(t) == "body" else _game.i18n.tr_key("LOOK"),
+				float(tb["x"]) + float(tb["w"]) / 2.0, float(tb["y"]) + 19.0,
+				{"size": 13.0, "fill": Color("#fff") if active else Color("#9fc8ff")})
 
 	# TS clips the rows to the right panel (ctx.rect+clip); Godot CanvasItem
 	# has no draw-time rect clip — the visibility gate below keeps rows inside
 	# the band, partial edge rows may spill a few px (documented divergence)
 	row_rects = []
-	var y := left_y + 52.0 - scroll
-	for row2 in rows:
-		var rh := 44.0
-		# QC r8 batch2.2: the gate keeps the row BOTTOM above the footer block
-		# (fy = left_h − 52) — the old START-gate alone let the last visible
-		# row spill 44px down over the hint + the DNA line at vh 648
-		if y + rh > left_y and y + rh <= left_y + left_h - 52.0:
-			render_row(ci, row2, right_x + 12.0, y, right_w - 24.0, rh)
-		y += rh
+	if picker_open:
+		# R7: the on-canvas picker replaces the rows (row_rects stays empty —
+		# update() routes the picker's own rects instead)
+		_draw_picker(ci)
+	else:
+		var y := left_y + 52.0 - scroll
+		for row2 in rows:
+			var rh := 44.0
+			# QC r8 batch2.2: the gate keeps the row BOTTOM above the footer block
+			# (fy = left_h − 52) — the old START-gate alone let the last visible
+			# row spill 44px down over the hint + the DNA line at vh 648
+			if y + rh > left_y and y + rh <= left_y + left_h - 52.0:
+				render_row(ci, row2, right_x + 12.0, y, right_w - 24.0, rh)
+			y += rh
 
 	# scrollbar — SIZE/HUE/SAT used to hide below the fold with no visible
 	# way to reach them. QC r8 batch2.2: the affordance hint moved under the
 	# panel title — at the band bottom it sat ON the last row's glyphs.
+	# R7: hidden while the picker is open (it draws no scrolling content).
 	var content_h := float(rows.size()) * 44.0
-	if content_h > float(list_rect["h"]):
+	if not picker_open and content_h > float(list_rect["h"]):
 		var bar_h := maxf(30.0, (float(list_rect["h"]) * float(list_rect["h"])) / content_h)
 		var max_scroll := maxf(1.0, content_h - float(list_rect["h"]))
 		var bar_y := float(list_rect["y"]) + (float(list_rect["h"]) - bar_h) * (scroll / max_scroll)
@@ -459,11 +638,13 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 				right_x + 16.0, left_y + 40.0,
 				{"size": 10.0, "fill": RendererScript.css_color("rgba(150,190,235,0.55)"), "align": "left"})
 
-	# footer: DNA + close
+	# footer: DNA + close — R6: the DNA counter draws on BODY only (LOOK
+	# hides ALL DNA display while on the tab)
 	var fy := left_y + left_h - 52.0
-	RendererScript.outlined_text(ci, "🧬 %s %s" % [PMathScript.format_num(float(c.dna)),
-			_game.i18n.tr_key("DNA available")], right_x + 16.0, fy + 20.0,
-			{"size": 16.0, "fill": Color("#bfe6ff"), "align": "left"})
+	if dna_visible():
+		RendererScript.outlined_text(ci, "🧬 %s %s" % [PMathScript.format_num(float(c.dna)),
+				_game.i18n.tr_key("DNA available")], right_x + 16.0, fy + 20.0,
+				{"size": 16.0, "fill": Color("#bfe6ff"), "align": "left"})
 	close_rect = {"x": right_x + right_w - 130.0, "y": fy + 2.0, "w": 116.0, "h": 40.0}
 	RendererScript.panel(ci, float(close_rect["x"]), float(close_rect["y"]),
 			float(close_rect["w"]), float(close_rect["h"]), {
@@ -473,6 +654,23 @@ func draw(ci: CanvasItem, vw: float, vh: float) -> void:
 	RendererScript.outlined_text(ci, _game.i18n.tr_key("DONE (E)"),
 			float(close_rect["x"]) + float(close_rect["w"]) / 2.0,
 			float(close_rect["y"]) + 20.0, {"size": 14.0, "fill": Color("#fff")})
+
+	# R6 peek hold-button — alone in the bottom-right strip (below the panels);
+	# lights up while the hold shows the world through the backdrop
+	peek_rect = {"x": right_x + right_w - 130.0, "y": vh - 58.0, "w": 116.0, "h": 40.0}
+	RendererScript.panel(ci, float(peek_rect["x"]), float(peek_rect["y"]),
+			float(peek_rect["w"]), float(peek_rect["h"]), {
+				"fill": RendererScript.css_color("rgba(80,160,255,0.95)") if peeking
+						else RendererScript.css_color("rgba(50,110,220,0.9)"),
+				"stroke": RendererScript.css_color("rgba(160,210,255,0.7)"),
+			})
+	RendererScript.outlined_text(ci, _game.i18n.tr_key("PEEK (hold)"),
+			float(peek_rect["x"]) + float(peek_rect["w"]) / 2.0,
+			float(peek_rect["y"]) + 20.0, {"size": 14.0, "fill": Color("#fff")})
+	RendererScript.outlined_text(ci, _game.i18n.tr_key("hold to peek the world (Alt)"),
+			float(peek_rect["x"]) - 12.0, float(peek_rect["y"]) + 20.0,
+			{"size": 11.0, "fill": RendererScript.css_color("rgba(150,190,235,0.55)"),
+					"align": "right"})
 	update_editor_cursor()
 
 
@@ -484,6 +682,18 @@ func update_editor_cursor() -> void:
 	if _hit(mx, my, close_rect):
 		_game.hover_cursor()
 		return
+	if _hit(mx, my, peek_rect):
+		_game.hover_cursor()
+		return
+	for t in tab_rects:
+		if _hit(mx, my, tab_rects[t]):
+			_game.hover_cursor()
+			return
+	if picker_open:
+		for pr in picker_rects:
+			if _hit(mx, my, pr["r"]):
+				_game.hover_cursor()
+				return
 	for rr in row_rects:
 		if _hit(mx, my, rr["r"]):
 			_game.hover_cursor()
@@ -579,6 +789,8 @@ func render_row(ci: CanvasItem, row: Dictionary, x: float, y: float, w: float, h
 					_game.i18n.tr_key(String(nxt["name"]))], x + w - 16.0, y + h / 2.0,
 					{"size": 11.0, "fill": Color("#9fc8ff"), "align": "right"})
 		"pattern":
+			# R6: the price extra reads the catalog — a zeroed cost renders no
+			# DNA text at all (LOOK shows no DNA display)
 			var pat: Dictionary = _pattern_def(String(g["pattern"]))
 			_row_label(ci, x, y, w, h, _game.i18n.tr_key("SKIN PATTERN"),
 					_game.i18n.tr_key(String(pat["name"])),
@@ -592,6 +804,16 @@ func render_row(ci: CanvasItem, row: Dictionary, x: float, y: float, w: float, h
 							_game.i18n.tr_key(String(coat["effect"]))],
 					"(%d DNA)" % int(coat["cost"]) if int(coat["cost"]) > 0 else "")
 			RendererScript.outlined_text(ci, _game.i18n.tr_key("switch ▸"), x + w - 16.0, y + h / 2.0,
+					{"size": 11.0, "fill": Color("#9fc8ff"), "align": "right"})
+		"name":
+			# R7 — the picker entry point: the value line shows the live display
+			# name (the saved pick, else the self_name suggestion — a player
+			# string, interpolated outside tr); the click rect is the trailing
+			# full-row append below
+			_row_label(ci, x, y, w, h, _game.i18n.tr_key("NAME"),
+					_game.context.get_display_name(), "")
+			RendererScript.outlined_text(ci, _game.i18n.tr_key("edit ▸"),
+					x + w - 16.0, y + h / 2.0,
 					{"size": 11.0, "fill": Color("#9fc8ff"), "align": "right"})
 		"size":
 			var b2: Dictionary = GenomeScript.GENE_BOUNDS["size"]
@@ -611,7 +833,12 @@ func render_row(ci: CanvasItem, row: Dictionary, x: float, y: float, w: float, h
 		"hue":
 			_row_label(ci, x, y, w, h, _game.i18n.tr_key("COLOR"), "", "")
 			var bx3 := x + 90.0
-			var bw3 := w - 110.0
+			# R13 transposon revert — beside the hue slider while a pre-shift
+			# hue is stored (LOOK is free cosmetics; the revert is free too).
+			# The slider shrinks to make room; the button rect rides row_rects
+			# BEFORE the full-row append so the click routes there first.
+			var rev_w := 78.0 if c.flags.get("hueBeforeTransposon", null) != null else 0.0
+			var bw3 := w - 110.0 - rev_w
 			# hue spectrum: 7 flat stops (TS draws a smooth gradient; vertex
 			# color fans below segment count — presence-level, renderer notes).
 			# QC r3 (synthesis 4H): seg was bw3/6.0 with a +1px overlap fudge —
@@ -629,6 +856,17 @@ func render_row(ci: CanvasItem, row: Dictionary, x: float, y: float, w: float, h
 			ci.draw_circle(Vector2(hpx, y + 21.0), 6.0, Color("#fff"))
 			slider_rects["hue"] = {"x": bx3, "y": y + 10.0, "w": bw3, "h": 22.0}
 			row_rects.append({"row": row, "r": {"x": bx3, "y": y + 4.0, "w": bw3, "h": 34.0}, "btn": null})
+			if rev_w > 0.0:
+				var rr := {"x": bx3 + bw3 + 8.0, "y": y + 10.0, "w": rev_w - 8.0, "h": 22.0}
+				RendererScript.panel(ci, float(rr["x"]), float(rr["y"]),
+						float(rr["w"]), float(rr["h"]), {
+							"fill": RendererScript.css_color("rgba(120,70,70,0.8)"),
+							"stroke": RendererScript.css_color("rgba(255,255,255,0.2)"),
+						})
+				RendererScript.outlined_text(ci, _game.i18n.tr_key("revert hue"),
+						float(rr["x"]) + float(rr["w"]) / 2.0, float(rr["y"]) + 11.0,
+						{"size": 10.0, "fill": Color("#fff")})
+				row_rects.append({"row": {"kind": "revert_hue"}, "r": rr, "btn": null})
 		"sat":
 			_row_label(ci, x, y, w, h, _game.i18n.tr_key("SATURATION"), "", "")
 			var bx4 := x + 110.0
@@ -654,6 +892,86 @@ func _row_label(ci: CanvasItem, x: float, y: float, w: float, h: float, name: St
 			x + 12.0, y + 30.0,
 			{"size": 10.0, "fill": RendererScript.css_color("rgba(190,215,245,0.65)"),
 					"align": "left", "maxWidth": w - 24.0})
+
+
+## R7 — the on-canvas character picker, drawn in place of the LOOK rows (no
+## DOM/LineEdit — this IS the Godot port the spec rules 1:1). A grid of the
+## exact NAME_CHARSET glyphs (the space key draws ␣ — a raw blank is invisible),
+## backspace/cancel/accept buttons, the n/14 counter and the "Max 14 · accept
+## or edit" helper line. Rects recorded for update()'s click path (the editor
+## button-row pattern); draws only panel/outlined_text on the caller's item —
+## no sub-RIDs (the suite RID ceiling is at datum).
+func _draw_picker(ci: CanvasItem) -> void:
+	var g := _g()
+	picker_rects = []
+	slider_rects = {"hue": null, "sat": null}
+	var x: float = float(list_rect["x"])
+	var w: float = float(list_rect["w"])
+	var y: float = float(list_rect["y"])
+
+	# the draft — the buffer in the creature's hue, the n/14 counter right
+	RendererScript.outlined_text(ci, _game.i18n.tr_key("NAME"), x, y + 12.0,
+			{"size": 11.0, "fill": Color("#8fd0ff"), "align": "left", "weight": "700"})
+	RendererScript.outlined_text(ci, picker_buf if picker_buf != "" else "…",
+			x, y + 40.0,
+			{"size": 20.0, "fill": RendererScript.hsl(float(g["hue"]), float(g["sat"]), 0.72),
+					"align": "left", "maxWidth": w - 56.0})
+	RendererScript.outlined_text(ci,
+			"%d/%d" % [picker_buf.length(), NamesScript.NAME_MAX_LEN], x + w, y + 40.0,
+			{"size": 11.0, "fill": RendererScript.css_color("rgba(190,215,245,0.65)"),
+					"align": "right"})
+
+	# the glyph grid — 13 columns tile the panel width at any viewport
+	var chars := PackedStringArray()
+	for i in NamesScript.NAME_CHARSET.length():
+		chars.append(NamesScript.NAME_CHARSET[i])
+	var cols := 13
+	var cw := floorf(w / float(cols))
+	var ch_h := 30.0
+	var gy := y + 54.0
+	for gi in chars.size():
+		var col := gi % cols
+		var row_i := floori(float(gi) / float(cols))
+		var r := {"x": x + float(col) * cw, "y": gy + float(row_i) * (ch_h + 6.0),
+				"w": cw - 4.0, "h": ch_h}
+		RendererScript.panel(ci, float(r["x"]), float(r["y"]), float(r["w"]), float(r["h"]), {
+			"fill": RendererScript.css_color("rgba(20,34,64,0.85)"),
+			"stroke": RendererScript.css_color("rgba(120,180,255,0.3)"),
+		})
+		RendererScript.outlined_text(ci, "␣" if chars[gi] == " " else String(chars[gi]),
+				float(r["x"]) + float(r["w"]) / 2.0, float(r["y"]) + float(r["h"]) / 2.0,
+				{"size": 13.0, "fill": Color("#dff0ff")})
+		picker_rects.append({"kind": "glyph", "ch": String(chars[gi]), "r": r})
+
+	# backspace / cancel / accept
+	var aby := gy + 5.0 * (ch_h + 6.0)
+	var bw := floorf((w - 12.0) / 3.0)
+	var defs := [
+		{"kind": "backspace", "label": "⌫ %s" % _game.i18n.tr_key("Backspace"),
+				"fill": "rgba(120,70,70,0.8)"},
+		{"kind": "cancel", "label": _game.i18n.tr_key("Cancel"),
+				"fill": "rgba(60,70,90,0.6)"},
+		{"kind": "accept", "label": _game.i18n.tr_key("Accept"),
+				"fill": "rgba(60,150,90,0.9)"},
+	]
+	for bi in defs.size():
+		var d3: Dictionary = defs[bi]
+		var br := {"x": x + float(bi) * (bw + 6.0), "y": aby, "w": bw, "h": 34.0}
+		RendererScript.panel(ci, float(br["x"]), float(br["y"]), float(br["w"]), float(br["h"]), {
+			"fill": RendererScript.css_color(String(d3["fill"])),
+			"stroke": RendererScript.css_color("rgba(255,255,255,0.2)"),
+		})
+		RendererScript.outlined_text(ci, String(d3["label"]),
+				float(br["x"]) + float(br["w"]) / 2.0, float(br["y"]) + 17.0,
+				{"size": 12.0, "fill": Color("#fff")})
+		picker_rects.append({"kind": String(d3["kind"]), "ch": "", "r": br})
+
+	# helper line — the ruled cap + the suggestion affordance ("·" is
+	# typography, the R2 chip precedent: it stays out of vi.csv)
+	RendererScript.outlined_text(ci,
+			"%s · %s" % [_game.i18n.tr_key("Max 14"), _game.i18n.tr_key("accept or edit")],
+			x + w / 2.0, aby + 52.0,
+			{"size": 10.0, "fill": RendererScript.css_color("rgba(150,190,235,0.55)")})
 
 
 ## TS editor.ts:322-326 — the creature-mode preview through the task-6 painter.

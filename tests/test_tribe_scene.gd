@@ -65,10 +65,11 @@ func test_hooks_bind_all_sim_keys() -> void:
 	# every key the sim fires or reads (the carry-in's 4 storyteller reads +
 	# hud_float_world included) resolves to a Callable on the stage
 	var want := ["hud_toast", "hud_toast_gate", "hud_banner", "hud_toast_inset",
-			"hud_show_objective",
+			"hud_show_objective", "hud_objective_counter",
 			"hud_float_world", "audio_play", "audio_set_mood", "cam_shake",
 			"fx_burst", "fx_spawn", "get_gap_bias", "get_mood", "get_warn_scale",
-			"storyteller_note_chaos_event", "context_event", "go_to", "save_all"]
+			"storyteller_note_chaos_event", "context_event", "go_to", "save_all",
+			"death_debrief"]  # R4: the death debrief note/commit hook
 	for k in want:
 		ok(hooks.get(k) is Callable, "hook %s bound" % k)
 	eq(hooks.size(), want.size(), "no stray hooks")

@@ -62,10 +62,12 @@ func test_hooks_bind_all_sim_keys() -> void:
 	var hooks: Dictionary = stage._build_hooks()
 	# every key the sim fires or reads (space_sim.gd's header list + the
 	# parity-only go_to/save_all) resolves to a Callable on the stage
-	var want := ["hud_toast", "hud_banner", "hud_show_objective", "hud_float_world",
+	var want := ["hud_toast", "hud_banner", "hud_show_objective", "hud_objective_counter",
+			"hud_float_world",
 			"hud_set_abilities", "audio_play", "audio_set_mood", "cam_shake",
 			"fx_spawn", "fx_burst", "set_cursor", "get_gap_bias", "get_mood",
-			"get_warn_scale", "storyteller_note_chaos_event", "go_to", "save_all"]
+			"get_warn_scale", "storyteller_note_chaos_event", "go_to", "save_all",
+			"death_debrief"]  # R4: the death debrief note/commit hook
 	for k in want:
 		ok(hooks.get(k) is Callable, "hook %s bound" % k)
 	eq(hooks.size(), want.size(), "no stray hooks")

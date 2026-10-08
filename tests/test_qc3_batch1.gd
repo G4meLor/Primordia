@@ -197,6 +197,7 @@ func test_death_penalty_lands_before_dispatch() -> void:
 	var sim: Variant = m["sim"]
 	var ctx: Variant = m["ctx"]
 	var rec: DeathRec = m["rec"]
+	ctx.set_display_name("Mosi")  # R7: the death toast names the creature
 	var dna0: int = ctx.dna
 	sim.php = 0.0
 	sim.update(DT, _inp())
@@ -208,8 +209,8 @@ func test_death_penalty_lands_before_dispatch() -> void:
 		eq(String(rec.order[1]), "toast", "the loss toast fires with the penalty")
 		eq(String(rec.order[2]), "event:playerDeath", "the storyteller dispatch comes last")
 	if rec.toasts.size() == 1:
-		eq(String(rec.toasts[0][0]), "You died — lost %d DNA" % lost,
-				"toast carries the exact loss (EN identity)")
+		eq(String(rec.toasts[0][0]), "Mosi, You died — lost %d DNA" % lost,
+				"toast carries the display name + the exact loss (EN identity)")
 
 
 # ---- item 3: editor hue band (synthesis 4H) ---------------------------------------
@@ -235,6 +236,7 @@ func _hue_editor() -> Dictionary:
 	g.loop.is_active_cb = func() -> bool: return false
 	var ed: Variant = EditorUi.new(g)
 	ed.show("cell")
+	ed.switch_tab("look")  # R6: the hue row lives on the LOOK tab
 	var hue_row := {}
 	for r in ed.rows:
 		if String(r["kind"]) == "hue":

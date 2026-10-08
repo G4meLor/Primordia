@@ -67,6 +67,8 @@ extends "res://src/game/stage.gd"
 
 const TribeSimScript := preload("res://src/game/tribe/tribe_sim.gd")
 const ParticlesScript := preload("res://src/gfx/particles.gd")
+const TutorialScript := preload("res://src/ui/tutorial.gd")
+const DeathDebriefScript := preload("res://src/ui/death_debrief.gd")
 
 const RendererScript := preload("res://src/gfx/renderer.gd")
 const BackdropScript := preload("res://src/gfx/backdrop.gd")
@@ -101,10 +103,24 @@ func _frame_size_sane() -> bool:
 var sim: Variant = null            # TribeSim (RefCounted sim core)
 var fx: Variant = null             # stage Particles pool (TS `new Fx(1000)`)
 var frozen := false                # test seam: render without stepping the sim
+## R1 micro-tutorial (Task 4; the cell-stage T8 pattern) — built once in
+## on_enter from _build_tutorial_steps(); the engine is src/ui/tutorial.gd.
+## Step-entry snapshots (the task-4 ruling): the gather step's done reads the
+## wood snapshot taken at the BUILD (step 0's entry IS the build moment); the
+## hut step snapshots AT ITS OWN ENTRY (the update-side advance check) — the
+## founding village always starts at one hut, so the step reacts to the DELTA
+## the player builds while IT is active, never to the absolute count.
+var tutorial: Variant = null
+var tut_wood_snap := -1.0
+var tut_hut_snap := -1
 ## The overlay instances — installed into the game stub dicts at tree entry
 ## and re-installed on enter (the creature stage's pattern).
 var hud_inst: Variant = null
 var pause_inst: Variant = null
+## R4: the death debrief overlay (UI-side cause recording — the sims pass
+## the killer/cause through the death_debrief hook at the death instant and
+## store nothing; this component holds the window)
+var debrief: Variant = null
 
 var sky_canvas: Node2D = null
 var ground_canvas: Node2D = null
@@ -254,6 +270,11 @@ func _ready() -> void:
 ## and reused, so the live dicts always point at the CURRENT stage's
 ## instances.
 func _install_overlays() -> void:
+	# R4 death debrief — build-once alongside the other overlay instances
+	# (this runs from _ready AND on_enter, so test-built stages that skip
+	# the tree entry still hold one before any draw/tick/hook reaches it)
+	if debrief == null:
+		debrief = DeathDebriefScript.new()
 	if hud_inst == null:
 		hud_inst = HudScript.new(game)
 	game.hud = {
@@ -488,6 +509,10 @@ func _draw_ui(ci: CanvasItem) -> void:
 	var vw: float = game.vw
 	var vh: float = game.vh
 
+	# R13 scar tint — the single world-tint slot (over the world, under the
+	# night overlay and this stage's own UI; reads the ctx only — no sim math)
+	BackdropScript.draw_world_tint(ci, vw, vh, game.context)
+
 	# night overlay — TS:1380-1383 (FLAT rgba(10,10,40,0.4) full canvas; the
 	# creature stage ramps depth·0.42 instead — tribe flavor)
 	if _is_night():
@@ -506,6 +531,15 @@ func _draw_ui(ci: CanvasItem) -> void:
 				Color(60.0 / 255.0, 0.0, 10.0 / 255.0, minf(0.55, sim.deathFade * 0.4)))
 		RendererScript.outlined_text(ci, "THE CHIEF HAS FALLEN", vw / 2.0, vh / 2.0,
 				{"size": 26.0, "fill": Color("#ff9a8a")})
+		# R4 death debrief — cause/loss/tip lines, clear of the respawn hint
+		# above; display-only, dismissed by its own 1.4s window (before the
+		# 1.6s fade hands over to the respawn)
+		debrief.draw(ci, vw, vh / 2.0 + 48.0)
+
+	# tutorial overlay — the Task 8 engine (the cell-stage draw slot: above
+	# the death card, screen space); inactive engines draw nothing
+	if tutorial != null:
+		tutorial.draw(ci, vw, vh)
 
 
 ## TS renderHud (TribeStage.ts:1400-1423) — the stockpile panel + the hut and
@@ -815,8 +849,24 @@ func update(dt: float) -> void:
 		if _inside(game.input.mx, game.input.my, b["r"]):
 			game.hover_cursor()
 
+	# tutorial (the cell-stage slot: the engine polls before the sim steps).
+	# Step-entry snapshots: the hut step's done reads the count delta from ITS
+	# OWN entry (the task-4 ruling) — the snapshot lands on the advance into
+	# step 1, before this frame's sim tick, so a hut built while an earlier
+	# step was active never auto-advances the hut step.
+	if tutorial != null:
+		var prev_step: int = tutorial.step_index
+		tutorial.update(dt)
+		if tutorial.active and int(tutorial.step_index) != prev_step \
+				and int(tutorial.step_index) == 1:
+			tut_hut_snap = sim.huts.size()
+
 	var inp: Dictionary = _build_input_snapshot()
 	sim.update(dt, inp)
+	# R4: the debrief window ages after the sim tick — a trigger's note
+	# (deathFade 0.0001 this tick) commits on the NEXT tick's death handler,
+	# so the pending pair must survive this drain
+	debrief.tick(dt)
 	# a hud-panel click the sim consumed sets the snapshot's take_click flag —
 	# mirror TS inp.takeClick() mutating the SHARED input (the wrapper's
 	# one-shot clears so nothing else re-sees the click this frame)
@@ -874,6 +924,15 @@ func on_enter(from: Variant = null) -> void:
 	if c2d != null:
 		c2d.enabled = true
 	sim.on_enter()
+	# R4: no stale debrief across a round-trip
+	debrief.reset()
+	# the first-run tutorial (per save slot; the cell-stage build-once rule).
+	# The WOOD snapshot rides the build — step 0's entry IS the build moment;
+	# the HUT snapshot waits for its own step entry (the update-side advance
+	# check — the task-4 ruling).
+	if tutorial == null:
+		tut_wood_snap = sim.wood
+		tutorial = TutorialScript.new(game, "tutTribe", _build_tutorial_steps())
 
 
 func on_exit() -> void:
@@ -883,6 +942,26 @@ func on_exit() -> void:
 	var c2d: Variant = game.cam.cam2d
 	if c2d != null:
 		c2d.enabled = false
+	# the cell-stage finish rule (CellStage.ts:264-267): the tutorial finishes
+	# on every exit EXCEPT a quit-to-title — the flag persists only on forward
+	# evolution
+	if game.transition_target != "menu" and tutorial != null:
+		tutorial.finish()
+
+
+## Task 4 R1 — the tribe tutorial table (3 steps). Step texts stay raw EN keys
+## (translated at render by the engine, the cell precedent); done lambdas poll
+## the sim directly — pure reads, the wood/hut deltas read the on_enter
+## snapshots.
+func _build_tutorial_steps() -> Array:
+	return [
+		{"id": "gather", "text": "Walk to a tree — a tribesman gathers it",
+			"done": func() -> bool: return sim.wood >= tut_wood_snap + 1.0},
+		{"id": "hut", "text": "Press R — build a hut",
+			"done": func() -> bool: return sim.huts.size() >= tut_hut_snap + 1},
+		{"id": "totem", "text": "Hold T — raise the Great Totem",
+			"done": func() -> bool: return float(sim.totem["progress"]) > 0.0},
+	]
 
 
 ## TS TribeStage.onExit → persistState (TribeStage.ts:193) — the autosave
@@ -902,8 +981,9 @@ func _build_hooks() -> Dictionary:
 		"hud_banner": _h_hud_banner,
 		"hud_toast_inset": _h_hud_toast_inset,
 		"hud_show_objective": _h_hud_show_objective,
+		"hud_objective_counter": _h_hud_objective_counter,
 		"hud_float_world": _h_hud_float_world,
-		"audio_play": _h_audio_noop,
+		"audio_play": _h_audio_play,
 		"audio_set_mood": _h_audio_noop,
 		"cam_shake": _h_cam_shake,
 		"fx_burst": _h_fx_burst,
@@ -915,6 +995,7 @@ func _build_hooks() -> Dictionary:
 		"context_event": _h_context_event,
 		"go_to": _h_go_to,
 		"save_all": _h_save_all,
+		"death_debrief": _h_death_debrief,
 	}
 
 
@@ -949,12 +1030,27 @@ func _h_hud_show_objective(text: String) -> void:
 		hud_inst.show_objective = text
 
 
+## R2 chip — the sim's live cur/max pair behind the centered objective (the
+## hud's setter clears the pair whenever the line itself (re)arms, so the
+## two hooks compose in either order).
+func _h_hud_objective_counter(cur: int, max: int) -> void:
+	if hud_inst != null:
+		hud_inst.show_objective_cur = cur
+		hud_inst.show_objective_max = max
+
+
 func _h_hud_float_world(x: float, y: float, text: String, color: Variant, size: float) -> void:
 	game.hud["float_world"].call(x, y, text, color, size)
 
 
+## R7b: forward into the game-owned AudioCore — its dispatch makes the
+## creature "call" audible and keeps every other id a silent stub.
+func _h_audio_play(name: String, vol: Variant = 1.0, pan: Variant = 0.0) -> void:
+	game.audio_play(name, vol, pan)
+
+
 func _h_audio_noop(_name: String, _vol := 0.0, _pan := 0.0) -> void:
-	pass  # audio core is its own task — the sim's audio hooks stay silent
+	pass  # audio_set_mood stays silent — the mood crossfade is deferred (R7b)
 
 
 func _h_cam_shake(mag: float, dur: float) -> void:
@@ -989,6 +1085,18 @@ func _h_note_chaos_event(playtime: float) -> void:
 ## storyteller pump listener is game-side (M2 T7).
 func _h_context_event(ev_name: String, from_stage: String) -> void:
 	game.context_event.emit(ev_name, from_stage)
+
+
+## R4 death debrief — the sim's one death hook, two payload shapes: the
+## raid/beast trigger's note (cause_id set; no killer name — the registry
+## lines are generic) or handle_chief_death's commit (empty cause_id; the
+## DNA bill). The trigger's cause survives the sim's own lastDeathCause
+## consume because it rides THIS hook, not sim state.
+func _h_death_debrief(cause_id: String, killer: String, dna: int) -> void:
+	if cause_id != "":
+		debrief.note(cause_id, killer)
+	else:
+		debrief.commit(dna)
 
 
 ## The fall/victory stage handoffs (TS:396/407) — 'creature' is registered;

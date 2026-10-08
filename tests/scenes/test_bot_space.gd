@@ -98,7 +98,13 @@ func _process(_dt: float) -> void:
 				_fail("pass %d founding: %s" % [_pass_i + 1, rf])
 		"tribe":
 			# the M4 bot's own legs — the totem arc lands the REGISTERED civ
-			# stage through the real go_to (d7a5cb8); reused, never re-walked
+			# stage through the real go_to (d7a5cb8); reused, never re-walked.
+			# R14: the reused civ legs pin the TS base board (output 10) —
+			# seed the collapsed eco EVERY tribe-phase frame like
+			# test_bot_civ.gd's tribe branch (the creature exit's own snapshot
+			# fires at the tribe landing, inside this phase; the tribe bot's
+			# OK only arrives after the civ stage landed).
+			_game.context.flags["ecoHealth"] = 0.0
 			var rt: String = _bot.bc.tb.tribe_tick(_game)
 			if rt == "OK":
 				_phase = "civ"

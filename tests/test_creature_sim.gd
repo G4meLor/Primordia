@@ -683,7 +683,7 @@ func test_bush_eating_and_regrow() -> void:
 	ok(float(b["food"]) <= 0.0, "bush depleted by hold-eating")
 	eq(int(ctx.dna), 44, "DNA 1.2 * took (4.0 food -> +4 whole)")
 	approx(float(sim.php), 40.0 + 24.0, "heal 6 * took")
-	approx(float(ctx.karma), 0.04, "karma +dt*0.02 per grazing tick (~120 ticks)", 1e-3)
+	approx(float(ctx.karma), 0.01, "karma +dt*0.005 per grazing tick (~120 ticks, R15)", 1e-3)
 	ok(float(b["regrow"]) > 24.0 and float(b["regrow"]) < 25.0, "regrow armed at 25 (decaying)")
 	ok(float(sim.eatT) > 0.0, "eatT set while eating")
 	# F-hold also eats
@@ -838,6 +838,7 @@ func test_death_and_respawn() -> void:
 	var wild_e: Dictionary = sim.spawn_ent(null, float(sim.px) + 50.0, float(sim.pz))
 	# an ent that will sit within 600 of the respawn point (-1600, 20)
 	var close_e: Dictionary = sim.spawn_ent(null, -1500.0, 20.0)
+	ctx.set_display_name("Mosi")  # R7: the death toast names the creature
 	sim.php = 0.0
 	sim.update(DT, _inp({}))
 	# first frame: the ceremony
@@ -852,9 +853,9 @@ func test_death_and_respawn() -> void:
 	eq(int(ctx.dna), 40 - 5, "DNA -12% (round(40*0.12) = 5)")
 	var lostToast := false
 	for t in m["rec"]["toasts"]:
-		if String(t[0]) == "You died — lost 5 DNA":
+		if String(t[0]) == "Mosi, You died — lost 5 DNA":
 			lostToast = true
-	ok(lostToast, "death toast")
+	ok(lostToast, "death toast carries the display name + the exact loss")
 	eq(bool(pack_e["pack"]), false, "pack scatters")
 	eq(String(pack_e["mood"]), "afraid", "scattered ent afraid")
 	var scatterToast := false

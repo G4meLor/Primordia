@@ -27,6 +27,9 @@ const SEED := 0xC1FF3A
 # draws; the stage's _ready ran manually, the tribe-stage test pattern).
 func _mk_stage(seed_v: int = SEED) -> Dictionary:
 	var ctx: Variant = Ctx.new(seed_v)
+	# R14: the board pins assume the TS base output 10 — the missing-snapshot
+	# eco neutral (0.5) would lift every full-board pin by +6. Pin collapsed.
+	ctx.flags["ecoHealth"] = 0.0
 	var game: Variant = GameScript.new(ctx)
 	var stage: Variant = CivStage.new(game)
 	game.register(stage)
@@ -42,6 +45,7 @@ func test_hooks_bind_all_sim_keys() -> void:
 	var hooks: Dictionary = stage._build_hooks()
 	# every key the sim fires or reads (the sim header's documented surface)
 	var want := ["hud_toast", "hud_banner", "hud_toast_inset", "hud_show_objective",
+			"hud_objective_counter",
 			"hud_float_world", "hud_set_abilities", "audio_play", "audio_set_mood",
 			"cam_shake", "fx_spawn", "go_to", "save_all", "get_gap_bias",
 			"get_mood", "get_warn_scale", "storyteller_note_chaos_event"]

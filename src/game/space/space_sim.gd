@@ -166,6 +166,9 @@ const PartsScript := preload("res://src/evo/parts.gd")
 
 ## TS hud.showObjective on onEnter (SpaceStage.ts:188).
 const OBJECTIVE_LINE := "SEED 3 WORLDS, GROW EACH TO POP 20 — awaken the Chaos Core · R abduct · F evolve"
+## The thriving gate (TS:553 — 3 colonies at pop ≥ 20) — also the R2 chip's
+## max ("worlds seeded cur/3") while the seeding objective owns the line.
+const SEED_GOAL := 3
 
 ## TS:105 — the fixed kind ring, verbatim (`kinds[i] ?? 'barren'` is
 ## unreachable for i < 6).
@@ -210,6 +213,10 @@ var abductCount: Dictionary = {}  # TS:70 — the abduct pay-curve ledger
 var resurveyCd := 0.0            # TS:71
 var blackHoles: Array = []       # TS:46-48/72 — task 2's
 var cargo: Array = []            # TS:73 — {genome, name} rows
+## R1 tutorial seam — successful gene-lab merges (the G key and the planet
+## panel's GENE LAB button both land in merge_cargo; the cargo/DNA gates
+## filter the dead presses).
+var gene_lab_opens := 0
 
 # TS ChaosScheduler<SpaceStage> (:74) — constructed in _init at the TS stream
 # position on a SECOND rng.branch(); the deck is space_events.gd's
@@ -683,6 +690,11 @@ func update(dt: float, inp: Dictionary) -> void:
 	if sun_d < float(sun["r"]) + 60.0 and invuln <= 0.0:
 		shp -= 30.0 * dt
 		hurtT = 1.0
+		# R4: a lethal tick notes its cause for the stage-side debrief
+		# (UI-side recording — no sim state; the commit rides the ship-death
+		# block with the DNA bill)
+		if shp <= 0.0:
+			_fire("death_debrief", ["space_sun", "", -1])
 		_fire("cam_shake", [4.0, 0.2])  # TS:381
 
 	# hull regen near your thriving colonies (TS:384-389)
@@ -753,6 +765,9 @@ func update(dt: float, inp: Dictionary) -> void:
 		if bd < 40.0 and invuln <= 0.0:
 			shp -= 60.0 * dt
 			hurtT = 1.0
+			# R4: a lethal tick notes its cause for the stage-side debrief
+			if shp <= 0.0:
+				_fire("death_debrief", ["space_blackhole", "", -1])
 		bh["x"] = float(bh["x"]) + float(bh["vx"]) * dt
 		bh["y"] = float(bh["y"]) + float(bh["vy"]) * dt
 		bh["ttl"] = float(bh["ttl"]) - dt
@@ -791,6 +806,9 @@ func update(dt: float, inp: Dictionary) -> void:
 		if pd < 60.0 and invuln <= 0.0 and not pirateLull:
 			shp -= 14.0 * dt
 			hurtT = maxf(hurtT, 0.5)
+			# R4: a lethal tick notes its cause for the stage-side debrief
+			if shp <= 0.0:
+				_fire("death_debrief", ["space_pirates", "", -1])
 			if rng.chance(dt * 6.0):
 				_fx_burst(sx, sy, 4, ["#ff8a5a"], {"speed": 120.0, "ttl": 0.4})  # TS:478
 				_fire("audio_play", ["hit", 0.4, 0.0])  # TS audio.play('hit', 0.4) — audio core: its own task
@@ -849,6 +867,13 @@ func update(dt: float, inp: Dictionary) -> void:
 		_fire("hud_banner", [{"title": "THE CHAOS CORE AWAKENS",
 			"subtitle": "something pulses beyond the outer light", "kind": "chaos", "ttl": 6}])  # TS:557
 		_fire("audio_play", ["ascend", 1.0, 0.0])  # TS audio.play('ascend', 1) — audio core: its own task
+	# R2 chip: worlds seeded toward the thriving gate while the seeding
+	# objective owns the line (clamped — the sandbox past the ending can
+	# overshoot 3). Once the finale lives, its dynamic objective fires below
+	# re-arm a PLAIN line (the hud's setter clears the pair), so the
+	# core-approach/ending lines render exactly as before the chip existed.
+	if finale == null:
+		_fire("hud_objective_counter", [mini(thriving, SEED_GOAL), SEED_GOAL])
 	if finale != null:
 		finale["t"] = float(finale["t"]) + dt
 		var fd: float = _dist_ship(finale)
@@ -884,6 +909,11 @@ func update(dt: float, inp: Dictionary) -> void:
 		# cargo survives — deleting specimens too blocked seeding → blocked
 		# thriving → blocked the ending (9-15 deaths/run at chaos) (TS:589-590)
 		_fire("hud_toast", ["%s %d DNA" % [tr("Ship destroyed! Lost"), lost], "bad", "💀"])  # TS:591
+		# R4: the debrief commit — the 15% bill (0 once the ending fired; the
+		# debrief then omits the DNA line). The cause came with the lethal
+		# hazard's note; the instant respawn shows the overlay via its own
+		# 1.4s window (this stage has no death fade).
+		_fire("death_debrief", ["", "", lost])
 		sx = 0.0
 		sy = -900.0
 		svx = 0.0
@@ -972,6 +1002,28 @@ func nearest_planet() -> Variant:
 		if d < bd:
 			bd = d
 			best = p
+	return best
+
+
+## R1 tutorial seam — total abductions ever: the pay-curve ledger's numeric
+## value sum (the ledger IS the abduct counter — finish_abduct writes it and
+## persist_colonies saves it, so CONTINUE restores read through live).
+func abduct_total() -> float:
+	var n := 0.0
+	for v in abductCount.values():
+		if v is float or v is int:
+			n += float(v)
+	return n
+
+
+## R1 tutorial seam — the highest evolved generation across seeded worlds
+## (each colony's `generations` counter is the evolve ledger; the F
+## fast-forward tick is its only writer — pure read, no new state).
+func max_colony_generations() -> float:
+	var best := 0.0
+	for p in planets:
+		if p["colony"] != null:
+			best = maxf(best, float(p["colony"]["generations"]))
 	return best
 
 
@@ -1082,6 +1134,7 @@ func merge_cargo() -> void:
 	if not ctx.spend_dna(15):
 		_fire("hud_toast", [tr("Gene splice costs 15 DNA"), "bad", "🧪"])  # TS:739
 		return
+	gene_lab_opens += 1  # R1 tutorial seam — the merge went through
 	var a: Dictionary = cargo[0]
 	var b: Dictionary = cargo[1]
 	# M1/M2 run as the post-crossover table (crossover itself is untouched):

@@ -62,6 +62,10 @@ const Z_MIN := -200.0
 const Z_MAX := 240.0
 const WORLD_HALF := 2700.0
 
+## R9 pack-name dedup ladder — deterministic roman suffixes (packLimit ≤ 6,
+## so the ladder can never run out: at most 6 members share a base).
+const ROMAN_SUFFIXES := ["", " II", " III", " IV", " V", " VI"]
+
 # ---- hooks ---------------------------------------------------------------------
 
 var ctx: Variant = null           # TS game.context
@@ -322,9 +326,12 @@ func on_enter() -> void:
 	# audio.setMood('land') — scene-side (the sim owns no audio graph)
 	packLimit = _pack_limit()
 
-	# the creature names itself from its own traits — one-time arrival card
+	# the creature names itself from its own traits — one-time arrival card.
+	# R9 identity ruling: the CHOSEN name is the identity — get_display_name
+	# returns it when set and the self_name suggestion otherwise (the
+	# autoName fallback, unchanged behavior for un-named creatures).
 	if String(ctx.player_name) == "Squish":
-		var autoName: String = NamesScript.self_name(ctx.genome)
+		var autoName: String = ctx.get_display_name()
 		ctx.player_name = autoName
 		_fire("hud_banner", [{
 			# QC r6: the template goes through tr FIRST (the banner payload is
@@ -372,6 +379,7 @@ func on_enter() -> void:
 				packList = parsed
 			# corrupt flag — start alone (the TS try/catch swallows everything)
 		var n_restore: int = mini(packList.size(), packLimit)
+		var greeted := false
 		for i in n_restore:
 			var item: Variant = packList[i]
 			if not (item is Dictionary) or not (item.get("genome") is Dictionary):
@@ -383,21 +391,81 @@ func on_enter() -> void:
 					GenomeScript.clamp_genome(merged))
 			e["pack"] = true
 			e["mood"] = "happy"
+			# R9: names ride the schema — old saves read "" and the lazy pass
+			# names them on the next tick
+			e["packName"] = String(item.get("name", ""))
+			# R7b pack greet: one voice from the returning pack (genome rides
+			# the vol slot — the hook arity is pinned at 3)
+			if not greeted:
+				greeted = true
+				_fire("audio_play", ["call", e["genome"], 0.0])
 
 
 func on_exit() -> void:
 	ctx.eco = eco
+	# R14 eco snapshot: the living-web health rides every creature-stage exit
+	# (living lines over the 6-line base roster, 0..1) — the civ start output
+	# stacks it (roundi(health × 12), cap 22). camelCase wire like the rest of
+	# the flags blob.
+	ctx.flags["ecoHealth"] = EcoScript.health(eco)
 	persist_state()
 
 
 ## Pack snapshot — flags.packGenomes was only written at foundTribe, so a
 ## mid-creature autosave reloaded the pack as 0 (A02 measured). (TS:344-347)
+## R9: the schema grows the packmate name — old saves restore clean via the
+## .get("name", "") read (the lazy pass names them on the next tick).
 func persist_state() -> void:
 	var list: Array = []
 	for e in ents:
 		if bool(e["pack"]) and not e.has("corpseT"):
-			list.append({"genome": e["genome"], "baby": false})
+			list.append({"genome": e["genome"], "baby": false,
+					"name": String(e.get("packName", ""))})
 	ctx.flags["packGenomes"] = JSON.stringify(list)
+
+
+# ---- packmate identity (R9) -------------------------------------------------------
+
+## The deterministic dedup seam: base + the first free roman suffix. Static +
+## pure (the compose draws the rng; the dedup must not).
+static func pack_name_deduped(base: String, taken: Array) -> String:
+	if not taken.has(base):
+		return base
+	for i in range(1, ROMAN_SUFFIXES.size()):
+		var candidate := "%s%s" % [base, ROMAN_SUFFIXES[i]]
+		if not taken.has(candidate):
+			return candidate
+	return "%s%s" % [base, ROMAN_SUFFIXES[ROMAN_SUFFIXES.size() - 1]]
+
+
+## R9 packmate identity: species_name + epithet composed via names.gd (the
+## epithet translated BEFORE the composition — the QC r6 part rule), deduped
+## against the current pack names with a roman suffix. Assigned ONCE (charm
+## win or the lazy restore pass); the card renderer displays it, it does not
+## invent.
+func _pack_assign_name(e: Dictionary) -> void:
+	if not String(e.get("packName", "")).is_empty():
+		return
+	var taken: Array = []
+	for other in ents:
+		if is_same(other, e) or not bool(other["pack"]) or other.has("corpseT"):
+			continue
+		var nm := String(other.get("packName", ""))
+		if not nm.is_empty():
+			taken.append(nm)
+	var species := NamesScript.species_name(rng)
+	var ep := NamesScript.epithet(e["genome"], rng)
+	var base := species if ep.is_empty() \
+			else "%s %s" % [species, String(TranslationServer.translate(ep))]
+	e["packName"] = pack_name_deduped(base, taken)
+
+
+## Unnamed packmates (old saves without the name field) get a name on the
+## next tick — every display site reads packName verbatim.
+func _lazy_pack_names() -> void:
+	for e in ents:
+		if bool(e["pack"]) and not e.has("corpseT"):
+			_pack_assign_name(e)
 
 
 # ---- spawning -----------------------------------------------------------------
@@ -494,6 +562,7 @@ func maintain_population() -> void:
 ## keys_pressed: Array[String]. The scene layer builds it; tests construct
 ## it literally. The sim never touches the Input singleton.
 func update(dt: float, inp: Dictionary) -> void:
+	_lazy_pack_names()  # R9: unnamed packmates (old saves) name before anything can die
 	time += dt
 	# the frame's pointer state, for update_ents' corpse-eat read (TS input2Down)
 	_inp_down = bool(inp.get("down", false))
@@ -662,7 +731,10 @@ func handle_death(dt: float) -> void:
 		ctx.add_chaos(0.03)
 		var lost := floori(float(ctx.dna) * 0.12 + 0.5)  # JS Math.round
 		ctx.add_dna(-lost)
-		_fire("hud_toast", ["%s %d DNA" % [tr("You died — lost"), lost], "bad", "💀"])
+		# R7: the toast names the creature (the display name is data — it
+		# interpolates outside tr; the "," is typography, the R2 chip precedent)
+		_fire("hud_toast", ["%s, %s %d DNA" % [ctx.get_display_name(), tr("You died — lost"), lost],
+				"bad", "💀"])
 		charmActive = false
 		charmTarget = null
 		# pack scatters (tell the player — silent losses read as bugs)
@@ -678,6 +750,9 @@ func handle_death(dt: float) -> void:
 			# QC r6: the template goes through tr FIRST (drawn verbatim on the
 			# toast path); EN output is byte-identical.
 			_fire("hud_toast", [tr("The pack scattered (%d fled)") % scattered, "bad", "🐾"])
+		# R4: the debrief commit — the DNA bill this path just computed rides
+		# to the stage layer (the cause came with the killing blow's note)
+		_fire("death_debrief", ["", "", lost])
 	if deathFade > 1.8:
 		deathFade = 0.0
 		deathStarted = false
@@ -824,6 +899,11 @@ func update_player(dt: float, inp: Dictionary) -> void:
 				_fire("audio_play", ["hurt", 0.55, 0.0])
 				_fx_burst(px, pz * Z_TO_Y - 10.0, 5, ["#ff8a9a"],
 						{"speed": 100.0, "ttl": 0.4, "size": 2.0})
+				# R4: the killing blow names its killer for the stage-side
+				# debrief (UI-side recording — no sim state; the species id
+				# resolves to the bestiary name in the stage's hook handler)
+				if php <= 0.0 and not deathStarted:
+					_fire("death_debrief", ["creature_bite", String(e["speciesId"]), -1])
 
 	# eat bushes / bones (alive only — a posthumous heal out-races the
 	# death fade and leaves an invisible ghost) (TS:752-787)
@@ -837,7 +917,7 @@ func update_player(dt: float, inp: Dictionary) -> void:
 				b["regrow"] = 25.0
 				php = minf(pmaxHp, php + 6.0 * took)
 				ctx.add_dna(took * 1.2)
-				ctx.add_karma(dt * 0.02)
+				ctx.add_karma(dt * 0.005)  # R15: the graze loophole halved twice
 				eatT = 1.0
 				if rng.chance(dt * 6.0):
 					_fire("audio_play", ["eat", 0.35, 0.0])
@@ -877,6 +957,9 @@ func update_player(dt: float, inp: Dictionary) -> void:
 				and py <= 0.0 and invuln <= 0.0:
 			php -= float(hz["dps"]) * dt
 			hurtT = maxf(hurtT, 0.4)
+			# R4: a lava kill notes its cause for the stage-side debrief
+			if php <= 0.0 and not deathStarted:
+				_fire("death_debrief", ["creature_lava", "", -1])
 
 	# pack follow gains karma slowly
 	var anyPack := false
@@ -890,6 +973,14 @@ func update_player(dt: float, inp: Dictionary) -> void:
 
 func kill_ent(e: Dictionary) -> void:
 	tut["actioned"] = int(tut["actioned"]) + 1
+	# R9 packmate death: the named record — toast + bestiary fell note (the
+	# species genome keys the entry; wild species were discovered at seed).
+	# Same card/record for player-caused and natural deaths — ruled identical.
+	if bool(e["pack"]):
+		var gen := int(e["genome"].get("generation", 1))
+		_fire("hud_toast", [tr("%s fell — gen %d") % [String(e.get("packName", "")), gen],
+				"bad", "💀"])
+		ctx.note_pack_fell(e["genome"], String(e.get("packName", "")), gen)
 	_fire("audio_play", ["die", 0.6, 0.0])
 	_fx_burst(float(e["x"]), float(e["z"]) * Z_TO_Y - 10.0, 20,
 			[_hsl(float(e["genome"]["hue"]), 0.75, 0.55), "#ff9a8a", "#ffe0b0"],
@@ -1260,10 +1351,14 @@ func update_charm(dt: float, inp: Dictionary) -> void:
 				e.erase("lifespanStampede")  # TS `= undefined`
 				e["pack"] = true
 				e["mood"] = "happy"
+				_pack_assign_name(e)  # R9: the new friend gets its name at charm time
 				charmActive = false
 				charmTarget = null
 				ctx.add_karma(0.03)
 				_fire("audio_play", ["levelup", 0.7, 0.0])
+				# R7b: the new friend answers in its own voice — the genome
+				# rides the vol slot (the hook arity is pinned at 3)
+				_fire("audio_play", ["call", e["genome"], 0.0])
 				_fire("hud_toast", [tr("A new friend joins your pack!"), "good", "🐾"])
 				persist_state()  # keep the pack across autosaves, not just foundTribe
 				_fx_burst(float(e["x"]), float(e["z"]) * Z_TO_Y - 20.0, 14,
@@ -1302,9 +1397,13 @@ func found_tribe() -> void:
 	pack = pack.slice(0, 6)
 	var list: Array = []
 	for p in pack:
-		list.append({"genome": p["genome"], "baby": p["baby"]})
+		# R9: names ride the founding snapshot too (the tribe stage reads the
+		# same flag; the .get("name","") read keeps old consumers honest)
+		list.append({"genome": p["genome"], "baby": p["baby"],
+				"name": String(p.get("packName", ""))})
 	ctx.flags["packGenomes"] = JSON.stringify(list)
-	ctx.flags["playerSpeciesName"] = ctx.player_name
+	# R9 identity ruling: the chosen name outranks the derived player_name
+	ctx.flags["playerSpeciesName"] = ctx.get_player_display()
 	ctx.save()
 	_fire("audio_play", ["ascend", 1.0, 0.0])
 	_fire("go_to", ["tribe", {
@@ -1375,6 +1474,7 @@ func update_chaos(dt: float) -> void:
 		"warnScale": warn_scale,  # bio_tell bucket
 		"mirrors": mirrorLedger.queued(),  # mirror_rule returns
 		"dominance": dom,  # predator_convergence input
+		"transposonFired": bool(ctx.flags.get("transposonFired", false)),  # R13 once-per-run gate
 	}, {
 		"onWarn": on_warn,
 		"onApply": on_apply,
@@ -1439,6 +1539,9 @@ func drop_meteor(x: float, z: float) -> void:
 	if dp < 150.0 and invuln <= 0.0:
 		php -= 40.0 * (1.0 - dp / 150.0)
 		hurtT = 1.0
+		# R4: a scorch kill notes its cause for the stage-side debrief
+		if php <= 0.0 and not deathStarted:
+			_fire("death_debrief", ["creature_meteor", "", -1])
 
 
 ## TS stampede (CreatureStage.ts:1155-1169) — a herd of large herbivores runs

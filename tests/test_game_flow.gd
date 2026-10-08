@@ -443,6 +443,10 @@ func test_world_reveal_lands_as_world_toast_and_codex() -> void:
 	_install_recorder_hud(g)
 	g.go_to("cell")
 	_walk_plain(g)
+	# R13: the direct chaos write sits above the tier-1 scar threshold — pre-
+	# latch the scar tiers so this test keeps pinning ONLY the reveal path
+	g.context.scar_tier = 3
+	g.context.scar_benign = [false, false, false]
 	g.context.chaos = 0.5  # toxin_sea reveals above 0.45
 	g.step_for_testing(1, DT)
 	eq(int(_toasts.size()), 1, "one reveal toast")

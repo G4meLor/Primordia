@@ -89,6 +89,8 @@ const CreaturePainter := preload("res://src/gfx/creature_painter.gd")
 const CellPainterScript := preload("res://src/gfx/cell_painter.gd")
 const HudScript := preload("res://src/ui/hud.gd")
 const PauseScript := preload("res://src/ui/pause.gd")
+const TutorialScript := preload("res://src/ui/tutorial.gd")
+const DeathDebriefScript := preload("res://src/ui/death_debrief.gd")
 
 ## TS:892 — drawSpaceBackdrop's seed argument on the space call (civ used 42).
 const BACKDROP_SEED := 7.0
@@ -100,10 +102,18 @@ const BLACK_HOLE_MID_R := 2.0 + 0.4 * (90.0 - 2.0)
 var sim: Variant = null           # SpaceSim (RefCounted sim core)
 var fx: Variant = null            # stage Particles pool (TS `new Fx(1300)`)
 var frozen := false               # test seam: render without stepping the sim
+## R1 micro-tutorial (Task 4; the cell-stage T8 pattern) — built once in
+## on_enter from _build_tutorial_steps(); the engine is src/ui/tutorial.gd.
+var tutorial: Variant = null
 ## The overlay instances — installed into the game stub dicts at tree entry
 ## and re-installed on enter (the creature/tribe/civ stage pattern).
 var hud_inst: Variant = null
 var pause_inst: Variant = null
+## R4: the death debrief overlay (UI-side cause recording — the sim passes
+## the lethal hazard through the death_debrief hook and stores nothing; this
+## component holds the window — space has no death fade, so its own 1.4s
+## budget is the overlay's whole life)
+var debrief: Variant = null
 
 var sky_canvas: Node2D = null
 var world_canvas: Node2D = null
@@ -284,6 +294,11 @@ func _ready() -> void:
 ## The overlay wiring (the tribe/civ stage's _install_overlays verbatim).
 ## Called from _ready (first build) AND on_enter (rebind).
 func _install_overlays() -> void:
+	# R4 death debrief — build-once alongside the other overlay instances
+	# (this runs from _ready AND on_enter, so test-built stages that skip
+	# the tree entry still hold one before any draw/tick/hook reaches it)
+	if debrief == null:
+		debrief = DeathDebriefScript.new()
 	if hud_inst == null:
 		hud_inst = HudScript.new(game)
 	game.hud = {
@@ -665,6 +680,10 @@ func _draw_ui_layer(ci: CanvasItem) -> void:
 	var vw: float = game.vw
 	var vh: float = game.vh
 
+	# R13 scar tint — the single world-tint slot (over the world, under this
+	# stage's own UI; reads the ctx only — no sim math)
+	BackdropScript.draw_world_tint(ci, vw, vh, game.context)
+
 	# colonies progress chip — TS:1027-1030 (the win gate, always visible)
 	var thriving := 0
 	var colonies := 0
@@ -694,6 +713,11 @@ func _draw_ui_layer(ci: CanvasItem) -> void:
 	# vignette — TS:1040
 	RendererScript.vignette(ci, vw, vh, 0.5)
 
+	# R4 death debrief — space has no death fade; the component's own 1.4s
+	# window carries it (the ship-death block committed the cause). Display
+	# only — the instant respawn below is the sim's, untouched.
+	debrief.draw(ci, vw, vh / 2.0 + 40.0)
+
 	# ship HP — TS:1042-1049
 	var hp_w := minf(300.0, vw * 0.26)
 	var hx := vw / 2.0 - hp_w / 2.0
@@ -720,6 +744,12 @@ func _draw_ui_layer(ci: CanvasItem) -> void:
 	# 'CARGO' is NOT t()-wrapped in TS (:1062) — raw
 	RendererScript.outlined_text(ci, "CARGO", cx0 - 10.0 + 40.0, cy - 16.0,
 			{"size": 9.0, "fill": RendererScript.css_color("rgba(180,210,255,0.6)")})
+
+	# tutorial overlay — the Task 8 engine (the cell-stage draw slot: above
+	# the cargo bar, below the panel layer's ending veil); inactive engines
+	# draw nothing
+	if tutorial != null:
+		tutorial.draw(ci, vw, vh)
 
 
 ## TS:1076-1097 — the planet panel (when near) → the ending veil →
@@ -791,6 +821,20 @@ func _draw_planet_panel(ci: CanvasItem) -> void:
 						else RendererScript.css_color("rgba(255,255,255,0.4)")})
 
 
+## R15 ending-flavor tier (TS SpaceStage.ts:1111-1113 + the redesign
+## ruling): harmony additionally requires the per-stage karma profile's
+## worst exit to be clean — a high live karma built on a bloody stage
+## (min < -0.1) reads NEUTRAL, not harmonious. The fears path stays
+## karma-only. Static + pure so the suite pins the tier math headless
+## (test_karma_profile.gd); the raw EN keys translate at the draw site.
+static func ending_flavor(karma_v: float, kmin: float) -> String:
+	if karma_v > 0.3 and kmin >= -0.1:
+		return "The universe hums in harmony — you gardened the stars."
+	if karma_v < -0.3:
+		return "The universe fears your name — chaos was your harvest."
+	return "The universe cannot decide what you are. It keeps watching."
+
+
 ## TS renderEnding (:1100-1122).
 func _draw_ending(ci: CanvasItem) -> void:
 	var vw: float = game.vw
@@ -807,11 +851,9 @@ func _draw_ending(ci: CanvasItem) -> void:
 				thriving += 1
 	var karma_v := float(game.context.karma)
 	var karma_txt := ("+" if karma_v >= 0.0 else "") + "%.2f" % karma_v
-	var flavor := "The universe cannot decide what you are. It keeps watching."
-	if karma_v > 0.3:
-		flavor = "The universe hums in harmony — you gardened the stars."
-	elif karma_v < -0.3:
-		flavor = "The universe fears your name — chaos was your harvest."
+	# R15: the harmony tier additionally reads the per-stage profile's worst
+	# exit (ending_flavor documents the gate)
+	var flavor := ending_flavor(karma_v, game.context.karma_min())
 	var lines: Array = [
 		"playtime %d min · %d DNA harvested across the ages" % [
 			roundi(float(game.context.playtime) / 60.0),
@@ -1003,6 +1045,9 @@ func _sync_beam_item() -> void:
 func update(dt: float) -> void:
 	if sim == null or frozen:
 		return
+	# tutorial (the cell-stage slot: the engine polls before the sim steps)
+	if tutorial != null:
+		tutorial.update(dt)
 	# panel_rects write-back — TS:1192 rides the RENDER side (the rows are
 	# collected by the render-side sync, _sync_panel_view) and lands each frame
 	# BEFORE sim.update — one frame of positional lag, TS-identical. Out of
@@ -1011,6 +1056,9 @@ func update(dt: float) -> void:
 	sim.panel_rects = _panel_rects
 	var inp: Dictionary = _build_input_snapshot()
 	sim.update(dt, inp)
+	# R4: the debrief window ages after the sim tick that may have committed
+	# it (note and commit land inside one sim tick here — the instant respawn)
+	debrief.tick(dt)
 	# a sim-consumed click (panel/pirate) mirrors TS inp.takeClick() mutating
 	# the SHARED input — the wrapper's one-shot clears so the next frame's
 	# snapshot never re-sees it (the tribe precedent)
@@ -1033,9 +1081,10 @@ func _build_hooks() -> Dictionary:
 		"hud_toast": _h_hud_toast,
 		"hud_banner": _h_hud_banner,
 		"hud_show_objective": _h_hud_show_objective,
+		"hud_objective_counter": _h_hud_objective_counter,
 		"hud_float_world": _h_hud_float_world,
 		"hud_set_abilities": _h_hud_set_abilities,
-		"audio_play": _h_audio_noop,
+		"audio_play": _h_audio_play,
 		"audio_set_mood": _h_audio_noop,
 		"cam_shake": _h_cam_shake,
 		"fx_spawn": _h_fx_spawn,
@@ -1047,6 +1096,7 @@ func _build_hooks() -> Dictionary:
 		"storyteller_note_chaos_event": _h_note_chaos_event,
 		"go_to": _h_go_to,
 		"save_all": _h_save_all,
+		"death_debrief": _h_death_debrief,
 	}
 
 
@@ -1063,6 +1113,16 @@ func _h_hud_show_objective(text: String) -> void:
 		hud_inst.show_objective = text
 
 
+## R2 chip — the sim's live cur/max pair behind the centered objective (the
+## hud's setter clears the pair whenever the line itself (re)arms, so the
+## two hooks compose in either order; the sim stops firing it once the
+## finale's dynamic swaps own the slot).
+func _h_hud_objective_counter(cur: int, max: int) -> void:
+	if hud_inst != null:
+		hud_inst.show_objective_cur = cur
+		hud_inst.show_objective_max = max
+
+
 func _h_hud_float_world(x: float, y: float, text: String, color: Variant, size: float) -> void:
 	game.hud["float_world"].call(x, y, text, color, size)
 
@@ -1073,8 +1133,14 @@ func _h_hud_set_abilities(list: Array) -> void:
 	game.hud["set_abilities"].call(list)
 
 
+## R7b: forward into the game-owned AudioCore — its dispatch makes the
+## creature "call" audible and keeps every other id a silent stub.
+func _h_audio_play(name: String, vol: Variant = 1.0, pan: Variant = 0.0) -> void:
+	game.audio_play(name, vol, pan)
+
+
 func _h_audio_noop(_name: String, _vol := 0.0, _pan := 0.0) -> void:
-	pass  # audio core is its own task — the sim's audio hooks stay silent
+	pass  # audio_set_mood stays silent — the mood crossfade is deferred (R7b)
 
 
 func _h_cam_shake(mag: float, dur: float) -> void:
@@ -1129,6 +1195,18 @@ func _h_save_all() -> void:
 	game.save_all()
 
 
+## R4 death debrief — the sim's one death hook, two payload shapes: the
+## lethal hazard's note (cause_id set; no killer name — the registry lines
+## are generic) or the ship-death block's commit (empty cause_id; the DNA
+## bill, 0 once the ending fired). Space respawns instantly, so the
+## component's own 1.4s window carries the overlay.
+func _h_death_debrief(cause_id: String, killer: String, dna: int) -> void:
+	if cause_id != "":
+		debrief.note(cause_id, killer)
+	else:
+		debrief.commit(dna)
+
+
 func has_active_chaos() -> bool:
 	return sim != null and sim.has_active_chaos()
 
@@ -1141,6 +1219,11 @@ func on_enter(from: Variant = null) -> void:
 	if c2d != null:
 		c2d.enabled = true  # cam.begin arms here — the rig carries the world layer
 	sim.on_enter()
+	# R4: no stale debrief across a round-trip
+	debrief.reset()
+	# the first-run tutorial (per save slot; the cell-stage build-once rule)
+	if tutorial == null:
+		tutorial = TutorialScript.new(game, "tutSpace", _build_tutorial_steps())
 
 
 func on_exit() -> void:
@@ -1150,6 +1233,26 @@ func on_exit() -> void:
 	var c2d: Variant = game.cam.cam2d
 	if c2d != null:
 		c2d.enabled = false
+	# the cell-stage finish rule (CellStage.ts:264-267): the tutorial finishes
+	# on every exit EXCEPT a quit-to-title — the flag persists only on forward
+	# evolution
+	if game.transition_target != "menu" and tutorial != null:
+		tutorial.finish()
+
+
+## Task 4 R1 — the space tutorial table (3 steps). Step texts stay raw EN keys
+## (translated at render by the engine, the cell precedent); done lambdas poll
+## the sim directly — pure reads (the abduct ledger, the gene-lab counter,
+## the colony generation counters).
+func _build_tutorial_steps() -> Array:
+	return [
+		{"id": "abduct", "text": "Fly near a planet — press R to abduct a species",
+			"done": func() -> bool: return sim.abduct_total() >= 1.0},
+		{"id": "genelab", "text": "Press G — open the gene lab",
+			"done": func() -> bool: return sim.gene_lab_opens >= 1},
+		{"id": "evolve", "text": "Press F — evolve a seeded world a generation",
+			"done": func() -> bool: return sim.max_colony_generations() >= 1.0},
+	]
 
 
 ## TS SpaceStage.onExit → persistState — the autosave flush seam

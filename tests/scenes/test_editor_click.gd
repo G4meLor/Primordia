@@ -226,6 +226,89 @@ func _process(_dt: float) -> void:
 			if int(_game.context.dna) != _dna_before - arms_cost:
 				_fail("creature dna did not drop by part_cost")
 				return
+			_phase = "look_tab"
+		# ---- R7 extension: the on-canvas name picker through the real pipeline --
+		"look_tab":
+			# the tab rects are draw-recorded every pass — a real click switches
+			var tb: Dictionary = _game.current.editor_inst.tab_rects["look"]
+			_driver.mouse_down(Vector2(float(tb["x"]) + float(tb["w"]) / 2.0,
+					float(tb["y"]) + float(tb["h"]) / 2.0))
+			_game.step_for_testing(1, DT)
+			_driver.mouse_up()
+			if String(_game.current.editor_inst.tab) != "look":
+				_fail("the LOOK tab click did not switch the tab")
+				return
+			_game._do_render(0.0)
+			_phase = "name_click"
+		"name_click":
+			# the LOOK name row (R7: the picker entry point) — its full-row rect
+			# comes from the editor's own row-rect records
+			var rects: Array = _game.current.editor_inst.row_rects
+			if rects.is_empty():
+				return
+			var found := {}
+			for rr in rects:
+				if rr["btn"] == null and String(rr["row"]["kind"]) == "name":
+					found = rr["r"]
+			if found.is_empty():
+				_fail("no name row rect in the LOOK row records")
+				return
+			_driver.mouse_down(Vector2(float(found["x"]) + float(found["w"]) / 2.0,
+					float(found["y"]) + float(found["h"]) / 2.0))
+			_game.step_for_testing(1, DT)
+			_driver.mouse_up()
+			if not bool(_game.current.editor_inst.picker_open):
+				_fail("the name row click did not open the picker")
+				return
+			_game._do_render(0.0)
+			_phase = "picker_type"
+		"picker_type":
+			# glyph-grid buttons through the real pipeline: clear the pre-filled
+			# suggestion draft (10 backspaces), then type M-o-s-i
+			var prs: Array = _game.current.editor_inst.picker_rects
+			if prs.is_empty():
+				return
+			var bs: Dictionary = _find_picker_rect("backspace", "")
+			if bs.is_empty():
+				return  # the finder already failed
+			var bs_c := Vector2(float(bs["r"]["x"]) + float(bs["r"]["w"]) / 2.0,
+					float(bs["r"]["y"]) + float(bs["r"]["h"]) / 2.0)
+			for i in 10:
+				_driver.mouse_down(bs_c)
+				_game.step_for_testing(1, DT)
+				_driver.mouse_up()
+			if String(_game.current.editor_inst.picker_buf) != "":
+				_fail("the backspace clicks did not clear the draft (got '%s')"
+						% String(_game.current.editor_inst.picker_buf))
+				return
+			for ch in ["M", "o", "s", "i"]:
+				var gr: Dictionary = _find_picker_rect("glyph", String(ch))
+				if gr.is_empty():
+					return  # the finder already failed
+				_driver.mouse_down(Vector2(float(gr["r"]["x"]) + float(gr["r"]["w"]) / 2.0,
+						float(gr["r"]["y"]) + float(gr["r"]["h"]) / 2.0))
+				_game.step_for_testing(1, DT)
+				_driver.mouse_up()
+			if String(_game.current.editor_inst.picker_buf) != "Mosi":
+				_fail("the glyph clicks did not type Mosi (got '%s')"
+						% String(_game.current.editor_inst.picker_buf))
+				return
+			_phase = "picker_accept"
+		"picker_accept":
+			var acc: Dictionary = _find_picker_rect("accept", "")
+			if acc.is_empty():
+				return  # the finder already failed
+			_driver.mouse_down(Vector2(float(acc["r"]["x"]) + float(acc["r"]["w"]) / 2.0,
+					float(acc["r"]["y"]) + float(acc["r"]["h"]) / 2.0))
+			_game.step_for_testing(1, DT)
+			_driver.mouse_up()
+			if bool(_game.current.editor_inst.picker_open):
+				_fail("the accept click did not close the picker")
+				return
+			if String(_game.context.creature_name) != "Mosi":
+				_fail("the accept click did not store the name (got '%s')"
+						% String(_game.context.creature_name))
+				return
 			# the tutCreature table finishes on the live stage updates once the
 			# actioned counters are driven (the cell phase's sanctioned pattern)
 			_game.current.sim.tut["actioned"] = 2
@@ -249,9 +332,10 @@ func _process(_dt: float) -> void:
 			var dir := DirAccess.open("user://saves")
 			if dir != null:
 				dir.remove("slot0.json")
-			print("EDITOR_CLICK_OK flagella=%d legs=%d arms=%d dna=%d tut_creature=done" % [
+			print("EDITOR_CLICK_OK flagella=%d legs=%d arms=%d dna=%d name=%s tut_creature=done" % [
 					int(_game.context.genome["flagella"]), int(_game.context.genome["legs"]),
-					int(g3["arms"]), int(_game.context.dna)])
+					int(_game.context.genome["arms"]), int(_game.context.dna),
+					String(_game.context.creature_name)])
 			_phase = "done"
 			_done = true
 			get_tree().quit(0)
@@ -277,6 +361,16 @@ func _read_plus_rect(part_id: String) -> bool:
 	_plus = Vector2(float(found["x"]) + float(found["w"]) / 2.0,
 			float(found["y"]) + float(found["h"]) / 2.0)
 	return true
+
+
+## The picker button rect for kind (+glyph char), read from the editor's
+## draw-populated picker records (the _read_plus_rect pattern).
+func _find_picker_rect(kind: String, ch: String) -> Dictionary:
+	for pr in _game.current.editor_inst.picker_rects:
+		if String(pr["kind"]) == kind and String(pr["ch"]) == ch:
+			return pr
+	_fail("no %s '%s' rect in the picker records" % [kind, ch])
+	return {}
 
 
 ## Boot → menu → new game → transition → card-slot (bot.test.ts:55-73).

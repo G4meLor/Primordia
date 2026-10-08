@@ -228,7 +228,8 @@ func continue_slot(slot: int) -> void:
 	# survivesQuit: a CONTINUE clicked during the quit fade is live, not stale
 	game.go_to(stage_id, {
 		"title": "WELCOME BACK",
-		"sub": "%s %s" % [game.i18n.tr_key("the soup remembers"), game.context.player_name],
+		# R9 identity ruling: the chosen creature name reads here when set
+		"sub": "%s %s" % [game.i18n.tr_key("the soup remembers"), game.context.get_player_display()],
 	}, {"survivesQuit": true})
 
 
@@ -255,6 +256,9 @@ func start_new_game(slot := 0, difficulty := "normal", seed_v := -1) -> void:
 	game.reset_stages_for_new_run()
 	c.dna = 100  # Flagellum suggestion (27) + LEG (65) both affordable in the tutorial
 	c.karma = 0.0
+	c.reset_karma_profile()  # R15: the profile + cap anchor are per-run state
+	c.reset_chaos_scar()  # R13: the peak + fired scar tiers are per-run too
+	c.run_shape = ""  # R12: the heredity shape re-snaps at this run's first exit
 	c.difficulty = difficulty
 	c.chaos = c.starting_chaos()
 	c.playtime = 0.0
@@ -265,6 +269,12 @@ func start_new_game(slot := 0, difficulty := "normal", seed_v := -1) -> void:
 	c.stage = "cell"
 	c.slot = slot
 	c.player_name = "Squish"
+	# R16 final-review wave: the CHOSEN creature name is per-run identity —
+	# run-1's name used to ride this reset-block's immediate save into the
+	# NEW slot (cross-run AND cross-slot: run-2's arrival baked it into
+	# player_name, WELCOME BACK carried it). CONTINUE keeps the wire value
+	# (context.load reads creatureName — test_naming pins both branches).
+	c.creature_name = ""
 	c.save()  # create the slot immediately
 	# TS audio.play('ascend') — audio core: its own task
 	game.go_to("cell", {
@@ -319,8 +329,22 @@ func slot_meta(slot: int) -> Variant:
 		"playtime": float(d.get("playtime", 0.0)),
 		"dna": int(d.get("dna", 0)),
 		"playerName": String(d.get("playerName", "Squish")),
+		"creatureName": String(d.get("creatureName", "")),
 		"savedAt": float(FileAccess.get_modified_time(path)),
 	}
+
+
+## R7 — the save-slot line's name: the creature's chosen display name when
+## set, else the playerName the run auto-derived. The meta is the raw slot
+## JSON read (no live context here to ask get_display_name), so the fallback
+## rides the stored playerName. Pure + static for the headless suite.
+static func slot_display_name(meta: Dictionary) -> String:
+	var pname := String(meta.get("creatureName", ""))
+	if pname.is_empty():
+		pname = String(meta.get("playerName", "Squish"))
+	if pname.length() > 14:
+		pname = pname.substr(0, 13) + "…"
+	return pname
 
 
 ## TS deleteSlot: remove the save; a missing file is ignored.
@@ -471,9 +495,7 @@ func _build_new(vw: float, vh: float, ci: CanvasItem) -> void:
 				"align": "left"})
 		if meta != null:
 			var stage_name: String = String(meta["stage"]).to_upper() if String(meta["stage"]) != "" else "CELL"
-			var pname: String = meta["playerName"]
-			if pname.length() > 14:
-				pname = pname.substr(0, 13) + "…"
+			var pname: String = slot_display_name(meta)
 			var line: String = "%s · %d %s · %d DNA · %s" % [
 				stage_name, roundi(float(meta["playtime"]) / 60.0),
 				game.i18n.tr_key("min"), int(meta["dna"]), pname]

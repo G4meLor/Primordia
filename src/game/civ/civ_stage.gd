@@ -77,12 +77,16 @@ const BackdropScript := preload("res://src/gfx/backdrop.gd")
 const CreaturePainter := preload("res://src/gfx/creature_painter.gd")
 const HudScript := preload("res://src/ui/hud.gd")
 const PauseScript := preload("res://src/ui/pause.gd")
+const TutorialScript := preload("res://src/ui/tutorial.gd")
 
 ## TS:536 — the space backdrop's seed/strength argument on the civ call.
 const BACKDROP_SEED := 42.0
 
 var sim: Variant = null           # CivSim (RefCounted sim core)
 var frozen := false               # test seam: render without stepping the sim
+## R1 micro-tutorial (Task 4; the cell-stage T8 pattern) — built once in
+## on_enter from _build_tutorial_steps(); the engine is src/ui/tutorial.gd.
+var tutorial: Variant = null
 ## The overlay instances — installed into the game stub dicts at tree entry
 ## and re-installed on enter (the creature/tribe stage pattern).
 var hud_inst: Variant = null
@@ -441,6 +445,10 @@ func _draw_ui(ci: CanvasItem) -> void:
 	var vw: float = game.vw
 	var vh: float = game.vh
 
+	# R13 scar tint — the single world-tint slot (over the world, under this
+	# stage's own UI; reads the ctx only — no sim math)
+	BackdropScript.draw_world_tint(ci, vw, vh, game.context)
+
 	# sliders panel — TS:628-649
 	var sw := 300.0
 	var sx := vw - sw - 18.0
@@ -494,6 +502,11 @@ func _draw_ui(ci: CanvasItem) -> void:
 	RendererScript.vignette(ci, vw, vh, 0.5)
 	# TS:661 `void disc;` is a lint artifact — NOT ported.
 
+	# tutorial overlay — the Task 8 engine (the cell-stage draw slot: topmost
+	# of the stage's screen-space tail); inactive engines draw nothing
+	if tutorial != null:
+		tutorial.draw(ci, vw, vh)
+
 
 ## Per-frame draw hook (Game's render side): re-sync the portrait fixture and
 ## queue all canvases.
@@ -539,6 +552,9 @@ func render() -> void:
 func update(dt: float) -> void:
 	if sim == null or frozen:
 		return
+	# tutorial (the cell-stage slot: the engine polls before the sim steps)
+	if tutorial != null:
+		tutorial.update(dt)
 	sim.update(dt, _build_input_snapshot())
 
 
@@ -550,9 +566,10 @@ func _build_hooks() -> Dictionary:
 		"hud_banner": _h_hud_banner,
 		"hud_toast_inset": _h_hud_toast_inset,
 		"hud_show_objective": _h_hud_show_objective,
+		"hud_objective_counter": _h_hud_objective_counter,
 		"hud_float_world": _h_hud_float_world,
 		"hud_set_abilities": _h_hud_set_abilities,
-		"audio_play": _h_audio_noop,
+		"audio_play": _h_audio_play,
 		"audio_set_mood": _h_audio_noop,
 		"cam_shake": _h_cam_shake,
 		"fx_spawn": _h_fx_spawn,
@@ -585,6 +602,16 @@ func _h_hud_show_objective(text: String) -> void:
 		hud_inst.show_objective = text
 
 
+## R2 chip — the sim's live cur/max pair behind the centered objective (the
+## hud's setter clears the pair whenever the line itself (re)arms, so the
+## two hooks compose in either order). Civ's sim never fires it (the no-chip
+## ruling), but the binding keeps the three stage hud seams uniform.
+func _h_hud_objective_counter(cur: int, max: int) -> void:
+	if hud_inst != null:
+		hud_inst.show_objective_cur = cur
+		hud_inst.show_objective_max = max
+
+
 func _h_hud_float_world(x: float, y: float, text: String, color: Variant, size: float) -> void:
 	game.hud["float_world"].call(x, y, text, color, size)
 
@@ -595,8 +622,14 @@ func _h_hud_set_abilities(list: Array) -> void:
 	game.hud["set_abilities"].call(list)
 
 
+## R7b: forward into the game-owned AudioCore — its dispatch makes the
+## creature "call" audible and keeps every other id a silent stub.
+func _h_audio_play(name: String, vol: Variant = 1.0, pan: Variant = 0.0) -> void:
+	game.audio_play(name, vol, pan)
+
+
 func _h_audio_noop(_name: String, _vol := 0.0, _pan := 0.0) -> void:
-	pass  # audio core is its own task — the sim's audio hooks stay silent
+	pass  # audio_set_mood stays silent — the mood crossfade is deferred (R7b)
 
 
 func _h_cam_shake(mag: float, dur: float) -> void:
@@ -648,11 +681,34 @@ func on_enter(from: Variant = null) -> void:
 	if sim == null:
 		return
 	sim.on_enter()
+	# the first-run tutorial (per save slot; the cell-stage build-once rule)
+	if tutorial == null:
+		tutorial = TutorialScript.new(game, "tutCiv", _build_tutorial_steps())
 
 
 func on_exit() -> void:
 	if sim != null:
 		sim.on_exit()
+	# the cell-stage finish rule (CellStage.ts:264-267): the tutorial finishes
+	# on every exit EXCEPT a quit-to-title — the flag persists only on forward
+	# evolution
+	if game.transition_target != "menu" and tutorial != null:
+		tutorial.finish()
+
+
+## Task 4 R1 — the civ tutorial table (3 steps). Step texts stay raw EN keys
+## (translated at render by the engine, the cell precedent); done lambdas
+## poll the sim directly — pure reads (mil vs the 4.0 start value, the launch
+## counter, the conquest accessor).
+func _build_tutorial_steps() -> Array:
+	return [
+		{"id": "mil", "text": "Press Q/A — raise military output",
+			"done": func() -> bool: return sim.mil > 4.0},
+		{"id": "launch", "text": "Press 1 — launch an armada",
+			"done": func() -> bool: return sim.launches >= 1},
+		{"id": "conquer", "text": "Touch an enemy city — conquer it",
+			"done": func() -> bool: return sim.conquest_count() >= 1},
+	]
 
 
 ## TS CivStage.onExit → persistState (CivStage.ts:130) — the autosave flush

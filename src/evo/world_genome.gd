@@ -139,6 +139,21 @@ static func combo_active(w: Dictionary, id: String) -> bool:
 	return fired is Dictionary and fired.get(id, false) == true
 
 
+## R14 trait-ID presence (the civ deck's fold-time gates): true when a carried
+## trait's catalog id matches. world_has cannot play this role for every gate
+## — hungry_bloom carries no flag effect, only a num + ecoSeed — so the id is
+## the one key all three R14 traits share. Tolerant of absent or malformed
+## blobs like world_has: a gate that cannot be read stays shut.
+static func has_trait(w: Dictionary, trait_id: String) -> bool:
+	var traits: Variant = w.get("traits")
+	if not (traits is Array):
+		return false
+	for t in traits:
+		if t is Dictionary and String(t.get("id", "")) == trait_id:
+			return true
+	return false
+
+
 ## calm_veil is the only catalog trait pushing speciation_mult below 1 — the
 ## honest proxy for "this world runs quiet" (one home, three consumers).
 static func calm_proxy(w: Dictionary) -> bool:

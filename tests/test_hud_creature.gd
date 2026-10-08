@@ -300,14 +300,15 @@ func test_death_routes_toast_scatter_shake_and_context_event() -> void:
 	var sim: Variant = g.current.sim
 	_park_world_objects(sim)
 	sim.spawn_ent(null, float(sim.px) + 30.0, float(sim.pz), {}, {"pack": true})
+	g.context.set_display_name("Mosi")  # R7: the death toast names the creature
 	sim.php = 0.0
 	var dna_before := int(g.context.dna)
 	g.step_for_testing(1, DT)
 	var died := 0
 	for t in _toasts:
-		if String(t[0]).begins_with("You died — lost "):
+		if String(t[0]).begins_with("Mosi, You died — lost "):
 			died += 1
-	eq(died, 1, "death toast routed (TS:625)")
+	eq(died, 1, "death toast routed with the display name (TS:625)")
 	var lost := dna_before - int(g.context.dna)
 	ok(lost > 0, "the 12% DNA tithe was taken")
 	ok(_toast_texts().has("The pack scattered (1 fled)"),

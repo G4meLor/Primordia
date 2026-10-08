@@ -18,7 +18,9 @@ extends RefCounted
 
 ## TS code string -> Godot physical keycode. Complete for the whole frozen
 ## game: every code string grepped from key()/keyPressed() call sites (23
-## distinct) plus Enter for the placeholder menu.
+## distinct) plus Enter for the placeholder menu, plus Alt (R6 editor
+## world-peek — a native-only key with no TS counterpart; 4.2 has a single
+## KEY_ALT, the KeyShift precedent of one pragmatic modifier entry).
 const CODES := {
 	"KeyW": KEY_W, "KeyA": KEY_A, "KeyS": KEY_S, "KeyD": KEY_D,
 	"ArrowUp": KEY_UP, "ArrowDown": KEY_DOWN,
@@ -28,6 +30,7 @@ const CODES := {
 	"Digit1": KEY_1, "Digit2": KEY_2, "Digit3": KEY_3,
 	"KeyR": KEY_R, "KeyT": KEY_T, "Tab": KEY_TAB,
 	"KeyM": KEY_M, "Escape": KEY_ESCAPE, "Enter": KEY_ENTER,
+	"Alt": KEY_ALT,
 }
 
 ## Wheel deltaY per notch (see divergence note above).

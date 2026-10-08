@@ -94,7 +94,18 @@ func _process(_dt: float) -> void:
 				_fail("pass %d founding: %s" % [_pass_i + 1, rf])
 		"tribe":
 			# the M4 bot's own legs — the totem arc lands the REGISTERED civ
-			# stage through the real go_to (d7a5cb8); reused, never re-walked
+			# stage through the real go_to (d7a5cb8); reused, never re-walked.
+			# R14: the civ legs pin the TS base board (output 10 — the
+			# full-board transfer + the mil-4 gate refusal), but the real
+			# arc's creature exit snapshots the FULL web (ecoHealth 1.0 →
+			# start output 22), which would make the Q raise free. Seed the
+			# collapsed eco EVERY tribe-phase frame: the write lands after the
+			# creature exit's own snapshot (it fires at the tribe landing,
+			# inside this phase) and survives to switch_stage('civ') — the
+			# tribe bot's OK only arrives AFTER the civ stage landed, so a
+			# hand-off write would be too late. The eco-attached start output
+			# is pinned headless (test_civ_world_attach.gd).
+			_game.context.flags["ecoHealth"] = 0.0
 			var rt: String = _bot.tb.tribe_tick(_game)
 			if rt == "OK":
 				_phase = "civ"

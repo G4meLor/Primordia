@@ -438,13 +438,19 @@ func handle_death(dt: float) -> void:
 		# A listener now observes the post-penalty dna — accepted (defensive).
 		var lost := floori(float(ctx.dna) * 0.12 + 0.5)  # JS Math.round
 		ctx.add_dna(-lost)
-		_fire("hud_toast", ["%s %d DNA" % [tr("You died — lost"), lost], "bad", "💀"])
+		# R7: the toast names the creature (the display name is data — it
+		# interpolates outside tr; the "," is typography, the R2 chip precedent)
+		_fire("hud_toast", ["%s, %s %d DNA" % [ctx.get_display_name(), tr("You died — lost"), lost],
+				"bad", "💀"])
 		ctx.add_chaos(0.03)
 		_fire("context_event", ["playerDeath", "cell"])  # storyteller signal
 		_fire("audio_play", ["die", 0.8, 0.0])
 		_fire("cam_shake", [10.0, 0.5])
 		_fx_burst(px, py, 30, [_hsl(float(ctx.genome["hue"]), 0.7, 0.6), "#ff8a9a"],
 				{"speed": 160.0, "ttl": 1.0})
+		# R4: the debrief commit — the DNA bill this path just computed rides
+		# to the stage layer (the cause came with the killing blow's note)
+		_fire("death_debrief", ["", "", lost])
 	if deathFade > 1.6:
 		deathFade = 0.0
 		deathStarted = false
@@ -705,6 +711,12 @@ func update_player(dt: float, inp: Dictionary) -> void:
 					hurtT = 1.0
 					_fire("cam_shake", [3.0, 0.2])
 					_fire("audio_play", ["hurt", 0.5, 0.0])
+					# R4: the killing blow names its killer for the stage-side
+					# debrief (UI-side recording — no sim state; the A-B dump
+					# contract). The species id resolves to the bestiary name
+					# in the stage's hook handler.
+					if php <= 0.0 and not deathStarted:
+						_fire("death_debrief", ["cell_bite", String(e["speciesId"]), -1])
 				_fx_burst(px, py, 4, ["#ff8a9a"], {"speed": 90.0, "ttl": 0.4, "size": 2.0})
 
 	# vent healing (never rescues a dying cell)
@@ -1540,6 +1552,9 @@ func meteor_impact(x: float, y: float) -> void:
 	if dp < 200.0 and invuln <= 0.0:
 		php -= 45.0 * (1.0 - dp / 200.0)
 		hurtT = 1.0
+		# R4: a blast kill notes its cause for the stage-side debrief
+		if php <= 0.0 and not deathStarted:
+			_fire("death_debrief", ["cell_meteor", "", -1])
 	# DNA debris
 	for i in 6:
 		var a: float = rng.next() * TAU
