@@ -142,3 +142,40 @@ profile's four exits all clear the −0.1 floor; the final karma clears the
   against THIS worktree — the wrapper script's `cd ~/Desktop/RD/
   primordia-native` hardcode names the main checkout (the task-6 deferred
   honest-cd pass; no plan task had used those wrappers).
+
+## Fix wave — final whole-branch review (3 SHOULD-FIX, one dispatch)
+
+Suite after the wave: **78 files, 1036 tests, 23648 checks, 0 failures**,
+guard 0, exit 0 — **RID 411 = the standing ceiling, unchanged** (the shared
+card item draws nothing headless; the new cell-stage boots stay
+out-of-tree).
+
+1. **`creature_name` survives NEW LIFE** (cross-run AND cross-slot leak):
+   `menu.gd start_new_game`'s reset block reset every per-run identity
+   field except `creature_name` — run-1's chosen name rode the reset
+   block's immediate save into the fresh slot, and run-2's creature arrival
+   baked it into `player_name` (WELCOME BACK carried it). FIX: the reset
+   block wipes `creature_name` beside `player_name`; CONTINUE keeps the
+   wire value. Pin: `test_naming.test_new_life_wipes_chosen_name_continue_keeps_it`
+   (both branches: CONTINUE restores the chosen name; NEW LIFE wipes it,
+   the display falls back to the suggestion, and the fresh slot's save
+   carries no run-1 name — slot 908).
+2. **Cell-stage extinction cards queued but never drained in cell**:
+   `cell_sim` marks extinctions → `ctx.species_cards`, but the only drain
+   was `creature_stage._update_species_card` — the card surfaced minutes
+   later mid-creature, the wrong context. RULING: drain in the cell stage
+   always (the R8 moment lands in the stage that lost the species); the
+   creature drain stays for anything queued across a stage line; the queue
+   stays transient-by-contract (load clears). FIX: the R8 card item
+   extracted to `src/gfx/species_card_item.gd` (one source; the creature
+   stage's wiring unchanged), the cell stage gains the parallel drain +
+   draw site (over the hud, under the editor/pause veils; the cell camera
+   rig is disabled, so the card's frame IS its fixed screen rect). Pin:
+   `test_cell_species_card.gd` (2 tests — surfaces in cell + drains, one
+   at a time across the TTL, the draw-site screen-rect sync).
+3. **T14 probe rig re-pinned** (the ledger's probe-drift note, ruled a
+   fix): `_probe_time` now pins `ecoHealth = 0.0` like the file's own
+   `_mk_sim` — both legs ride the TS-base board again. Re-measured:
+   **baseline 43.6 s, predator+conduct 33.5 s, ratio 0.769** — the
+   differential restored, byte-for-byte the T14 recorded numbers
+   (deterministic). The probe-drift note above stands as the history.

@@ -269,6 +269,12 @@ func start_new_game(slot := 0, difficulty := "normal", seed_v := -1) -> void:
 	c.stage = "cell"
 	c.slot = slot
 	c.player_name = "Squish"
+	# R16 final-review wave: the CHOSEN creature name is per-run identity —
+	# run-1's name used to ride this reset-block's immediate save into the
+	# NEW slot (cross-run AND cross-slot: run-2's arrival baked it into
+	# player_name, WELCOME BACK carried it). CONTINUE keeps the wire value
+	# (context.load reads creatureName — test_naming pins both branches).
+	c.creature_name = ""
 	c.save()  # create the slot immediately
 	# TS audio.play('ascend') — audio core: its own task
 	game.go_to("cell", {

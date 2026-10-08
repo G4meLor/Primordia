@@ -21,6 +21,7 @@ const MenuStage := preload("res://src/game/menu.gd")
 
 const SCRATCH := "user://test_naming_settings.cfg"
 const SLOT := 907  # dedicated naming slot (test slots are 90+, real slots 0+)
+const SLOT_NL := 908  # the NEW LIFE reset pin's slot (the fix wave)
 const RECT := {"x": 0.0, "y": 0.0, "w": 300.0, "h": 44.0}
 
 
@@ -356,3 +357,56 @@ func test_picker_labels_ship_vi_rows() -> void:
 	var i := I18n.new(SCRATCH)
 	for k in ["Accept", "Cancel", "Backspace", "Max 14", "accept or edit", "edit ▸", "NAME"]:
 		ok(i.vi_has(k), "vi.csv carries \"%s\"" % k)
+
+
+# ---- NEW LIFE must not carry the chosen name (the final-review fix wave) -------
+
+## The R16 fix pin, both branches: CONTINUE keeps the wire's chosen name
+## (the round-trip above re-pinned alongside for the pairing); NEW LIFE wipes
+## it — run-1's chosen name used to ride start_new_game's reset-block save
+## into the fresh slot (cross-run AND cross-slot), so run-2's arrival baked
+## it into player_name and WELCOME BACK carried it. Boot: the REAL menu stage
+## headless (the test_econ_probes out-of-tree shape — no canvas RIDs).
+func test_new_life_wipes_chosen_name_continue_keeps_it() -> void:
+	_wipe(SLOT_NL)
+	# ---- the CONTINUE branch: the wire keeps the chosen name --------------
+	var ctx = Ctx.new(4242)
+	ctx.stage = "cell"
+	ctx.set_display_name("RunOne")
+	ok(ctx.save(SLOT_NL), "run-1 saved with the chosen name")
+	var loader = Ctx.new(999)
+	ok(loader.load(SLOT_NL), "CONTINUE's load")
+	eq(String(loader.creature_name), "RunOne", "CONTINUE keeps the chosen name")
+	eq(String(loader.get_display_name()), "RunOne", "CONTINUE's display reads the chosen name")
+	# ---- the NEW LIFE branch: the reset block wipes it --------------------
+	var GameScript := preload("res://src/game/game.gd")
+	var game: Variant = GameScript.new(ctx)
+	game.set_process(false)
+	game.set_process_unhandled_input(false)
+	game.loop.is_active_cb = func() -> bool: return false
+	game.register(MenuStage.new(game))
+	game.register(_FakeCell.new(game))
+	game.start()
+	eq(String(ctx.creature_name), "RunOne", "precondition: run-1's name is set on the live ctx")
+	game.current.start_new_game(SLOT_NL, "normal", 4242)
+	eq(String(ctx.creature_name), "", "NEW LIFE wipes the chosen name (the reset block)")
+	eq(String(ctx.player_name), "Squish", "NEW LIFE resets the player name beside it")
+	eq(String(ctx.get_display_name()), String(Names.self_name(ctx.genome)),
+			"NEW LIFE's display falls back to the suggestion (never run-1's name)")
+	# the fresh slot's immediate save carries NO chosen name (the cross-slot
+	# leak is dead: a CONTINUE on this slot restores the suggestion path)
+	var fresh: Variant = JSON.parse_string(_read_slot(SLOT_NL))
+	ok(fresh is Dictionary, "the NEW LIFE slot wrote")
+	if fresh is Dictionary:
+		eq(String(fresh.get("creatureName", "")), "", "the new slot carries no run-1 name")
+	game.hud = {}
+	game.editor = {}
+	game.pause = {}
+	game.free()
+
+
+class _FakeCell extends "res://src/game/stage.gd":
+	func _init(g: Variant) -> void:
+		super(g, "cell")
+	func update(_dt: float) -> void:
+		pass

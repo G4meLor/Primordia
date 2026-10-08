@@ -482,6 +482,11 @@ func _probe_time(seed_v: int, shape: String, profile: Array) -> float:
 	ctx.difficulty = "normal"
 	ctx.run_shape = shape
 	ctx.karma_by_stage = profile
+	# R16 final-review wave: pin the eco snapshot like the file's own _mk_sim
+	# — the missing-snapshot neutral 0.5 added +6 output to BOTH legs, the
+	# baseline's regen waits vanished and the differential collapsed to the
+	# cooldown floor (ratio 1.000 at the T15 rig drift)
+	ctx.flags["ecoHealth"] = 0.0
 	var sim: Variant = CivSim.new(ctx, ctx.rng.branch(), {})  # silent hooks
 	sim.on_enter()
 	sim.chaos.gap = 1.0e9

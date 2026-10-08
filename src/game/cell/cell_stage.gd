@@ -42,6 +42,12 @@ const HudScript := preload("res://src/ui/hud.gd")
 const EditorUiScript := preload("res://src/ui/editor.gd")
 const PauseScript := preload("res://src/ui/pause.gd")
 const DeathDebriefScript := preload("res://src/ui/death_debrief.gd")
+# R8 species card (the final-review fix wave): the sim's extinctions queue
+# the card with no cell-side drain — the card surfaced minutes later
+# mid-creature. The cell stage drains it here (the creature stage keeps its
+# drain for anything queued across a stage line).
+const SpeciesCardItem := preload("res://src/gfx/species_card_item.gd")
+const SPECIES_CARD_TTL := 6.0
 
 var sim: Variant = null            # CellSim (RefCounted sim core)
 var fx: Variant = null             # stage Particles pool (TS `new Fx(1200)`)
@@ -64,6 +70,8 @@ var world_canvas: Node2D = null
 var _back_buffer: BackBufferCopy = null
 var glitch_overlay: Node2D = null
 var ui_canvas: Node2D = null
+var _species_card: Variant = null   # R8 extinction card (the shared item)
+var _species_card_ttl := 0.0
 var veil_canvas: Node2D = null
 var hud_canvas: Node2D = null
 var editor_canvas: Node2D = null
@@ -147,6 +155,12 @@ func _ready() -> void:
 	pause_canvas.name = "PauseCanvas"
 	pause_canvas.visible = false
 	add_child(pause_canvas)
+	# R8 card layer (the creature stage's slot): the extinction card draws
+	# over the hud but never over the editor/pause veils
+	_species_card = SpeciesCardItem.new()
+	add_child(_species_card)
+	move_child(_species_card, get_children().find(editor_canvas))
+	_species_card.visible = false
 
 
 ## Task 8 wiring: the TS Game constructor owns hud/pauseMenu/editor
@@ -435,6 +449,7 @@ func _draw_ui(ci: CanvasItem) -> void:
 func update(dt: float) -> void:
 	if sim == null or frozen:
 		return
+	_update_species_card(dt)  # R8: drain + tick the extinction card (the fix-wave cell drain)
 	if game.input.key_pressed("KeyE") and not bool(game.editor["open"]):
 		if sim.php <= 0.0 or sim.deathFade > 0.0:
 			game.hud["toast"].call(tr("Survive first — evolve while alive"), "info", "🧬")
@@ -504,6 +519,13 @@ func render() -> void:
 	ui_canvas.queue_redraw()
 	veil_canvas.queue_redraw()
 	hud_canvas.queue_redraw()
+	# R8: the extinction card repaints (the clear-per-redraw contract keeps
+	# RIDs flat). The cell stage owns the screen-space default — the camera
+	# rig is disabled here, so the live inverse is identity and the card's
+	# frame IS its fixed screen rect (the creature stage composes its rig).
+	if _species_card != null and _species_card.visible:
+		_species_card.frame = _species_card.screen_rect
+		_species_card.queue_redraw()
 	var editor_open: bool = bool(game.editor["open"])
 	editor_canvas.visible = editor_open
 	if editor_open:
@@ -731,3 +753,34 @@ func _build_input_snapshot() -> Dictionary:
 		"keys_held": held,
 		"keys_pressed": game.input.keys_pressed.keys(),
 	}
+
+
+# ---- R8 extinction card (the fix-wave cell drain) ---------------------------------
+
+## The creature stage's drain shape verbatim: one card at a time, the next
+## appears when the current expires (transient UI — a save/load drops pending
+## cards). The cell sim's extinctions queue at the death instant; WITHOUT
+## this drain the card waited for the creature stage and surfaced minutes
+## later mid-creature — the R8 moment lands in the stage that lost the
+## species (the final-review ruling).
+func _update_species_card(dt: float) -> void:
+	if _species_card == null:
+		return
+	if _species_card_ttl > 0.0:
+		_species_card_ttl -= dt
+		if _species_card_ttl <= 0.0:
+			_release_species_card()
+		return
+	if _species_card.genome.is_empty() and not game.context.species_cards.is_empty():
+		var card_data: Dictionary = game.context.species_cards.pop_front()
+		_species_card.show_card(card_data["genome"], String(card_data["name"]),
+				game.vw, game.vh)
+		_species_card_ttl = SPECIES_CARD_TTL
+
+
+func _release_species_card() -> void:
+	_species_card_ttl = 0.0
+	if _species_card != null:
+		SpeciesCardItem.Card.release(_species_card)  # MUST 2
+		_species_card.genome = {}
+		_species_card.visible = false
