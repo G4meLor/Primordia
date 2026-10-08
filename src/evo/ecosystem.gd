@@ -364,6 +364,23 @@ func _pop_sum() -> float:
 	return sum
 
 
+# ---- R14 eco health (one home, two consumers: the creature-exit snapshot
+# writes it, the civ start-output reads it) ---------------------------------------
+
+## The base land roster seed_land_ecology plants (6 archetypes). The divisor
+## of the ecoHealth snapshot — titan/swarm bonus lines and mutation spawns
+## clamp to full health, extinctions drag it down.
+const BASE_ROSTER := 6.0
+
+
+## Living lines over the base roster, 0..1. Duck-typed on the eco (the -s
+## mode constraint): anything answering living() works.
+static func health(eco_v) -> float:
+	if eco_v == null:
+		return 0.5
+	return clampf(float(eco_v.living().size()) / BASE_ROSTER, 0.0, 1.0)
+
+
 # ---- kin_memory shared plumbing (minor 14: one home, two stage consumers) ----
 
 ## Designate the ONE social species carrying the world's single grudge

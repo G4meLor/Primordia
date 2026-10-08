@@ -79,6 +79,11 @@ const DT := 1.0 / 60.0
 ## (restore_state reads the empty flags, toast_inset 150, the objective line).
 func _boot(seed_v: int) -> Variant:
 	var ctx: Variant = ContextScript.new(seed_v)
+	# R14: the probes pin the TS-verbatim mechanics at the TS BASE output 10 —
+	# the eco snapshot reads the 0.5 neutral when missing, which would lift
+	# every full-board/karma pin by +6. Pin the collapsed snapshot (0.0) so
+	# the accounting stays the frozen source's.
+	ctx.flags["ecoHealth"] = 0.0
 	var game: Variant = GameScript.new(ctx)
 	game.set_process(false)
 	game.loop.is_active_cb = func() -> bool: return false
@@ -559,9 +564,10 @@ func test_tick_second_personalities_over_real_seconds() -> void:
 			exp_inf[pick_i] = float(exp_inf[pick_i]) - 2.0  # TS:422 — always −2 (not its own)
 			buys += 1
 		# the burning tail: nothing burns here (TS:427 skipped)
-		# hearts (TS:433-434): culture 3 / econ 3 → +0.01/s on enemy cities
+		# hearts (TS:433-434 + the R14 culture knob 0.006 → 0.014):
+		# culture 3 / econ 3 → +0.034/s on enemy cities
 		for k in [1, 2, 3]:
-			exp_inf[k] = float(exp_inf[k]) + (3.0 * 0.006 + 3.0 * 0.004 - 0.02)
+			exp_inf[k] = float(exp_inf[k]) + (3.0 * 0.014 + 3.0 * 0.004 - 0.02)
 			exp_inf[k] = clampf(float(exp_inf[k]), -100.0, 100.0)
 		# the flip/revolt block: unreachable at these values (TS:442-456)
 	# the asserts — the sim must match the derivation everywhere
@@ -596,12 +602,14 @@ func test_tick_second_personalities_over_real_seconds() -> void:
 	_drop(g)
 
 
-## Pin provenance: the hearts formula TS:430-436 verbatim — every ENEMY city:
-## influence += culture·0.006 + econ·0.004 − 0.02, clamped ±100, per
-## tickSecond. Seed 0xC178. The personalities are DEFUSED (all military — the
-## fixture-write comment at the helper) so the enemy-city identity is
+## Pin provenance: the hearts formula TS:430-436 with the ONE documented R14
+## divergence — the culture weight rose 0.006 → 0.014 (the pacifist-viability
+## knob; econ 0.004 and the −0.02 unrest baseline stay verbatim) — every
+## ENEMY city: influence += culture·0.014 + econ·0.004 − 0.02, clamped ±100,
+## per tickSecond. Seed 0xC178. The personalities are DEFUSED (all military —
+## the fixture-write comment at the helper) so the enemy-city identity is
 ## hearts-pure; two 50-second phases isolate the two weights: phase A
-## culture 10 → +0.04/s; phase B econ 10 → +0.02/s (a swapped/missing weight
+## culture 10 → +0.12/s; phase B econ 10 → +0.02/s (a swapped/missing weight
 ## moves either phase off its pin). The clamp twin: a city at 99.99 clamps to
 ## 100 and flips on the SAME tick — the tick-side flip has NO hp floor
 ## (unlike the resolve's max(hp, 40), TS:441-447 vs :384-389).
@@ -613,21 +621,23 @@ func test_hearts_formula_over_real_seconds() -> void:
 	sim.mil = 0.0
 	sim.culture = 10.0
 	sim.econ = 0.0  # total 10 — the regen stays dead, the lanes never move
-	# phase A: culture 10 → rate 0.006·10 + 0.004·0 − 0.02 = +0.04/s
+	# R14 divergence: the culture weight rose 0.006 → 0.014 (the pacifist-
+	# viability knob — the econ weight and the unrest baseline stay TS:433).
+	# phase A: culture 10 → rate 0.014·10 + 0.004·0 − 0.02 = +0.12/s
 	for i in 50:
 		sim.update(1.0, _inp())
-	approx(float(sim.cities[1]["influence"]), -60.0 + 50.0 * 0.04,
-			"phase A: culture weight 0.006·10 → +0.04/s over 50 s (TS:433)", 1e-9)
-	approx(float(sim.cities[3]["influence"]), -60.0 + 50.0 * 0.04,
+	approx(float(sim.cities[1]["influence"]), -60.0 + 50.0 * 0.12,
+			"phase A: culture weight 0.014·10 → +0.12/s over 50 s (TS:433 + the R14 knob)", 1e-9)
+	approx(float(sim.cities[3]["influence"]), -60.0 + 50.0 * 0.12,
 			"phase A: every enemy city drifts at the same rate", 1e-9)
 	# phase B: econ 10 → rate 0 + 0.004·10 − 0.02 = +0.02/s (the WEIGHTS are
-	# distinguished: B is exactly half of A)
+	# distinguished: B is a sixth of A under the R14 culture weight)
 	sim.culture = 0.0
 	sim.econ = 10.0
 	for i in 50:
 		sim.update(1.0, _inp())
-	approx(float(sim.cities[1]["influence"]), -58.0 + 50.0 * 0.02,
-			"phase B: econ weight 0.004·10 → +0.02/s — half of phase A (TS:433)", 1e-9)
+	approx(float(sim.cities[1]["influence"]), -54.0 + 50.0 * 0.02,
+			"phase B: econ weight 0.004·10 → +0.02/s (TS:433 + the R14 knob)", 1e-9)
 	eq(float(sim.cities[1]["pop"]), 6.0, "hearts moves influence only — the enemy pop is frozen")
 	_drop(g)
 	# the clamp → flip twin: the tick-side flip has NO hp floor
@@ -641,7 +651,7 @@ func test_hearts_formula_over_real_seconds() -> void:
 	sim2.cities[1]["influence"] = 99.99
 	sim2.cities[1]["hp"] = 33.0
 	sim2.update(1.0, _inp())
-	eq(float(sim2.cities[1]["influence"]), 100.0, "99.99 + 0.04 clamps at 100 (TS:434)")
+	eq(float(sim2.cities[1]["influence"]), 100.0, "99.99 + 0.12 clamps at 100 (TS:434 + the R14 knob)")
 	eq(String(sim2.cities[1]["owner"]), "you", "influence ≥ 100 → the tick-side flip (TS:443-444)")
 	eq(float(sim2.cities[1]["hp"]), 33.0, "the TICK flip does NOT touch hp — no 40 floor here (TS:441-447 vs :386)")
 	ok(_find_banner(g2, "KHORA JOINS YOUR PLANETARY STATE") != null,

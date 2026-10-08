@@ -15,6 +15,16 @@
 ## though the defs only exist when the gate is open.
 ## Def name/warn strings stay the raw English keys — the TS hud renders banner
 ## titles through t() at display time, so the native HUD translates them.
+##
+## R14 world attach: three MORE trait-gated defs fold in at make time —
+## toxin_sea → acid_monsoon, hungry_bloom → famine, mutation_moon → moon_cult
+## (the spec's R14 row; the cell deck's toxin_clouds precedent). These are
+## NATIVE-side events (the frozen TS deck has none of them — the traitless
+## fold stays byte-identical to civEvents.ts), gated by the world genome's
+## trait IDS via WorldGenome.has_trait (hungry_bloom carries no flag effect,
+## so the flag-based world_has cannot see it). They keep the def shape —
+## famine/monsoon ride the scheduler's own warn→apply→(tick) clock (no
+## hand-rolled timers), the cult is the quake/rebellion instant shape.
 extends RefCounted
 
 const WorldGenomeScript := preload("res://src/evo/world_genome.gd")
@@ -108,8 +118,61 @@ static func _trade_winds(calm: bool) -> Dictionary:
 	}
 
 
+## R14 trait-gated faces — the world genome's civ-side reach. Weights follow
+## the golden_rival shape (0.5 + chaos×0.5, chaos-revealed traits lean on the
+## chaos meter); the gate bool rides the weight fn defensively (the def only
+## exists when the fold let it in, the _golden_rival pattern).
+
+## toxin_sea → acid monsoon: acid rain falls on EVERY city on the planet —
+## hp drains ~2/s across the 6 s span (warn phase FIRST, the chaos law; the
+## burning floor 5.0 holds).
+static func _acid_monsoon(on: bool) -> Dictionary:
+	return {
+		"id": "acid_monsoon",
+		"name": "☣️ ACID MONSOON",
+		"warn": "The clouds curdle — acid rain gathers over every city…",
+		"weight": func(c) -> float: return (0.5 + float(c["chaos"]) * 0.5) if on else 0.0,
+		"duration": [6.0, 6.0],
+		"cooldown": 90,
+		"apply": func(s, _rng): s.acid_monsoon_begin(),
+		"tick": func(s, _elapsed, dt): s.acid_monsoon_tick(dt),
+	}
+
+
+## hungry_bloom → famine: the granaries run dry — the national-output regen
+## clock freezes for the event's EXACT 20 s active span (civ_sim.update gates
+## the regenT accumulation on chaos.is_active("famine") — the scheduler's own
+## duration is the timer, nothing hand-rolled).
+static func _famine(on: bool) -> Dictionary:
+	return {
+		"id": "famine",
+		"name": "🌾 FAMINE",
+		"warn": "The granaries run dry — blight rides the wind…",
+		"weight": func(c) -> float: return (0.5 + float(c["chaos"]) * 0.5) if on else 0.0,
+		"duration": [20.0, 20.0],
+		"cooldown": 100,
+		"apply": func(s, _rng): s.famine_begin(),
+	}
+
+
+## mutation_moon → moon cult: crescent worshippers preach in your streets —
+## a ONE-SHOT culture burst of +15% of the current lane (the slider cap
+## holds; no tick — the quake/rebellion instant shape).
+static func _moon_cult(on: bool) -> Dictionary:
+	return {
+		"id": "moon_cult",
+		"name": "🌗 MOON CULT",
+		"warn": "Moonlight gathers worshippers on the ridgelines…",
+		"weight": func(c) -> float: return (0.5 + float(c["chaos"]) * 0.5) if on else 0.0,
+		"duration": [0.1, 0.1],
+		"cooldown": 75,
+		"apply": func(s, _rng): s.moon_cult(),
+	}
+
+
 ## TS makeCivChaosEvents (civEvents.ts:47-79): BASELINE + (gold ? golden_rival)
-## + (calm ? trade_winds).
+## + (calm ? trade_winds). R14: + (toxin_sea ? acid_monsoon) + (hungry_bloom ?
+## famine) + (mutation_moon ? moon_cult) — the trait-ID fold gates.
 static func make_civ_chaos_events(world: Dictionary) -> Array:
 	# swift_world: growth_mult above 1.2 lights the rival golden age (TS:48)
 	var gold: bool = WorldGenomeScript.world_num(world, "growth_mult", 1.0) > 1.2
@@ -120,4 +183,11 @@ static func make_civ_chaos_events(world: Dictionary) -> Array:
 		out.append(_golden_rival(gold))
 	if calm:
 		out.append(_trade_winds(calm))
+	# R14 — the world genome reaches the civ stage (fold-time gates)
+	if WorldGenomeScript.has_trait(world, "toxin_sea"):
+		out.append(_acid_monsoon(true))
+	if WorldGenomeScript.has_trait(world, "hungry_bloom"):
+		out.append(_famine(true))
+	if WorldGenomeScript.has_trait(world, "mutation_moon"):
+		out.append(_moon_cult(true))
 	return out

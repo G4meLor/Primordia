@@ -542,6 +542,11 @@ func update(dt: float, inp: Dictionary) -> void:
 			# FOUND TRIBE and the village re-fell 4s later (3 bounces measured,
 			# slot bricked until NEW LIFE)
 			ctx.flags.erase("tribeState")
+			# R14 rebirth floor: the wilds send you back STRONGER — the walk
+			# home pays a 50-DNA purse so the re-founder can edit before the
+			# re-found (deterministic floor, max not set; save_all below
+			# persists it with the transition)
+			ctx.dna = maxi(int(ctx.dna), 50)
 			_fire("save_all", [])
 			_fire("go_to", ["creature", {
 				"title": "BACK TO THE WILDS",

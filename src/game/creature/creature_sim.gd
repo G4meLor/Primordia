@@ -403,6 +403,11 @@ func on_enter() -> void:
 
 func on_exit() -> void:
 	ctx.eco = eco
+	# R14 eco snapshot: the living-web health rides every creature-stage exit
+	# (living lines over the 6-line base roster, 0..1) — the civ start output
+	# stacks it (roundi(health × 12), cap 22). camelCase wire like the rest of
+	# the flags blob.
+	ctx.flags["ecoHealth"] = EcoScript.health(eco)
 	persist_state()
 
 

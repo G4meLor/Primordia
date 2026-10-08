@@ -72,6 +72,10 @@ func _mk_sim(seed_v: int, shape := "", profile: Array = []) -> Dictionary:
 	ctx.difficulty = "normal"
 	ctx.run_shape = shape
 	ctx.karma_by_stage = profile
+	# R14: the conduct half is what this file pins — pin the eco snapshot at
+	# 0 so the start-output reads 10 + conduct alone (the missing-snapshot
+	# neutral 0.5 would add +6 to every pin)
+	ctx.flags["ecoHealth"] = 0.0
 	var rec: Dictionary = {
 		"toasts": [], "banners": [], "audio": [], "shakes": [], "spawns": [],
 		"objectives": [], "insets": [], "moods": [], "floats": [], "abilities": [],
